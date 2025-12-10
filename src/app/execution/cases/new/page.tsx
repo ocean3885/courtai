@@ -28,7 +28,7 @@ export default function NewCasePage() {
     // TODO: 사건 등록 API 호출
     console.log('New case:', formData);
     alert('사건이 등록되었습니다.');
-    router.push('/misc-execution/cases');
+    router.push('/execution/cases');
   };
 
   return (

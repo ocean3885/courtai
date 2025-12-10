@@ -1,4 +1,5 @@
 import { createRouteClient } from '@/lib/supabase/route';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 const ROLE_PERMISSIONS: Record<'USER' | 'OPERATOR', string[]> = {
@@ -6,9 +7,11 @@ const ROLE_PERMISSIONS: Record<'USER' | 'OPERATOR', string[]> = {
   OPERATOR: ['USER_MANAGEMENT', 'MISC_EXECUTION_READ', 'MISC_EXECUTION_WRITE'],
 };
 
-async function requireAdmin(request: NextRequest) {
+// Admin 권한 확인 및 Service Role 클라이언트 반환
+async function getAdminClient(request: NextRequest) {
   const { supabase, response } = createRouteClient(request);
 
+  // 1. 현재 로그인한 사용자 확인 (쿠키 기반)
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -17,20 +20,18 @@ async function requireAdmin(request: NextRequest) {
     return { errorResponse: NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 }) };
   }
 
-  const { data: profile, error: profileError } = await supabase
+  // 2. Service Role 클라이언트 생성 (RLS 우회)
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // 3. 실제 DB에서 유저 권한 확인 (Service Role 사용)
+  const { data: profile, error: profileError } = await supabaseAdmin
     .from('profiles')
     .select('role, is_active')
     .eq('id', user.id)
     .single();
-
-  if (profileError?.code === '42P17') {
-    return {
-      errorResponse: NextResponse.json(
-        { error: '프로필 RLS 정책을 확인해주세요 (무한 재귀 발생).' },
-        { status: 500, headers: response.headers }
-      ),
-    };
-  }
 
   if (profileError || !profile) {
     return {
@@ -50,25 +51,18 @@ async function requireAdmin(request: NextRequest) {
     };
   }
 
-  return { supabase, response, user } as const;
+  return { supabaseAdmin, response, user } as const;
 }
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request);
-  if ('errorResponse' in auth) return auth.errorResponse;
-  const { supabase, response } = auth;
+  const adminContext = await getAdminClient(request);
+  if ('errorResponse' in adminContext) return adminContext.errorResponse;
+  const { supabaseAdmin, response } = adminContext;
 
-  const { data, error } = await supabase
+  const { data, error } = await supabaseAdmin
     .from('profiles')
     .select('id, email, name, court, department, position, role, is_active, created_at, last_login_at')
     .order('created_at', { ascending: false });
-
-  if (error?.code === '42P17') {
-    return NextResponse.json(
-      { error: '프로필 RLS 정책을 확인해주세요 (무한 재귀 발생).' },
-      { status: 500, headers: response.headers }
-    );
-  }
 
   if (error) {
     return NextResponse.json(
@@ -81,9 +75,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdmin(request);
-  if ('errorResponse' in auth) return auth.errorResponse;
-  const { supabase, response } = auth;
+  const adminContext = await getAdminClient(request);
+  if ('errorResponse' in adminContext) return adminContext.errorResponse;
+  const { supabaseAdmin, response } = adminContext;
 
   let payload: any;
   try {
@@ -105,17 +99,11 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  const { error: updateError } = await supabase
+  // 1. 프로필 업데이트
+  const { error: updateError } = await supabaseAdmin
     .from('profiles')
     .update({ role, is_active: isActive ?? true })
     .eq('id', userId);
-
-  if (updateError?.code === '42P17') {
-    return NextResponse.json(
-      { error: '프로필 RLS 정책을 확인해주세요 (무한 재귀 발생).' },
-      { status: 500, headers: response.headers }
-    );
-  }
 
   if (updateError) {
     return NextResponse.json(
@@ -124,10 +112,13 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
+  // 2. Supabase Auth 메타데이터 업데이트 (선택 사항이지만 권장됨)
+  // supabaseAdmin.auth.admin.updateUserById(userId, { user_metadata: { role } });
+
   const requiredPermissions = ROLE_PERMISSIONS[role];
 
-  // 필요한 권한 upsert
-  const { error: permissionUpsertError } = await supabase
+  // 3. 권한 부여 (upsert)
+  const { error: permissionUpsertError } = await supabaseAdmin
     .from('user_permissions')
     .upsert(requiredPermissions.map((perm) => ({ user_id: userId, permission: perm })));
 
@@ -138,12 +129,12 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  // 불필요한 권한 제거 (해당 역할에 없는 권한은 삭제)
+  // 4. 불필요한 권한 제거
   const permsList = requiredPermissions.length
     ? `(${requiredPermissions.map((p) => `'${p}'`).join(',')})`
     : '(NULL)';
 
-  const { error: permissionCleanupError } = await supabase
+  const { error: permissionCleanupError } = await supabaseAdmin
     .from('user_permissions')
     .delete()
     .eq('user_id', userId)

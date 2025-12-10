@@ -1,4 +1,5 @@
 import { createRouteClient } from '@/lib/supabase/route';
+import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
@@ -38,7 +39,13 @@ export async function POST(request: NextRequest) {
 
     // 2. profiles 테이블 업서트 (없으면 생성, 있으면 추가 정보 업데이트)
     if (authData.user) {
-      const { error: profileError } = await supabase.from('profiles').upsert({
+      // Admin 클라이언트 생성 (RLS 우회하여 profiles 테이블 접근)
+      const supabaseAdmin = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      );
+
+      const { error: profileError } = await supabaseAdmin.from('profiles').upsert({
         id: authData.user.id,
         email: authData.user.email,
         name,

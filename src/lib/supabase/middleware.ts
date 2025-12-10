@@ -70,6 +70,13 @@ export async function updateSession(request: NextRequest) {
       url.pathname = '/auth/login';
       return NextResponse.redirect(url);
     }
+
+    // 관리자 페이지 접근 제어 (ADMIN 권한 확인)
+    if (request.nextUrl.pathname.startsWith('/admin') && profile?.role !== 'ADMIN') {
+      const url = request.nextUrl.clone();
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
   }
 
   // 로그인한 사용자가 인증 페이지 접근 시 대시보드로 리다이렉트

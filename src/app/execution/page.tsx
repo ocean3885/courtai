@@ -14,7 +14,7 @@ export default function MiscExecutionPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Link
-            href="/misc-execution/cases"
+            href="/execution/cases"
             className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center space-x-4">
@@ -29,7 +29,7 @@ export default function MiscExecutionPage() {
           </Link>
 
           <Link
-            href="/misc-execution/cases/new"
+            href="/execution/cases/new"
             className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center space-x-4">
@@ -44,7 +44,7 @@ export default function MiscExecutionPage() {
           </Link>
 
           <Link
-            href="/misc-execution/statistics"
+            href="/execution/statistics"
             className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow"
           >
             <div className="flex items-center space-x-4">

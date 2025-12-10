@@ -105,14 +105,14 @@ export default function DashboardPage() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">빠른 실행</h2>
             <div className="grid grid-cols-2 gap-4">
               <Link
-                href="/misc-execution/cases/new"
+                href="/execution/cases/new"
                 className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-center"
               >
                 <div className="text-3xl mb-2">➕</div>
                 <p className="text-sm font-medium text-gray-700">새 사건 등록</p>
               </Link>
               <Link
-                href="/misc-execution/cases"
+                href="/execution/cases"
                 className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all text-center"
               >
                 <div className="text-3xl mb-2">📋</div>
