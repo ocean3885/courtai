@@ -1,7 +1,7 @@
 import { updateSession } from '@/lib/supabase/middleware';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // API 라우트는 미들웨어를 건너뜀
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next();
