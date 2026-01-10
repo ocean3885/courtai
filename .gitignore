@@ -54,3 +54,4 @@ next-env.d.ts
 
 # Project specific
 /temp_parsing/
+/temp/
