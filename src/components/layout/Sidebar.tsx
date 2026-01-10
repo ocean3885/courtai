@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -8,24 +8,20 @@ interface NavItem {
   name: string;
   href: string;
   icon: string;
-  requiredPermission?: string;
+  isAdminOnly?: boolean;
 }
 
 const navigationItems: NavItem[] = [
   {
-    name: '대시보드',
-    href: '/dashboard',
-    icon: '📊',
-  },
-  {
-    name: '기타집행',
-    href: '/execution',
-    icon: '⚖️',
+    name: '개인회생',
+    href: '/rehabilitation',
+    icon: '📄',
   },
   {
     name: '사용자 관리',
     href: '/admin/users',
     icon: '👥',
+    isAdminOnly: true,
   },
 ];
 
@@ -36,28 +32,17 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname();
-  const [isAdmin, setIsAdmin] = React.useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  React.useEffect(() => {
-    const checkAdmin = async () => {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', user.id)
-          .single();
-
-        if (profile?.role === 'ADMIN') {
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.user?.role === 'ADMIN') {
           setIsAdmin(true);
         }
-      }
-    };
-
-    checkAdmin();
+      })
+      .catch(() => setIsAdmin(false));
   }, []);
 
   return (
@@ -94,11 +79,8 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
           <nav className="flex-1">
             <ul className="space-y-2">
               {navigationItems.map((item) => {
-                // 사용자 관리 메뉴는 ADMIN만 볼 수 있음
-                if (item.href === '/admin/users' && !isAdmin) {
-                  return null;
-                }
-
+                if (item.isAdminOnly && !isAdmin) return null;
+                
                 const isActive = pathname?.startsWith(item.href);
                 return (
                   <li key={item.href}>
