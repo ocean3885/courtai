@@ -11,11 +11,27 @@ interface NavItem {
   isAdminOnly?: boolean;
 }
 
-const navigationItems: NavItem[] = [
+interface NavGroup {
+  groupName: string;
+  items: NavItem[];
+  isAdminOnly?: boolean;
+}
+
+const navigation: (NavGroup | NavItem)[] = [
   {
-    name: '개인회생',
-    href: '/rehabilitation',
-    icon: '📄',
+    groupName: '개인회생',
+    items: [
+      {
+        name: '분석',
+        href: '/rehabilitation',
+        icon: '📄',
+      },
+      {
+        name: '분석 결과 목록',
+        href: '/rehabilitation/results',
+        icon: '📁',
+      },
+    ],
   },
   {
     name: '사용자 관리',
@@ -76,24 +92,58 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </button>
           </div>
 
-          <nav className="flex-1">
-            <ul className="space-y-2">
-              {navigationItems.map((item) => {
+          <nav className="flex-1 overflow-y-auto">
+            <ul className="space-y-6">
+              {navigation.map((item, index) => {
                 if (item.isAdminOnly && !isAdmin) return null;
-                
+
+                if ('groupName' in item) {
+                  return (
+                    <li key={item.groupName} className="space-y-2">
+                      <div className="flex items-center px-4 pt-2">
+                        <span className="w-1 h-3 bg-blue-600 rounded-full mr-2"></span>
+                        <h4 className="text-[12px] font-bold text-gray-900 uppercase tracking-wider">
+                          {item.groupName}
+                        </h4>
+                      </div>
+                      <ul className="space-y-1">
+                        {item.items.map((subItem) => {
+                          const isActive = pathname?.startsWith(subItem.href);
+                          return (
+                            <li key={subItem.href}>
+                              <Link
+                                href={subItem.href}
+                                onClick={() => onClose?.()}
+                                className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors ${isActive
+                                  ? 'bg-blue-50 text-blue-700 font-semibold'
+                                  : 'text-gray-600 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <span className="text-lg">{subItem.icon}</span>
+                                <span className="text-sm">{subItem.name}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </li>
+                  );
+                }
+
+                // 단일 아이템 (그룹 없는 경우)
                 const isActive = pathname?.startsWith(item.href);
                 return (
-                  <li key={item.href}>
+                  <li key={item.href} className="pt-4 mt-4 border-t border-gray-100">
                     <Link
                       href={item.href}
-                      onClick={() => onClose?.()} // 모바일에서 클릭 시 닫기
-                      className={`flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors ${isActive
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-gray-700 hover:bg-gray-50'
+                      onClick={() => onClose?.()}
+                      className={`flex items-center space-x-3 px-4 py-2.5 rounded-lg transition-colors ${isActive
+                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                        : 'text-gray-600 hover:bg-gray-50'
                         }`}
                     >
-                      <span className="text-xl">{item.icon}</span>
-                      <span>{item.name}</span>
+                      <span className="text-lg">{item.icon}</span>
+                      <span className="text-sm">{item.name}</span>
                     </Link>
                   </li>
                 );
