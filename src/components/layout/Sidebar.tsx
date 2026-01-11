@@ -34,6 +34,17 @@ const navigation: (NavGroup | NavItem)[] = [
     ],
   },
   {
+    groupName: 'AI 도구',
+    isAdminOnly: true,
+    items: [
+      {
+        name: 'LM Studio Chat',
+        href: '/lm-chat',
+        icon: '🤖',
+      },
+    ],
+  },
+  {
     isAdminOnly: true,
     groupName: '운영자',
     items: [
