@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
     try {
         const results = db.prepare(`
-            SELECT id, title, memo, created_at, updated_at 
+            SELECT id, title, memo, status, created_at, updated_at 
             FROM rehabilitation_results 
             WHERE user_id = ? 
             ORDER BY created_at DESC

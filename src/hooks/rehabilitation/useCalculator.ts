@@ -162,7 +162,9 @@ export const useCalculator = () => {
 
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
         const target = e.target as HTMLElement;
-        if (target.tagName === 'TEXTAREA' || (target.tagName === 'INPUT' && !target.dataset.calculatorInput)) {
+        if (target.tagName === 'TEXTAREA' ||
+            (target.tagName === 'INPUT' && !target.dataset.calculatorInput) ||
+            target.isContentEditable) {
             return;
         }
 

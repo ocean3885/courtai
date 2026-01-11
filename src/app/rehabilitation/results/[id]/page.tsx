@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCalculator } from '@/hooks/rehabilitation/useCalculator';
 import SmartCalculator from '@/components/rehabilitation/SmartCalculator';
+import { useRef } from 'react';
 
 interface ResultDetail {
     id: number;
@@ -13,6 +14,7 @@ interface ResultDetail {
     creditor_data: string;
     plan_data: string;
     memo: string;
+    status: string;
     created_at: string;
 }
 
@@ -22,9 +24,17 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
     const [data, setData] = useState<ResultDetail | null>(null);
     const [loading, setLoading] = useState(true);
     const [memo, setMemo] = useState('');
-    const [isEditing, setIsEditing] = useState(false);
+    const [showMemoModal, setShowMemoModal] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [lastClickedCell, setLastClickedCell] = useState<{ id: string, section: string, row: number, col: number } | null>(null);
+    const [forceOpenCalc, setForceOpenCalc] = useState<boolean | null>(null);
+    const [isTableEditMode, setIsTableEditMode] = useState(false);
+
+    const planContainerRef = useRef<HTMLDivElement>(null);
+    const creditorContainerRef = useRef<HTMLDivElement>(null);
+
+    const memoSectionRef = useRef<HTMLDivElement>(null);
+    const memoTextareaRef = useRef<HTMLTextAreaElement>(null);
 
     // 계산기 전용 훅 사용
     const calc = useCalculator();
@@ -52,6 +62,8 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
     };
 
     const handleCellClick = (e: React.MouseEvent) => {
+        if (isTableEditMode) return; // 편집 모드일 때는 계산기 클릭 방지
+
         const target = e.target as HTMLElement;
         const cell = target.closest('td, th');
         if (!cell || !cell.id) return;
@@ -102,13 +114,59 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
 
             if (itemsToBatch.length > 0) {
                 calc.addCellItems(itemsToBatch, true);
+                setForceOpenCalc(null);
             }
         } else {
             // 단일 클릭
             calc.addCellItem(cell.id, currentVal.value, currentVal.text);
+            setForceOpenCalc(null);
         }
 
         setLastClickedCell({ id: cell.id, section, row, col });
+    };
+
+    const handleUpdateTable = async () => {
+        if (!planContainerRef.current || !creditorContainerRef.current) return;
+        setIsSaving(true);
+        try {
+            // contentEditable 속성이나 불요한 클래스 제거 등 클린업은 필요 없음 (렌더링 시 다시 입히기 때문)
+            // 다만 contentEditable="true" 문자열이 저장되지 않도록 HTML을 가져온 후 교체 가능
+            const planHtml = planContainerRef.current.querySelector('.structured-content')?.innerHTML || '';
+            const creditorHtml = creditorContainerRef.current.querySelector('.structured-content')?.innerHTML || '';
+
+            // ID와 contentEditable 속성 제거 (순수 데이터만 저장)
+            const clean = (html: string) => {
+                return html
+                    .replace(/\s+id="cell-[^"]*"/g, '')
+                    .replace(/\s+contenteditable="[^"]*"/g, '')
+                    .replace(/\s+class="[^"]*editable-cell[^"]*"/g, '');
+            };
+
+            if (!planHtml || !creditorHtml) {
+                alert('데이터를 정상적으로 읽어오지 못했습니다. 편집 내용이 사라지는 것을 방지하기 위해 저장을 중단합니다.');
+                return;
+            }
+
+            const res = await fetch(`/api/rehabilitation/results/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    plan_data: clean(planHtml),
+                    creditor_data: clean(creditorHtml)
+                }),
+            });
+
+            if (res.ok) {
+                await fetchDetail(); // 최신 데이터로 리프레시
+                setIsTableEditMode(false);
+            } else {
+                alert('저장에 실패했습니다.');
+            }
+        } catch (err) {
+            console.error('Save error:', err);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const renderData = (content: string, sectionKey: string) => {
@@ -135,7 +193,11 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
             });
 
             return (
-                <div className="relative overflow-hidden rounded-2xl" onClick={handleCellClick}>
+                <div
+                    ref={sectionKey === 'plan' ? planContainerRef : creditorContainerRef}
+                    className={`relative overflow-hidden rounded-[2rem] transition-all ${isTableEditMode ? 'ring-4 ring-blue-500 ring-offset-8 bg-blue-50/10' : ''}`}
+                    onClick={handleCellClick}
+                >
                     <style jsx global>{`
                         .structured-content table {
                             width: 100%;
@@ -145,6 +207,7 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             border: 1px solid #e5e7eb;
                             border-radius: 12px;
                             overflow: hidden;
+                            table-layout: fixed;
                         }
                         .structured-content th {
                             background-color: #f8fafc;
@@ -156,7 +219,8 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             font-size: 0.85rem;
                             text-transform: uppercase;
                             letter-spacing: 0.05em;
-                            cursor: pointer;
+                            cursor: ${isTableEditMode ? 'text' : 'pointer'};
+                            word-break: break-all;
                         }
                         .structured-content td {
                             padding: 12px 16px;
@@ -164,13 +228,30 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             color: #334155;
                             font-size: 0.9rem;
                             vertical-align: top;
-                            cursor: pointer;
+                            cursor: ${isTableEditMode ? 'text' : 'pointer'};
                             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                            user-select: none;
+                            user-select: ${isTableEditMode ? 'text' : 'none'};
+                            word-break: break-all;
                         }
                         .structured-content td:hover {
-                            background-color: #f8fafc;
+                            background-color: ${isTableEditMode ? 'white' : '#f8fafc'};
+                            box-shadow: ${isTableEditMode ? 'inset 0 0 0 2px #3b82f6' : 'none'};
                         }
+                        
+                        ${isTableEditMode ? `
+                            .structured-content td, .structured-content th {
+                                border-style: dashed !important;
+                                border-color: #3b82f6 !important;
+                            }
+                            .structured-content td:focus, .structured-content th:focus {
+                                outline: none !important;
+                                background-color: white !important;
+                                box-shadow: inset 0 0 0 3px #3b82f6 !important;
+                                z-index: 20;
+                                position: relative;
+                            }
+                        ` : ''}
+
                         .structured-content tr:last-child td {
                             border-bottom: none;
                         }
@@ -178,7 +259,7 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             background-color: #fcfcfd;
                         }
                         /* 선택된 셀 스타일 */
-                        ${calc.calcItems.filter(i => i.type === 'cell').map(c => `
+                        ${!isTableEditMode ? calc.calcItems.filter(i => i.type === 'cell').map(c => `
                             .structured-content [id="${c.id}"] {
                                 background-color: #dbeafe !important;
                                 box-shadow: inset 0 0 0 2px #3b82f6 !important;
@@ -187,7 +268,7 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                                 z-index: 10;
                                 font-weight: 700;
                             }
-                        `).join('\n')}
+                        `).join('\n') : ''}
                         
                         .structured-content h1, .structured-content h2, .structured-content h3 {
                             color: #0f172a;
@@ -195,33 +276,11 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             letter-spacing: -0.02em;
                             margin-top: 2.5rem;
                             margin-bottom: 1rem;
-                            display: flex;
-                            align-items: center;
-                        }
-                        .structured-content h1 {
-                            font-size: 2rem;
-                            border-bottom: 3px solid #3b82f6;
-                            padding-bottom: 0.75rem;
-                            margin-top: 3.5rem;
-                        }
-                        .structured-content h2 {
-                            font-size: 1.5rem;
-                            border-bottom: 2px solid #e2e8f0;
-                            padding-bottom: 0.5rem;
-                        }
-                        .structured-content h3 {
-                            font-size: 1.25rem;
-                            padding-left: 1rem;
-                            border-left: 4px solid #10b981;
-                        }
-                        .structured-content p {
-                            margin: 1rem 0;
-                            line-height: 1.7;
-                            color: #475569;
                         }
                     `}</style>
-                    <div
-                        className="structured-content prose prose-slate max-w-none prose-img:rounded-3xl prose-a:text-blue-600 prose-blockquote:border-blue-500 prose-blockquote:bg-blue-50 prose-blockquote:p-4 prose-blockquote:rounded-xl"
+                    <div className="structured-content"
+                        contentEditable={isTableEditMode}
+                        suppressContentEditableWarning={true}
                         dangerouslySetInnerHTML={{ __html: processedHtml }}
                     />
                 </div>
@@ -247,7 +306,7 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
             });
             const json = await res.json();
             if (json.success) {
-                setIsEditing(false);
+                setShowMemoModal(false);
                 if (data) setData({ ...data, memo });
             }
         } catch (err) {
@@ -256,6 +315,26 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
             setIsSaving(false);
         }
     };
+
+    const handleStatusChange = async (newStatus: string) => {
+        if (!data || data.status === newStatus) return;
+
+        try {
+            const res = await fetch(`/api/rehabilitation/results/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const json = await res.json();
+            if (json.success) {
+                setData({ ...data, status: newStatus });
+            }
+        } catch (err) {
+            alert('상태 변경 실패');
+        }
+    };
+
+
 
     if (loading) return (
         <MainLayout>
@@ -270,7 +349,7 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
 
     return (
         <MainLayout>
-            <SmartCalculator {...calc} />
+            <SmartCalculator {...calc} forceShow={forceOpenCalc ?? undefined} onClose={() => setForceOpenCalc(false)} />
 
             <div className="max-w-6xl mx-auto space-y-10 pb-20">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -279,8 +358,30 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                             <span className="mr-2 transition-transform group-hover:-translate-x-1">←</span> 목차로 돌아가기
                         </Link>
                         <div>
-                            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{data.title}</h1>
-                            <p className="text-slate-500 font-medium mt-2 flex items-center gap-2">
+                            <div className="flex items-center gap-4 mb-2">
+                                <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{data.title}</h1>
+
+                                {/* Status Toggle */}
+                                <div className="flex bg-slate-100/80 p-1 rounded-xl border border-slate-200/50 shadow-inner backdrop-blur-sm gap-1">
+                                    {(['검토중', '검토완료', '보정'] as const).map((s) => (
+                                        <button
+                                            key={s}
+                                            onClick={() => handleStatusChange(s)}
+                                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all duration-300 active:scale-95 ${data.status === s
+                                                ? s === '검토중'
+                                                    ? 'bg-amber-500 text-white shadow-md shadow-amber-200 ring-2 ring-white/20'
+                                                    : s === '검토완료'
+                                                        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-200 ring-2 ring-white/20'
+                                                        : 'bg-rose-600 text-white shadow-md shadow-rose-200 ring-2 ring-white/20'
+                                                : 'text-slate-400 hover:text-slate-600 hover:bg-white/50'
+                                                }`}
+                                        >
+                                            {s}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="text-slate-500 font-medium flex items-center gap-2">
                                 <span className="w-2 h-2 bg-slate-300 rounded-full"></span>
                                 {new Date(data.created_at).toLocaleString('ko-KR', { dateStyle: 'long', timeStyle: 'short' })} 분석됨
                             </p>
@@ -323,68 +424,104 @@ export default function ResultDetailPage({ params }: { params: Promise<{ id: str
                         </div>
                     </section>
 
-                    <div className="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+                </div>
 
-                    {/* 3. 섹터 최하단: 사건 메모 */}
-                    <section className="space-y-6">
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center gap-3">
-                                <div className="p-3 bg-slate-800 rounded-2xl shadow-lg shadow-slate-200">
-                                    <span className="text-white text-xl">📌</span>
-                                </div>
-                                <div>
-                                    <h4 className="text-2xl font-black text-slate-900">사건 메모 및 특이사항</h4>
-                                    <p className="text-slate-500 text-sm font-medium">사건 처리에 필요한 부가적인 정보와 특이사항을 기록합니다.</p>
-                                </div>
+                {/* Floating Action Buttons */}
+                <div className="fixed bottom-10 right-10 flex flex-col gap-4 z-[100]">
+                    {!isTableEditMode ? (
+                        <>
+                            <button
+                                onClick={() => {
+                                    const isVisible = forceOpenCalc === true || (forceOpenCalc !== false && (calc.calcItems.length > 0 || calc.buffer || calc.savedResults.length > 0));
+                                    if (isVisible) {
+                                        setForceOpenCalc(false);
+                                    } else {
+                                        setForceOpenCalc(true);
+                                    }
+                                }}
+                                className="w-16 h-16 bg-white border border-slate-100 shadow-2xl rounded-3xl flex items-center justify-center text-2xl hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all text-blue-600"
+                                title={forceOpenCalc === true || (forceOpenCalc !== false && (calc.calcItems.length > 0 || calc.buffer || calc.savedResults.length > 0)) ? "계산기 닫기" : "계산기 열기"}
+                            >
+                                🔢
+                            </button>
+                            <button
+                                onClick={() => setIsTableEditMode(true)}
+                                className="w-16 h-16 bg-white border border-slate-100 shadow-2xl rounded-3xl flex items-center justify-center text-2xl hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all text-slate-600"
+                                title="표 데이터 직접 수정"
+                            >
+                                🛠️
+                            </button>
+                            <button
+                                onClick={() => setShowMemoModal(true)}
+                                className="w-16 h-16 bg-blue-600 shadow-2xl shadow-blue-200 rounded-3xl flex items-center justify-center text-2xl hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all text-white"
+                                title="메모 작성하기"
+                            >
+                                ✏️
+                            </button>
+                        </>
+                    ) : (
+                        <div className="flex flex-col gap-4 animate-in slide-in-from-bottom duration-300">
+                            <div className="bg-blue-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold text-sm flex items-center gap-3">
+                                <span className="animate-pulse">✍️</span> 편집 모드 활성화 중
                             </div>
                             <button
-                                onClick={() => isEditing ? handleUpdateMemo() : setIsEditing(true)}
-                                className={`px-6 py-3 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-sm ${isEditing ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+                                onClick={handleUpdateTable}
                                 disabled={isSaving}
+                                className="w-16 h-16 bg-emerald-600 shadow-2xl shadow-emerald-200 rounded-3xl flex items-center justify-center text-xl hover:bg-emerald-700 hover:scale-110 active:scale-95 transition-all text-white font-bold"
+                                title="저장 및 종료"
                             >
-                                {isSaving ? (
-                                    <>
-                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                                        저장 중...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span>{isEditing ? '💾 메모 저장하기' : '✏️ 메모 수정하기'}</span>
-                                    </>
-                                )}
+                                {isSaving ? '...' : '💾'}
+                            </button>
+                            <button
+                                onClick={() => setIsTableEditMode(false)}
+                                className="w-16 h-16 bg-white border border-slate-100 shadow-2xl rounded-3xl flex items-center justify-center text-sm hover:bg-slate-50 hover:scale-110 active:scale-95 transition-all text-slate-400 font-bold"
+                                title="취소"
+                            >
+                                ✕
                             </button>
                         </div>
+                    )}
+                </div>
 
-                        <div className="bg-white rounded-[2rem] p-8 md:p-10 border border-slate-100 shadow-xl shadow-slate-200/50">
-                            {isEditing ? (
+                {/* Memo Side Panel */}
+                {showMemoModal && (
+                    <div className="fixed inset-0 z-[110] flex justify-end p-0 animate-in fade-in duration-300">
+                        {/* Semi-transparent backdrop without blur */}
+                        <div
+                            className="absolute inset-0 bg-slate-900/5 cursor-pointer"
+                            onClick={() => !isSaving && handleUpdateMemo()}
+                        />
+                        <div className="bg-white w-full max-w-[320px] h-full shadow-[-20px_0_50px_-12px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col animate-in slide-in-from-right duration-500 ease-out border-l border-slate-100">
+                            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2.5 bg-blue-600 rounded-xl shadow-lg shadow-blue-100">
+                                        <span className="text-white text-lg">📝</span>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-black text-slate-900 leading-tight">사건 메모</h3>
+                                        <p className="text-slate-400 text-[9px] font-bold uppercase tracking-wider">Auto-save on close</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => !isSaving && handleUpdateMemo()}
+                                    className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center text-lg transition-all"
+                                    title="저장 및 닫기"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="flex-1 p-6 overflow-hidden flex flex-col">
                                 <textarea
-                                    className="w-full p-6 border border-blue-200 rounded-2xl text-sm outline-none focus:ring-4 focus:ring-blue-500/10 min-h-[200px] transition-all bg-slate-50 leading-relaxed text-slate-700"
+                                    className="flex-1 w-full p-5 bg-slate-50/50 border border-slate-100 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/5 transition-all text-slate-700 text-sm leading-relaxed custom-scrollbar resize-none"
                                     value={memo}
                                     onChange={(e) => setMemo(e.target.value)}
-                                    placeholder="분석 과정에서 발견된 특이사항이나 진행 메모를 입력하세요."
+                                    placeholder="내용을 입력하세요. 창을 닫으면 자동으로 저장됩니다."
+                                    autoFocus
                                 />
-                            ) : (
-                                <div className="space-y-4">
-                                    {data.memo ? (
-                                        <p className="text-slate-600 text-sm whitespace-pre-wrap leading-relaxed">
-                                            {data.memo}
-                                        </p>
-                                    ) : (
-                                        <div className="py-10 flex flex-col items-center justify-center text-center space-y-4 bg-slate-50/50 rounded-2xl border-2 border-dashed border-slate-200">
-                                            <p className="text-slate-400 font-medium">아직 등록된 메모가 없습니다.</p>
-                                            <button
-                                                onClick={() => setIsEditing(true)}
-                                                className="text-blue-600 font-bold text-sm hover:underline"
-                                            >
-                                                + 새로운 메모 작성하기
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            </div>
                         </div>
-                    </section>
-                </div>
+                    </div>
+                )}
             </div>
         </MainLayout>
     );

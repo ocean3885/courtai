@@ -8,6 +8,7 @@ interface ResultItem {
     id: number;
     title: string;
     memo: string;
+    status: string;
     created_at: string;
     updated_at: string;
 }
@@ -36,6 +37,7 @@ export default function ResultsListPage() {
 
     const handleDelete = async (id: number, e: React.MouseEvent) => {
         e.preventDefault();
+        e.stopPropagation();
         if (!confirm('정말 삭제하시겠습니까?')) return;
 
         try {
@@ -53,60 +55,96 @@ export default function ResultsListPage() {
         }
     };
 
+    const getStatusBadge = (status: string) => {
+        switch (status) {
+            case '검토완료':
+                return <span className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-xs font-bold">검토완료</span>;
+            case '보정':
+                return <span className="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-xs font-bold">보정</span>;
+            default:
+                return <span className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-xs font-bold">검토중</span>;
+        }
+    };
+
     return (
         <MainLayout>
-            <div className="max-w-4xl mx-auto space-y-8">
-                <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">내 분석 결과 리스트</h1>
-                        <p className="text-gray-600 mt-2">저장된 사건 분석 결과물을 관리하세요.</p>
+            <div className="max-w-6xl mx-auto space-y-6">
+                <div className="flex flex-col md:flex-row justify-between items-center bg-white p-6 rounded-2xl border border-slate-100 shadow-sm gap-6">
+                    <div className="flex items-center gap-5">
+                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-2xl shadow-inner">
+                            📁
+                        </div>
+                        <div>
+                            <h1 className="text-2xl font-bold text-slate-900 tracking-tight">내 사건 목록</h1>
+                            <p className="text-slate-400 font-medium text-xs mt-0.5">Your Rehabilitation Case History</p>
+                        </div>
                     </div>
-                    <Link
-                        href="/rehabilitation"
-                        className="px-6 py-2.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all text-sm shadow-sm"
-                    >
-                        새 분석 시작하기
-                    </Link>
                 </div>
 
-                {loading ? (
-                    <div className="py-20 flex justify-center">
-                        <div className="w-10 h-10 border-4 border-blue-50 border-t-blue-600 rounded-full animate-spin"></div>
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                    {/* Header */}
+                    <div className="grid grid-cols-[60px_1fr_120px_140px_80px] bg-slate-50 border-b border-slate-100 px-6 py-4 text-sm font-bold text-slate-500 text-center">
+                        <div>번호</div>
+                        <div className="text-left px-4">사건번호</div>
+                        <div>검토상태</div>
+                        <div>작성일</div>
+                        <div>관리</div>
                     </div>
-                ) : results.length === 0 ? (
-                    <div className="py-20 text-center bg-white rounded-3xl border border-gray-100 shadow-sm">
-                        <span className="text-4xl mb-4 block">📁</span>
-                        <p className="text-gray-500 font-medium">저장된 결과가 없습니다.</p>
-                    </div>
-                ) : (
-                    <div className="grid gap-4">
-                        {results.map((item) => (
-                            <Link
-                                key={item.id}
-                                href={`/rehabilitation/results/${item.id}`}
-                                className="group p-6 bg-white rounded-2xl border border-gray-100 shadow-sm hover:border-blue-200 hover:shadow-md transition-all flex justify-between items-center"
-                            >
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-1">
-                                        <h3 className="font-bold text-lg text-gray-900 group-hover:text-blue-600 transition-colors">
-                                            {item.title}
-                                        </h3>
-                                        <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">
-                                            {new Date(item.created_at).toLocaleDateString()}
-                                        </span>
-                                    </div>
-                                    <p className="text-sm text-gray-500 line-clamp-1">{item.memo || '첨부된 메모가 없습니다.'}</p>
-                                </div>
-                                <button
-                                    onClick={(e) => handleDelete(item.id, e)}
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+
+                    {loading ? (
+                        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+                            <div className="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+                            <p className="text-slate-400 font-bold text-sm animate-pulse">리스트를 불러오는 중...</p>
+                        </div>
+                    ) : results.length === 0 ? (
+                        <div className="py-20 text-center">
+                            <p className="text-slate-400 font-bold text-lg">저장된 결과가 없습니다.</p>
+                        </div>
+                    ) : (
+                        <div className="divide-y divide-slate-50">
+                            {results.map((item, index) => (
+                                <Link
+                                    key={item.id}
+                                    href={`/rehabilitation/results/${item.id}`}
+                                    className="group grid grid-cols-[60px_1fr_120px_140px_80px] items-center px-6 py-3 hover:bg-slate-50 transition-all cursor-pointer"
                                 >
-                                    <span className="text-xl">🗑️</span>
-                                </button>
-                            </Link>
-                        ))}
-                    </div>
-                )}
+                                    <div className="text-sm font-medium text-slate-400 text-center">
+                                        {results.length - index}
+                                    </div>
+                                    <div className="px-4 overflow-hidden">
+                                        <div className="font-bold text-slate-700 group-hover:text-blue-600 transition-colors truncate">
+                                            {item.title}
+                                        </div>
+                                        {item.memo && (
+                                            <div className="text-xs text-slate-400 truncate mt-0.5">
+                                                {item.memo}
+                                            </div>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-center">
+                                        {getStatusBadge(item.status)}
+                                    </div>
+                                    <div className="text-sm font-medium text-slate-500 text-center">
+                                        {new Date(item.created_at).toLocaleDateString('ko-KR', {
+                                            year: 'numeric',
+                                            month: '2-digit',
+                                            day: '2-digit'
+                                        })}
+                                    </div>
+                                    <div className="flex justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={(e) => handleDelete(item.id, e)}
+                                            className="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all flex items-center justify-center"
+                                            title="삭제"
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </MainLayout>
     );

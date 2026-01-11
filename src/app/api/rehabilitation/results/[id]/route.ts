@@ -41,13 +41,43 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!userId) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
 
     try {
-        const { memo } = await req.json();
+        const body = await req.json();
+        const { memo, status: newStatus, plan_data, creditor_data } = body;
 
-        const result = db.prepare(`
+        // 동적 쿼리 생성
+        const updates: string[] = [];
+        const params: any[] = [];
+
+        if (memo !== undefined) {
+            updates.push('memo = ?');
+            params.push(memo);
+        }
+        if (newStatus !== undefined) {
+            updates.push('status = ?');
+            params.push(newStatus);
+        }
+        if (plan_data !== undefined) {
+            updates.push('plan_data = ?');
+            params.push(plan_data);
+        }
+        if (creditor_data !== undefined) {
+            updates.push('creditor_data = ?');
+            params.push(creditor_data);
+        }
+
+        if (updates.length === 0) {
+            return NextResponse.json({ error: '수정할 내용이 없습니다.' }, { status: 400 });
+        }
+
+        updates.push('updated_at = CURRENT_TIMESTAMP');
+
+        const query = `
             UPDATE rehabilitation_results 
-            SET memo = ?, updated_at = CURRENT_TIMESTAMP 
+            SET ${updates.join(', ')} 
             WHERE id = ? AND user_id = ?
-        `).run(memo, id, userId);
+        `;
+
+        const result = db.prepare(query).run(...params, id, userId);
 
         if (result.changes === 0) {
             return NextResponse.json({ error: '수정할 권한이 없거나 데이터가 없습니다.' }, { status: 404 });

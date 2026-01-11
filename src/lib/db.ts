@@ -23,11 +23,19 @@ db.exec(`
     creditor_data TEXT,
     plan_data TEXT,
     memo TEXT,
+    status TEXT DEFAULT '검토중',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 `);
+
+// 기존 테이블에 status 컬럼이 없는 경우를 위한 마이그레이션
+try {
+  db.exec(`ALTER TABLE rehabilitation_results ADD COLUMN status TEXT DEFAULT '검토중'`);
+} catch (e) {
+  // 이미 컬럼이 존재하는 경우 무시
+}
 
 // 초기 운영자 계정 생성 (아이디: courteasy, 비번: qwer1234)
 const insertUser = db.prepare(`

@@ -13,6 +13,8 @@ interface SmartCalculatorProps {
     saveResult: () => void;
     reuseResult: (val: number) => void;
     result: number;
+    forceShow?: boolean;
+    onClose?: () => void;
 }
 
 const SmartCalculator: React.FC<SmartCalculatorProps> = ({
@@ -26,21 +28,31 @@ const SmartCalculator: React.FC<SmartCalculatorProps> = ({
     fullReset,
     saveResult,
     reuseResult,
-    result
+    result,
+    forceShow,
+    onClose
 }) => {
     const [isVisible, setIsVisible] = React.useState(false);
     const [showGuide, setShowGuide] = React.useState(false);
 
     React.useEffect(() => {
-        if (calcItems.length > 0 || buffer || savedResults.length > 0) {
+        if (forceShow === true) {
             setIsVisible(true);
+        } else if (forceShow === false) {
+            setIsVisible(false);
+        } else if (calcItems.length > 0 || buffer || savedResults.length > 0) {
+            setIsVisible(true);
+        } else {
+            setIsVisible(false);
         }
-    }, [calcItems.length, buffer, savedResults.length]);
+    }, [calcItems.length, buffer, savedResults.length, forceShow]);
 
     if (!isVisible) return null;
 
     const handleClose = () => {
+        clearAll();
         setIsVisible(false);
+        if (onClose) onClose();
     };
 
     const opSigns: Record<OpType, string> = {

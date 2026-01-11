@@ -26,8 +26,21 @@ export default function RehabilitationPage() {
   const [isValidating, setIsValidating] = useState(false);
   const [memo, setMemo] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Check if user is admin
+    fetch('/api/auth/me')
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.user?.role === 'ADMIN') {
+          setIsAdmin(true);
+        } else {
+          router.push('/');
+        }
+      })
+      .catch(() => router.push('/'));
+
     // Load prompts from local files via API
     const loadPrompts = async () => {
       try {
@@ -252,6 +265,8 @@ export default function RehabilitationPage() {
       setIsSaving(false);
     }
   };
+
+  if (isAdmin === null) return null;
 
   return (
     <MainLayout>

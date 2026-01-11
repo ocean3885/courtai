@@ -19,25 +19,37 @@ interface NavGroup {
 
 const navigation: (NavGroup | NavItem)[] = [
   {
-    groupName: '개인회생',
+    groupName: '회생인가전',
     items: [
       {
-        name: '분석',
-        href: '/rehabilitation',
-        icon: '📄',
+        name: '자동 변환 (One-Click)',
+        href: '/rehabilitation/rehabauto',
+        icon: '🚀',
       },
       {
-        name: '분석 결과 목록',
+        name: '내 사건목록',
         href: '/rehabilitation/results',
         icon: '📁',
       },
     ],
   },
   {
-    name: '사용자 관리',
-    href: '/admin/users',
-    icon: '👥',
     isAdminOnly: true,
+    groupName: '운영자',
+    items: [
+      {
+        name: 'PDF변환',
+        href: '/rehabilitation',
+        icon: '📄',
+        isAdminOnly: true,
+      },
+      {
+        name: '사용자 관리',
+        href: '/admin/users',
+        icon: '👥',
+        isAdminOnly: true,
+      },
+    ],
   },
 ];
 

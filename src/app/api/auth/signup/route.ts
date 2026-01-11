@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const { username, password, name } = await request.json();
 
-    if (!username || !password || !name) {
+    if (!username || !password) {
       return NextResponse.json({ error: '모든 필드를 입력해주세요.' }, { status: 400 });
     }
 
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const result = db.prepare(`
       INSERT INTO users (username, password, name, role, is_active)
       VALUES (?, ?, ?, 'USER', 1)
-    `).run(username, hashedPassword, name);
+    `).run(username, hashedPassword, name || username);
 
     return NextResponse.json({ success: true, userId: result.lastInsertRowid });
   } catch (error) {
