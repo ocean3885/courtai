@@ -44,7 +44,6 @@ export async function POST(req: NextRequest) {
         const fileNameWithoutExt = originalName.substring(0, originalName.lastIndexOf('.')) || originalName;
         const txtFileName = `${fileNameWithoutExt}.txt`;
         const filePath = path.join(tempDir, txtFileName);
-        const fixedPath = path.join(tempDir, `${item.key}_latest.txt`);
 
         try {
           // Execute Python script
@@ -53,7 +52,6 @@ export async function POST(req: NextRequest) {
           await execAsync(`"${pythonPath}" "${pythonScriptPath}" "${tempPdfPath}" "${filePath}"`);
 
           const text = await fs.readFile(filePath, 'utf-8');
-          await fs.writeFile(fixedPath, text, 'utf-8');
 
           results.push(originalName);
           filesData.push({ name: txtFileName, content: text });
@@ -61,8 +59,9 @@ export async function POST(req: NextRequest) {
           console.error(`Error parsing ${originalName}:`, execError);
           throw new Error(`PDF 파싱 중 오류가 발생했습니다 (${originalName}): ${execError.message}`);
         } finally {
-          // Cleanup temp PDF
+          // Cleanup temp PDF and parsed TXT
           try { await fs.unlink(tempPdfPath); } catch (e) { }
+          try { await fs.unlink(filePath); } catch (e) { }
         }
       }
 
@@ -79,18 +78,25 @@ export async function POST(req: NextRequest) {
       const modelVersion = (formData.get('modelVersion') as string) || (modelType === 'openai' ? 'gpt-4o' : 'gemini-2.0-flash-exp');
       const creditorTxt = formData.get('creditorTxt') as File;
       const planTxt = formData.get('planTxt') as File;
+      const creditorTextParam = formData.get('creditorText') as string;
+      const planTextParam = formData.get('planText') as string;
 
       let creditorText = '';
       let planText = '';
 
       try {
-        if (creditorTxt && creditorTxt.size > 0) {
+        // Priority: direct text parameters > file uploads > temp files
+        if (creditorTextParam) {
+          creditorText = creditorTextParam;
+        } else if (creditorTxt && creditorTxt.size > 0) {
           creditorText = await creditorTxt.text();
         } else {
           creditorText = await fs.readFile(path.join(tempDir, 'creditor_latest.txt'), 'utf-8');
         }
 
-        if (planTxt && planTxt.size > 0) {
+        if (planTextParam) {
+          planText = planTextParam;
+        } else if (planTxt && planTxt.size > 0) {
           planText = await planTxt.text();
         } else {
           planText = await fs.readFile(path.join(tempDir, 'plan_latest.txt'), 'utf-8');
@@ -127,13 +133,6 @@ export async function POST(req: NextRequest) {
           timestamp: new Date().toISOString()
         }
       };
-
-      // Save to temp_parsing
-      await fs.writeFile(
-        path.join(tempDir, 'structured_latest.json'),
-        JSON.stringify(combinedResult, null, 2),
-        'utf-8'
-      );
 
       return NextResponse.json({
         success: true,

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import Link from 'next/link';
 
@@ -14,12 +15,42 @@ interface ResultItem {
 }
 
 export default function ResultsListPage() {
+    const router = useRouter();
+    const [isAuthorized, setIsAuthorized] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const [results, setResults] = useState<ResultItem[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
+        // Check if user is logged in
+        const checkAuth = async () => {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.user) {
+                        setIsAuthorized(true);
+                    } else {
+                        router.push('/auth/login');
+                    }
+                } else {
+                    router.push('/auth/login');
+                }
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                router.push('/auth/login');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkAuth();
+    }, [router]);
+
+    useEffect(() => {
+        if (!isAuthorized || isLoading) return;
         fetchResults();
-    }, []);
+    }, [isAuthorized, isLoading]);
 
     const fetchResults = async () => {
         try {
@@ -65,6 +96,10 @@ export default function ResultsListPage() {
                 return <span className="px-3 py-1 bg-amber-50 text-amber-600 border border-amber-100 rounded-lg text-xs font-bold">검토중</span>;
         }
     };
+
+    if (isLoading || !isAuthorized) {
+        return null;
+    }
 
     return (
         <MainLayout>

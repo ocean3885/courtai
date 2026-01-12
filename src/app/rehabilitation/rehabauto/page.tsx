@@ -7,6 +7,8 @@ import Link from 'next/link';
 
 export default function RehabAutoPage() {
     const router = useRouter();
+    const [isAuthorized, setIsAuthorized] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
 
     // File states
     const [creditorFile, setCreditorFile] = useState<File | null>(null);
@@ -21,7 +23,39 @@ export default function RehabAutoPage() {
     const [creditorPrompt, setCreditorPrompt] = useState('');
     const [planPrompt, setPlanPrompt] = useState('');
 
+    // Memory-based parsed text data
+    const [parsedCreditorText, setParsedCreditorText] = useState<string | null>(null);
+    const [parsedPlanText, setParsedPlanText] = useState<string | null>(null);
+
     useEffect(() => {
+        // Check if user is logged in
+        const checkAuth = async () => {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.user) {
+                        setIsAuthorized(true);
+                    } else {
+                        router.push('/auth/login');
+                    }
+                } else {
+                    router.push('/auth/login');
+                }
+            } catch (err) {
+                console.error('Auth check failed:', err);
+                router.push('/auth/login');
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        checkAuth();
+    }, [router]);
+
+    useEffect(() => {
+        if (!isAuthorized || isLoading) return;
+
         const loadPrompts = async () => {
             try {
                 const res = await fetch('/api/rehabilitation/prompts');
@@ -35,7 +69,7 @@ export default function RehabAutoPage() {
             }
         };
         loadPrompts();
-    }, []);
+    }, [isAuthorized, isLoading]);
 
     // File Validation (Same as rehabilitation page)
     const validateFiles = async () => {
@@ -104,11 +138,19 @@ export default function RehabAutoPage() {
             const parseJson = await parseRes.json();
             if (!parseJson.success) throw new Error(parseJson.error || 'PDF 파싱 실패');
 
+            // Store parsed text in memory
+            const creditorText = parseJson.filesData?.[0]?.content || '';
+            const planText = parseJson.filesData?.[1]?.content || '';
+            setParsedCreditorText(creditorText);
+            setParsedPlanText(planText);
+
             // 2. LLM Structuring (Gemini 2.0 Flash fixed)
             setStatus('structuring');
             const structFormData = new FormData();
             structFormData.append('creditorPrompt', creditorPrompt);
             structFormData.append('planPrompt', planPrompt);
+            structFormData.append('creditorText', creditorText);
+            structFormData.append('planText', planText);
             structFormData.append('mode', 'structure');
             structFormData.append('modelType', 'gemini');
             structFormData.append('modelVersion', 'gemini-2.0-flash-exp');
@@ -157,6 +199,10 @@ export default function RehabAutoPage() {
             setStatus('error');
         }
     };
+
+    if (isLoading || !isAuthorized) {
+        return null;
+    }
 
     return (
         <MainLayout>
