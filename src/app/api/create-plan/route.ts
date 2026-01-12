@@ -20,19 +20,23 @@ async function checkAdminAuth(request: NextRequest): Promise<boolean> {
 }
 
 interface Creditor {
+  id: string; // 고유 식별자 추가
   name: string;
   amount: number;
   priority: boolean;
+  isSubrogated?: boolean;
+  subrogatedName?: string;
+  subrogatedAmount?: number;
 }
 
 // 변제계획 생성 함수
 function createRepaymentPlan(creditors: Creditor[], monthlyAvailable: number, months: number) {
   const plan: any[] = [];
-  
-  // 채권자별 미변제 잔액 추적
+
+  // 채권자별 미변제 잔액 추적 (ID 기반)
   const balances: { [key: string]: number } = {};
   creditors.forEach(c => {
-    balances[c.name] = c.amount;
+    balances[c.id] = c.amount;
   });
 
   for (let month = 1; month <= months; month++) {
@@ -40,38 +44,87 @@ function createRepaymentPlan(creditors: Creditor[], monthlyAvailable: number, mo
     let remainingBudget = monthlyAvailable;
 
     // 1. 우선변제채권 처리
-    const priorityCreditors = creditors.filter(c => c.priority && balances[c.name] > 0);
+    const priorityCreditors = creditors.filter(c => c.priority && balances[c.id] > 0);
     if (priorityCreditors.length > 0) {
-      const totalPriorityBalance = priorityCreditors.reduce((sum, c) => sum + balances[c.name], 0);
+      const totalPriorityBalance = priorityCreditors.reduce((sum, c) => sum + balances[c.id], 0);
       const payAmount = Math.min(remainingBudget, totalPriorityBalance);
 
+      // 1차 배분 (내림)
+      let currentDistributed = 0;
+      const shares: { [key: string]: number } = {};
+
       priorityCreditors.forEach(c => {
-        const shareRatio = balances[c.name] / totalPriorityBalance;
-        const payment = payAmount * shareRatio;
-        balances[c.name] -= payment;
-        monthData[c.name] = Math.round(payment);
+        const shareRatio = balances[c.id] / totalPriorityBalance;
+        const rawPayment = payAmount * shareRatio;
+        const payment = Math.floor(rawPayment);
+        shares[c.id] = payment;
+        currentDistributed += payment;
+      });
+
+      // 잔여금 배분 (오차 보정: 가용액보다 적지 않도록)
+      let remainder = payAmount - currentDistributed;
+
+      // 잔여금을 채권액 비율이 높은 순서대로 1원씩 배분 (또는 단순 순차 배분)
+      // 여기서는 간단히 앞에서부터 배분
+      let idx = 0;
+      while (remainder > 0 && idx < priorityCreditors.length) {
+        shares[priorityCreditors[idx].id]++;
+        remainder--;
+        idx++;
+        // 한 바퀴 돌았는데도 남으면 다시 처음부터 (실제로는 거의 발생 안함)
+        if (idx >= priorityCreditors.length && remainder > 0) idx = 0;
+      }
+
+      // 최종 반영
+      priorityCreditors.forEach(c => {
+        const payment = shares[c.id];
+        balances[c.id] -= payment;
+        monthData[c.id] = payment;
       });
 
       remainingBudget -= payAmount;
     }
 
     // 2. 일반변제채권 처리
-    const generalCreditors = creditors.filter(c => !c.priority && balances[c.name] > 0);
+    const generalCreditors = creditors.filter(c => !c.priority && balances[c.id] > 0);
     if (remainingBudget > 0 && generalCreditors.length > 0) {
-      const totalGeneralBalance = generalCreditors.reduce((sum, c) => sum + balances[c.name], 0);
+      const totalGeneralBalance = generalCreditors.reduce((sum, c) => sum + balances[c.id], 0);
+
+      // 1차 배분 (내림)
+      let currentDistributed = 0;
+      const shares: { [key: string]: number } = {};
 
       generalCreditors.forEach(c => {
-        const shareRatio = balances[c.name] / totalGeneralBalance;
-        const payment = remainingBudget * shareRatio;
-        balances[c.name] -= payment;
-        monthData[c.name] = Math.round(payment);
+        const shareRatio = balances[c.id] / totalGeneralBalance;
+        const rawPayment = remainingBudget * shareRatio;
+        const payment = Math.floor(rawPayment);
+        shares[c.id] = payment;
+        currentDistributed += payment;
+      });
+
+      // 잔여금 배분 (무조건 월 가용액 채우기)
+      let remainder = remainingBudget - currentDistributed;
+
+      let idx = 0;
+      while (remainder > 0 && idx < generalCreditors.length) {
+        shares[generalCreditors[idx].id]++;
+        remainder--;
+        idx++;
+        if (idx >= generalCreditors.length && remainder > 0) idx = 0;
+      }
+
+      // 최종 반영
+      generalCreditors.forEach(c => {
+        const payment = shares[c.id];
+        balances[c.id] -= payment;
+        monthData[c.id] = payment;
       });
     }
 
     // 3. 미배정된 채권자는 0원 처리
     creditors.forEach(c => {
-      if (!(c.name in monthData)) {
-        monthData[c.name] = 0;
+      if (!(c.id in monthData)) {
+        monthData[c.id] = 0;
       }
     });
 
@@ -146,7 +199,7 @@ export async function POST(request: NextRequest) {
     const totalPayment = plan.reduce((sum, month) => {
       let monthTotal = 0;
       creditors.forEach(c => {
-        monthTotal += month[c.name] || 0;
+        monthTotal += month[c.id] || 0;
       });
       return sum + monthTotal;
     }, 0);
