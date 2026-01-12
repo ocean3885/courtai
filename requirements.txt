@@ -1,4 +1,4 @@
 pdfplumber==0.11.9
 opencv-python-headless==4.12.0.88
-pdfminer.six==20251230
+pdfminer.six==20250324
 pypdfium2==5.3.0
