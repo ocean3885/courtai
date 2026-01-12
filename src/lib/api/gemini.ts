@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
-export async function structureDocumentDataGemini(text: string, customPrompt: string, modelVersion: string = "gemini-1.5-flash"): Promise<any> {
+export async function structureDocumentDataGemini(text: string, customPrompt: string, modelVersion: string = "gemini-2.0-flash-exp"): Promise<any> {
     const model = genAI.getGenerativeModel({
         model: modelVersion,
     });

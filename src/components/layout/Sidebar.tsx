@@ -42,6 +42,11 @@ const navigation: (NavGroup | NavItem)[] = [
         href: '/lm-chat',
         icon: '🤖',
       },
+      {
+        name: '프롬프트 테스트',
+        href: '/prompt-test',
+        icon: '⚡',
+      },
     ],
   },
   {
@@ -52,6 +57,12 @@ const navigation: (NavGroup | NavItem)[] = [
         name: 'PDF변환',
         href: '/rehabilitation',
         icon: '📄',
+        isAdminOnly: true,
+      },
+      {
+        name: '변제계획 생성',
+        href: '/create-plan',
+        icon: '📊',
         isAdminOnly: true,
       },
       {
