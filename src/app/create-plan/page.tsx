@@ -47,6 +47,7 @@ export default function CreatePlanPage() {
   const [templateName, setTemplateName] = useState('');
   const [templates, setTemplates] = useState<any[]>([]);
   const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
+  const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
 
   // 관리자 권한 확인
   useEffect(() => {
@@ -213,7 +214,8 @@ export default function CreatePlanPage() {
         });
 
         if (res.ok) {
-          // alert(`사건번호 '${templateName}'에 덮어씌웠습니다.`); // 알림 없이 바로 저장
+          setShowSaveSuccessModal(true);
+          setTimeout(() => setShowSaveSuccessModal(false), 2000);
         } else {
           alert('설정 저장에 실패했습니다.');
         }
@@ -243,9 +245,10 @@ export default function CreatePlanPage() {
 
       const data = await res.json();
       if (res.ok) {
-        // alert('사건이 신규 저장되었습니다.'); // 알림 없이 바로 저장
         setShowSaveModal(false);
         setLoadedTemplateId(data.id); // 저장 후 로드 상태로 전환
+        setShowSaveSuccessModal(true);
+        setTimeout(() => setShowSaveSuccessModal(false), 2000);
       } else {
         alert('설정 저장에 실패했습니다.');
       }
@@ -254,16 +257,76 @@ export default function CreatePlanPage() {
     }
   };
 
-  const handleLoadTemplate = (template: any) => {
-    setCreditors(template.creditors.map((c: any, idx: number) => ({
+  const handleLoadTemplate = async (template: any) => {
+    const loadedCreditors = template.creditors.map((c: any, idx: number) => ({
       ...c,
-      id: Date.now().toString() + idx, // ID 충돌 방지 재생성
-    })));
+      id: Date.now().toString() + idx,
+    }));
+    
+    // 상태 업데이트
+    setCreditors(loadedCreditors);
     setMonthlyAvailable(template.monthlyAvailable);
     setMonths(template.months);
     setTemplateName(template.name);
     setLoadedTemplateId(template.id);
     setShowLoadModal(false);
+    
+    // 불러온 데이터로 자동 변제계획 생성
+    // 1. 서브로우 포함하여 전체 리스트 구성 (getAllPlanCreditors와 동일 로직)
+    const expandedCreditors: any[] = [];
+    loadedCreditors.forEach((c: any) => {
+      expandedCreditors.push({
+        id: c.id,
+        name: c.name,
+        amount: c.amount,
+        priority: c.priority,
+      });
+      if (c.isSubrogated) {
+        expandedCreditors.push({
+          id: c.id + '-sub',
+          name: c.subrogatedName || `${c.name}-1`, // getAllPlanCreditors와 일치
+          amount: c.subrogatedAmount || 0,
+          priority: false,
+        });
+      }
+    });
+
+    // 2. 금액 있는 채권자만 필터링
+    const allCreditors = expandedCreditors.filter(c => c.amount > 0);
+    
+    if (allCreditors.length > 0) {
+      try {
+        setIsLoading(true);
+        setError(null);
+        
+        const res = await fetch('/api/create-plan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            creditors: allCreditors.map(c => ({
+              id: c.id,
+              name: c.name,
+              amount: c.amount,
+              priority: c.priority,
+            })),
+            monthlyAvailable: template.monthlyAvailable,
+            months: template.months,
+          }),
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || '변제계획 생성 실패');
+        }
+        
+        setResult(data);
+      } catch (err: any) {
+        setError(err.message || '변제계획 생성 중 오류가 발생했습니다.');
+      } finally {
+        setIsLoading(false);
+      }
+    }
   };
 
   const handleDeleteTemplate = async (id: number) => {
@@ -283,12 +346,44 @@ export default function CreatePlanPage() {
     }
   };
 
+  const handleReset = () => {
+    if (confirm('모든 입력 내용을 초기화하시겠습니까?')) {
+      setCreditors([
+        { id: '1', name: 'A은행(우선)', amount: 5000000, priority: true, isSubrogated: false, subrogatedName: '', subrogatedAmount: 0 },
+        { id: '2', name: 'B카드(일반)', amount: 10000000, priority: false, isSubrogated: false, subrogatedName: '', subrogatedAmount: 0 },
+        { id: '3', name: 'C대부(일반)', amount: 15000000, priority: false, isSubrogated: false, subrogatedName: '', subrogatedAmount: 0 },
+      ]);
+      setMonthlyAvailable(2000000);
+      setMonths(36);
+      setResult(null);
+      setError(null);
+      setTemplateName('');
+      setLoadedTemplateId(null);
+    }
+  };
+
   return (
     <MainLayout>
       <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">변제계획 생성</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900">변제계획 생성</h1>
+            {loadedTemplateId && (
+              <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm font-bold rounded-full border border-blue-200 shadow-sm animate-fade-in">
+                {templateName}
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
+            <button
+              onClick={handleReset}
+              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2a8.001 8.001 0 0015.357-2m0 0H15" />
+              </svg>
+              초기화
+            </button>
             <button
               onClick={() => {
                 fetchTemplates();
@@ -330,6 +425,16 @@ export default function CreatePlanPage() {
                 새로저장
               </button>
             )}
+            <button
+              onClick={handleCreatePlan}
+              disabled={isLoading}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-sm font-medium flex items-center gap-2 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              {isLoading ? '생성 중...' : '변제계획 생성'}
+            </button>
           </div>
         </div>
 
@@ -449,6 +554,21 @@ export default function CreatePlanPage() {
                   닫기
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* 저장 성공 팝업 */}
+        {showSaveSuccessModal && (
+          <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 transition-all">
+            <div className="bg-white rounded-xl shadow-2xl p-8 w-96 transform transition-all scale-100 flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">저장되었습니다</h3>
+              <p className="text-sm text-gray-500">변제계획 설정이 저장되었습니다.</p>
             </div>
           </div>
         )}
@@ -587,15 +707,6 @@ export default function CreatePlanPage() {
                 {error}
               </div>
             )}
-
-            {/* 생성 버튼 */}
-            <button
-              onClick={handleCreatePlan}
-              disabled={isLoading}
-              className="w-full py-3 px-4 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-            >
-              {isLoading ? '계획 생성 중...' : '변제계획 생성'}
-            </button>
           </div>
 
           {/* 결과 영역 */}

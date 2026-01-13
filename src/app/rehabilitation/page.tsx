@@ -134,6 +134,7 @@ export default function RehabilitationPage() {
       formData.append('creditorFile', creditorFile);
       formData.append('planFile', planFile);
       formData.append('mode', 'parse');
+      formData.append('saveParsedFile', 'true');
 
       const response = await fetch('/api/rehabilitation/process', {
         method: 'POST',

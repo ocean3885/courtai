@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
     const creditorPrompt = formData.get('creditorPrompt') as string;
     const planPrompt = formData.get('planPrompt') as string;
     const mode = formData.get('mode') as string; // 'parse' or 'structure'
+    const saveParsedFile = formData.get('saveParsedFile') === 'true';
 
     const tempDir = path.join(process.cwd(), 'temp_parsing');
     await fs.mkdir(tempDir, { recursive: true });
@@ -61,7 +62,9 @@ export async function POST(req: NextRequest) {
         } finally {
           // Cleanup temp PDF and parsed TXT
           try { await fs.unlink(tempPdfPath); } catch (e) { }
-          try { await fs.unlink(filePath); } catch (e) { }
+          if (!saveParsedFile) {
+            try { await fs.unlink(filePath); } catch (e) { }
+          }
         }
       }
 
