@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '@/components/layout';
 import { useRouter } from 'next/navigation';
-import { RepaymentPlanResults } from '@/components/RepaymentPlanResults';
+import { RepaymentPlanResults } from '@/components/layout/RepaymentPlanResults';
 
 interface Creditor {
   id: string;
