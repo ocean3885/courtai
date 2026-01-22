@@ -35,8 +35,6 @@ export function Footer() {
                     <div>
                         <h4 className="font-bold text-gray-900 mb-6 underline-offset-8 decoration-2 decoration-blue-600">서비스</h4>
                         <ul className="space-y-4 text-sm text-gray-600">
-                            <li><Link href="/rehabilitation" className="hover:text-blue-600 transition-colors">개인회생 분석</Link></li>
-                            <li><Link href="/rehabilitation/results" className="hover:text-blue-600 transition-colors">분석 결과 목록</Link></li>
                             <li><Link href="#" className="hover:text-blue-600 transition-colors">기타집행 지원</Link></li>
                             <li><Link href="#" className="hover:text-blue-600 transition-colors">이용 안내</Link></li>
                         </ul>

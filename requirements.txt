@@ -1,3 +1,0 @@
-pdfplumber
-opencv-python-headless
-pypdfium2

@@ -30,7 +30,27 @@ interface PlanResult {
 
 export default function CreatePlanPage() {
   const router = useRouter();
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  // 사용자 권한 및 로그인 상태 확인
+  const [user, setUser] = useState<{ id: number; role: string } | null>(null);
+
+  useEffect(() => {
+    const checkUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+        }
+      } catch (error) {
+        console.error('Failed to check auth:', error);
+      }
+    };
+    checkUser();
+  }, []);
+
+  const isAdmin = user?.role === 'ADMIN';
+  const isLoggedIn = !!user;
+
   const [creditors, setCreditors] = useState<Creditor[]>([
     { id: '1', name: 'A은행(우선)', amount: 5000000, priority: true, isSubrogated: false, subrogatedName: '', subrogatedAmount: 0 },
     { id: '2', name: 'B카드(일반)', amount: 10000000, priority: false, isSubrogated: false, subrogatedName: '', subrogatedAmount: 0 },
@@ -48,35 +68,6 @@ export default function CreatePlanPage() {
   const [templates, setTemplates] = useState<any[]>([]);
   const [loadedTemplateId, setLoadedTemplateId] = useState<string | null>(null);
   const [showSaveSuccessModal, setShowSaveSuccessModal] = useState(false);
-
-  // 관리자 권한 확인
-  useEffect(() => {
-    const checkAdmin = async () => {
-      try {
-        const res = await fetch('/api/auth/me');
-        const data = await res.json();
-
-        if (!data.user || data.user.role !== 'ADMIN') {
-          router.push('/');
-          return;
-        }
-
-        setIsAdmin(true);
-      } catch (error) {
-        router.push('/');
-      }
-    };
-
-    checkAdmin();
-  }, [router]);
-
-  if (isAdmin === null) {
-    return <MainLayout><div className="p-8">로딩 중...</div></MainLayout>;
-  }
-
-  if (!isAdmin) {
-    return <MainLayout><div className="p-8">접근 권한이 없습니다.</div></MainLayout>;
-  }
 
   const handleAddCreditor = () => {
     setCreditors([
@@ -262,7 +253,7 @@ export default function CreatePlanPage() {
       ...c,
       id: Date.now().toString() + idx,
     }));
-    
+
     // 상태 업데이트
     setCreditors(loadedCreditors);
     setMonthlyAvailable(template.monthlyAvailable);
@@ -270,7 +261,7 @@ export default function CreatePlanPage() {
     setTemplateName(template.name);
     setLoadedTemplateId(template.id);
     setShowLoadModal(false);
-    
+
     // 불러온 데이터로 자동 변제계획 생성
     // 1. 서브로우 포함하여 전체 리스트 구성 (getAllPlanCreditors와 동일 로직)
     const expandedCreditors: any[] = [];
@@ -293,12 +284,12 @@ export default function CreatePlanPage() {
 
     // 2. 금액 있는 채권자만 필터링
     const allCreditors = expandedCreditors.filter(c => c.amount > 0);
-    
+
     if (allCreditors.length > 0) {
       try {
         setIsLoading(true);
         setError(null);
-        
+
         const res = await fetch('/api/create-plan', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -313,13 +304,13 @@ export default function CreatePlanPage() {
             months: template.months,
           }),
         });
-        
+
         const data = await res.json();
-        
+
         if (!res.ok) {
           throw new Error(data.error || '변제계획 생성 실패');
         }
-        
+
         setResult(data);
       } catch (err: any) {
         setError(err.message || '변제계획 생성 중 오류가 발생했습니다.');
@@ -384,46 +375,50 @@ export default function CreatePlanPage() {
               </svg>
               초기화
             </button>
-            <button
-              onClick={() => {
-                fetchTemplates();
-                setShowLoadModal(true);
-              }}
-              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-              </svg>
-              불러오기
-            </button>
-            <button
-              onClick={() => {
-                if (loadedTemplateId) {
-                  handleSaveTemplate(false);
-                } else {
-                  setShowSaveModal(true);
-                }
-              }}
-              className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-              </svg>
-              저장
-            </button>
-            {loadedTemplateId && (
-              <button
-                onClick={() => {
-                  setTemplateName(''); // 새 이름 입력을 위해 비움
-                  setShowSaveModal(true);
-                }}
-                className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                </svg>
-                새로저장
-              </button>
+            {isLoggedIn && (
+              <>
+                <button
+                  onClick={() => {
+                    fetchTemplates();
+                    setShowLoadModal(true);
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  불러오기
+                </button>
+                <button
+                  onClick={() => {
+                    if (loadedTemplateId) {
+                      handleSaveTemplate(false);
+                    } else {
+                      setShowSaveModal(true);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 text-sm font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  저장
+                </button>
+                {loadedTemplateId && (
+                  <button
+                    onClick={() => {
+                      setTemplateName(''); // 새 이름 입력을 위해 비움
+                      setShowSaveModal(true);
+                    }}
+                    className="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 text-sm font-medium flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
+                    </svg>
+                    새로저장
+                  </button>
+                )}
+              </>
             )}
             <button
               onClick={handleCreatePlan}

@@ -19,33 +19,17 @@ interface NavGroup {
 
 const navigation: (NavGroup | NavItem)[] = [
   {
-    groupName: '회생인가전',
+    groupName: '개인회생',
     items: [
       {
-        name: '자동 변환 (One-Click)',
-        href: '/rehabilitation/rehabauto',
-        icon: '🚀',
+        name: '변제계획 생성',
+        href: '/create-plan',
+        icon: '📊',
       },
       {
-        name: '내 사건목록',
-        href: '/rehabilitation/results',
-        icon: '📁',
-      },
-    ],
-  },
-  {
-    groupName: 'AI 도구',
-    isAdminOnly: true,
-    items: [
-      {
-        name: 'LM Studio Chat',
-        href: '/lm-chat',
-        icon: '🤖',
-      },
-      {
-        name: '프롬프트 테스트',
-        href: '/prompt-test',
-        icon: '⚡',
+        name: '채권자목록 작성',
+        href: '/creditor-list',
+        icon: '📝',
       },
     ],
   },
@@ -53,18 +37,6 @@ const navigation: (NavGroup | NavItem)[] = [
     isAdminOnly: true,
     groupName: '운영자',
     items: [
-      {
-        name: 'PDF변환',
-        href: '/rehabilitation',
-        icon: '📄',
-        isAdminOnly: true,
-      },
-      {
-        name: '변제계획 생성',
-        href: '/create-plan',
-        icon: '📊',
-        isAdminOnly: true,
-      },
       {
         name: '사용자 관리',
         href: '/admin/users',
