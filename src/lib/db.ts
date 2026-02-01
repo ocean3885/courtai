@@ -52,6 +52,16 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id)
   );
 
+  CREATE TABLE IF NOT EXISTS case_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    creditor_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    source_snapshot TEXT NOT NULL,
+    html_preview TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (creditor_id) REFERENCES creditor(id) ON DELETE CASCADE
+  );
+
 `);
 
 

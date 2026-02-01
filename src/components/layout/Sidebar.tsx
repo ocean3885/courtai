@@ -28,8 +28,13 @@ const navigation: (NavGroup | NavItem)[] = [
       },
       {
         name: '사건정보입력',
-        href: '/creditor-list',
+        href: '/case-input',
         icon: '📝',
+      },
+      {
+        name: '내 사건 목록',
+        href: '/case-list',
+        icon: '📁',
       },
     ],
   },

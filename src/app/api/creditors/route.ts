@@ -27,12 +27,23 @@ export async function GET(request: NextRequest) {
             ORDER BY updated_at DESC
         `).all(userId);
 
-        const formattedLists = lists.map((l: any) => ({
-            ...l,
-            data: JSON.parse(l.data),
-        }));
+        const formattedLists = lists.map((l: any) => {
+            // 각 creditor에 연결된 documents 조회
+            const documents = db.prepare(`
+                SELECT id, title, created_at
+                FROM case_documents
+                WHERE creditor_id = ?
+                ORDER BY created_at DESC
+            `).all(l.id);
 
-        return NextResponse.json({ lists: formattedLists });
+            return {
+                ...l,
+                data: JSON.parse(l.data),
+                documents: documents || [],
+            };
+        });
+
+        return NextResponse.json(formattedLists);
     } catch (error) {
         console.error('Creditor list fetch error:', error);
         return NextResponse.json({ error: '목록 조회 중 오류가 발생했습니다.' }, { status: 500 });
