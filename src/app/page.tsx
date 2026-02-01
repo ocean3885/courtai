@@ -18,7 +18,7 @@ export default function HomePage() {
           </h1>
 
           <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-            채권자목록, 변제계획표 작성 등 복잡하고 번거로운 법원 업무를<br className="hidden md:block" />
+            채권자목록, 변제계획표 작성 등 복잡하고 번거로운 법원의 업무를<br className="hidden md:block" />
             지능형 시스템으로 쉽고 빠르게 지원합니다.
           </p>
 
@@ -31,9 +31,9 @@ export default function HomePage() {
             <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-6 text-2xl">
               📝
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">채권자목록 작성</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">변제 시뮬레이션 자동화</h3>
             <p className="text-gray-600 text-sm md:text-base leading-relaxed">
-              복잡한 채권 관계를 한눈에 정리하고 표준 서식에 맞춰 자동으로 리스트를 생성합니다.
+              복잡한 가용소득 계산부터 회차별 변제금 산출까지 로직화하여, 법원 기준에 부합하는 최적의 계획안을 자동으로 도출합니다.
             </p>
           </div>
 
@@ -41,9 +41,9 @@ export default function HomePage() {
             <div className="w-12 h-12 bg-green-50 text-green-600 rounded-lg flex items-center justify-center mb-6 text-2xl">
               📊
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">변제계획표 자동화</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">실시간 데이터 연동 편집</h3>
             <p className="text-gray-600 text-sm md:text-base leading-relaxed">
-              수입과 지출 데이터를 바탕으로 최적의 변제 계획안을 시뮬레이션하고 작성합니다.
+              채권자 추가·삭제 및 금액 변동 사항을 입력하는 즉시, 클릭 한 번으로 변제계획표에 실시간 반영되어 재작성 번거로움을 없앱니다.
             </p>
           </div>
 
@@ -51,9 +51,9 @@ export default function HomePage() {
             <div className="w-12 h-12 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-6 text-2xl">
               ⚖️
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-3">기타집행 지원</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-3">법원 제출용 양식 출력</h3>
             <p className="text-gray-600 text-sm md:text-base leading-relaxed">
-              다양한 기타집행 사건의 절차적 편의를 제공하여 실무자의 업무 효율을 극대화합니다.
+              수기 입력의 실수(오타) 없이 최신 법정 표준 서식 그대로 출력하여, 제출 전 검토 시간과 보정 리스크를 혁신적으로 줄입니다.
             </p>
           </div>
         </div>

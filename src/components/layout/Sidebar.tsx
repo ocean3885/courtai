@@ -27,7 +27,7 @@ const navigation: (NavGroup | NavItem)[] = [
         icon: '📊',
       },
       {
-        name: '채권자목록 작성',
+        name: '사건정보입력',
         href: '/creditor-list',
         icon: '📝',
       },
