@@ -59,10 +59,30 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   // 2. Build Detail Rows (Section 2 - New Detailed Format)
   const detailRows = creditors.map((c: any) => {
     const baseDate = c.baseDate || '-';
+    
     // Description text for the debt
-    const description = `원금 ${formatCurrency(c.principal || 0)} 및 그 중 원금 ${formatCurrency(c.principal || 0)}에 대한 ${c.interestStartDate || '-'}부터 완제일까지 연 ${c.interestRate || 0}%의 비율에 의한 금원.`;
+    const principal = Number(c.principal) || 0;
+    const interest = Number(c.interest) || 0;
+    const total = principal + interest;
+
+    let interestRateText = '';
+    const rate = c.interestRate;
+    if (!rate || (!isNaN(Number(rate)) && rate !== '')) {
+       interestRateText = `연 ${rate || 0}%의 비율에 의한 금원`;
+    } else {
+       interestRateText = `${rate}이율에 의한 금원`;
+    }
+
+    const description = `원리금 ${formatCurrency(total)} 및 그 중 원금 ${formatCurrency(principal)}에 대한 ${c.interestStartDate || '-'}부터 완제일까지 ${interestRateText}.`;
+
     // Attachments placeholder
-    const attachments = `□ 부속서류<br>( )`;
+    const attachmentTypes = c.attachmentTypes || [];
+    let attachments = '';
+    if (attachmentTypes.length > 0) {
+       attachments = `■ 부속서류<br>( ${attachmentTypes.sort().join(', ')} )`;
+    } else {
+       attachments = `□ 부속서류<br>(부속서류없음)`;
+    }
     // Basis text
     const basisText = `부채증명서 참조(산정기준일 : ${baseDate})`;
 
@@ -72,7 +92,6 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
         <td rowspan="4" class="center">${c.number}</td>
         <td rowspan="4" class="center">${c.name}</td>
         <td class="left-align" colspan="2">
-            ${baseDate} 자(산정일 기준) 체납<br>
             ${c.reason || '채권'}
         </td>
         <td class="left-align" colspan="2">
@@ -90,7 +109,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
         </td>
       </tr>
       <tr>
-        <td class="amount">${formatCurrency(c.principal || 0)}</td>
+        <td class="amount">${formatCurrency(principal)}</td>
         <td colspan="3" class="left-align">${basisText}</td>
       </tr>
       <tr>
@@ -103,17 +122,30 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
     if (c.isSubrogated && c.subrogationData) {
       const sc = c.subrogationData;
       const scBaseDate = sc.baseDate || baseDate;
-      const scDescription = `구상금 ${formatCurrency(sc.principal || 0)} 및 이에 대한 ${sc.interestStartDate || '-'}부터 완제일까지 연 ${sc.interestRate || 0}%의 비율에 의한 금원.`;
-      const scAttachments = `□ 부속서류<br>( )`;
+
+      const scPrincipal = Number(sc.principal) || 0;
+      const scInterest = Number(sc.interest) || 0;
+      const scTotal = scPrincipal + scInterest;
+
+      let scInterestRateText = '';
+      const scRate = sc.interestRate;
+      if (!scRate || (!isNaN(Number(scRate)) && scRate !== '')) {
+         scInterestRateText = `연 ${scRate || 0}%의 비율에 의한 금원`;
+      } else {
+         scInterestRateText = `${scRate}이율에 의한 금원`;
+      }
+
+      const scDescription = `원리금 ${formatCurrency(scTotal)} 및 그 중 구상원금 ${formatCurrency(scPrincipal)}에 대한 ${sc.interestStartDate || '-'}부터 완제일까지 ${scInterestRateText}.`;
+      
+      const scAttachments = `□ 부속서류<br>부속서류없음`;
       const scBasisText = `부채증명서 참조(산정기준일 : ${scBaseDate})`;
 
       rows += `
       <tbody style="page-break-inside: avoid; break-inside: avoid;">
       <tr>
         <td rowspan="4" class="center">${sc.number}</td>
-        <td rowspan="4" class="center">${sc.name} (대위변제자)</td>
+        <td rowspan="4" class="center">${sc.name}</td>
         <td class="left-align" colspan="2">
-            ${scBaseDate} 자(산정일 기준)<br>
             ${sc.reason || '구상금'}
         </td>
         <td class="left-align" colspan="2">
@@ -131,7 +163,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
         </td>
       </tr>
       <tr>
-        <td class="amount">${formatCurrency(sc.principal || 0)}</td>
+        <td class="amount">${formatCurrency(scPrincipal)}</td>
         <td colspan="3" class="left-align">${scBasisText}</td>
       </tr>
       <tr>

@@ -48,6 +48,8 @@ export interface Creditor {
     interestStartDate: string;
     interestRate: string;
     baseDate: string;
+    attachmentTypes?: string[];
+
     isSubrogated: boolean;
     subrogationData?: SubrogatedCreditor;
     isSecured: boolean; // 별제권부채권 여부

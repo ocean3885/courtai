@@ -6,7 +6,7 @@ interface CreditorInfoFormProps {
     creditors: Creditor[];
     onAdd: () => void;
     onRemove: (id: string) => void;
-    onUpdate: (id: string, field: keyof Creditor, value: string | number | boolean) => void;
+    onUpdate: (id: string, field: keyof Creditor, value: string | number | boolean | string[]) => void;
     onUpdateSubrogation: (id: string, field: keyof SubrogatedCreditor, value: string | number) => void;
     onUpdateSecured: (id: string, field: keyof SecuredCreditorData, value: string | number) => void;
 }
@@ -111,7 +111,40 @@ export function CreditorInfoForm({
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">이자이율</label>
-                                <input type="text" value={c.interestRate} onChange={(e) => onUpdate(c.id, 'interestRate', e.target.value)} placeholder="약정 또는 0.2%" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <input 
+                                    id={`interest-rate-${c.id}`}
+                                    type="text" 
+                                    value={c.interestRate} 
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        // Allow max 2 decimals, max 2 digits integer (block 100 or >= 100 logic by digit count), allow empty
+                                        if ((/^\d{0,2}(\.\d{0,2})?$/.test(val)) || val === '') {
+                                            onUpdate(c.id, 'interestRate', val);
+                                        }
+                                    }} 
+                                    placeholder="숫자 입력" 
+                                    className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" 
+                                />
+                                <div className="flex gap-2 mt-1">
+                                    {['약정', '연체'].map(val => (
+                                        <button 
+                                            key={val}
+                                            onClick={() => onUpdate(c.id, 'interestRate', val)}
+                                            className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 border border-gray-300"
+                                        >
+                                            {val}
+                                        </button>
+                                    ))}
+                                    <button 
+                                        onClick={() => {
+                                            onUpdate(c.id, 'interestRate', '0');
+                                            setTimeout(() => document.getElementById(`interest-rate-${c.id}`)?.focus(), 0);
+                                        }}
+                                        className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 border border-gray-300"
+                                    >
+                                        숫자
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">산정기준일</label>
@@ -145,6 +178,34 @@ export function CreditorInfoForm({
                                     />
                                     <span className="text-sm text-gray-700">우선변제</span>
                                 </label>
+                            </div>
+                            
+                            <div className="md:col-span-2 lg:col-span-4 border-t border-gray-300 pt-2 mt-1">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">부속서류 (중복 선택 가능)</label>
+                                <div className="flex flex-col md:flex-row gap-x-4 gap-y-2 flex-wrap">
+                                    {[
+                                        { id: '1', label: '1. 별제권부 채권 및 이에 준하는 채권' },
+                                        { id: '2', label: '2. 다툼이 있거나 예상되는 채권의 내역' },
+                                        { id: '3', label: '3. 전부명령 내역' },
+                                        { id: '4', label: '4. 기타의 경우' }
+                                    ].map((opt) => (
+                                        <label key={opt.id} className="flex items-center gap-1 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={(c.attachmentTypes || []).includes(opt.id)}
+                                                onChange={(e) => {
+                                                    const current = c.attachmentTypes || [];
+                                                    const next = e.target.checked
+                                                        ? [...current, opt.id]
+                                                        : current.filter(id => id !== opt.id);
+                                                    onUpdate(c.id, 'attachmentTypes', next);
+                                                }}
+                                                className="w-4 h-4"
+                                            />
+                                            <span className="text-sm text-gray-700">{opt.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                         </div>
 
@@ -184,6 +245,50 @@ export function CreditorInfoForm({
                                     <div>
                                         <label className="block text-sm font-medium text-blue-900 mb-1">손해금(기타)</label>
                                         <input type="text" value={formatCurrency(c.subrogationData.damages || 0)} onChange={(e) => onUpdateSubrogation(c.id, 'damages', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자</label>
+                                        <input type="text" value={formatCurrency(c.subrogationData.interest || 0)} onChange={(e) => onUpdateSubrogation(c.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자기산일</label>
+                                        <input type="date" max="9999-12-31" value={c.subrogationData.interestStartDate || ''} onChange={(e) => onUpdateSubrogation(c.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자이율</label>
+                                        <input 
+                                            id={`sub-interest-rate-${c.id}`}
+                                            type="text" 
+                                            value={c.subrogationData.interestRate || ''} 
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if ((/^\d{0,2}(\.\d{0,2})?$/.test(val)) || val === '') {
+                                                    onUpdateSubrogation(c.id, 'interestRate', val);
+                                                }
+                                            }} 
+                                            placeholder="숫자 입력" 
+                                            className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" 
+                                        />
+                                        <div className="flex gap-2 mt-1">
+                                            {['약정', '연체'].map(val => (
+                                                <button 
+                                                    key={val}
+                                                    onClick={() => onUpdateSubrogation(c.id, 'interestRate', val)}
+                                                    className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
+                                                >
+                                                    {val}
+                                                </button>
+                                            ))}
+                                            <button 
+                                                onClick={() => {
+                                                    onUpdateSubrogation(c.id, 'interestRate', '0');
+                                                    setTimeout(() => document.getElementById(`sub-interest-rate-${c.id}`)?.focus(), 0);
+                                                }}
+                                                className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
+                                            >
+                                                숫자
+                                            </button>
+                                        </div>
                                     </div>
                                     <div>
                                         <label className="block text-sm font-medium text-blue-900 mb-1">산정기준일</label>
