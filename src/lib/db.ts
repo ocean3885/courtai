@@ -57,12 +57,25 @@ db.exec(`
     creditor_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     source_snapshot TEXT NOT NULL,
+    changes TEXT DEFAULT '',
     html_preview TEXT NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (creditor_id) REFERENCES creditor(id) ON DELETE CASCADE
   );
 
 `);
+
+// 마이그레이션: case_documents 테이블에 changes 컬럼이 없으면 추가
+try {
+  const tableInfo = db.prepare("PRAGMA table_info(case_documents)").all() as any[];
+  const hasChangesColumn = tableInfo.some(col => col.name === 'changes'); 
+  if (!hasChangesColumn) {
+    db.exec("ALTER TABLE case_documents ADD COLUMN changes TEXT DEFAULT ''");
+    console.log('Added "changes" column to case_documents table.');
+  }
+} catch (error) {
+  console.error('Migration error:', error);
+}
 
 
 // 초기 운영자 계정 생성 (아이디: courteasy, 비번: qwer1234)

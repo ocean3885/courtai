@@ -130,10 +130,9 @@ export default function DocumentDetailPage() {
                     </div>
                 </div>
 
-                {/* 문서 미리보기 */}
-                <div className="bg-white border-2 border-gray-300 rounded-lg shadow-lg overflow-auto">
+                {/* 문서 미리보기 - A4 용지 느낌을 위해 배경색 변경 */}
+                <div className="bg-gray-100 border border-gray-200 rounded-xl shadow-inner overflow-auto flex justify-center py-12">
                     <div
-                        className="p-8"
                         dangerouslySetInnerHTML={{ __html: document.html_preview }}
                     />
                 </div>
