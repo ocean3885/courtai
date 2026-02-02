@@ -39,22 +39,28 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   // 1. Calculate Totals
   let totalPrincipal = 0;
   let totalInterest = 0;
-  let totalSecuredPromise = 0; // 담보부 회생채권액 합계
+  let totalSecuredPromise = 0; // 담보부 회생채권액 합계 (별제권부 채권의 원리금 합계)
+  let totalUnsecuredPromise = 0; // 무담보 회생채권액 합계 (별제권부 제외)
 
   creditors.forEach((c: any) => {
     const p = Number(c.principal) || 0;
     const i = Number(c.interest) || 0;
+    const total = p + i;
+    
     totalPrincipal += p;
     totalInterest += i;
     
-    // Check for secured data - use securedRehabilitationAmount if available
-    if (c.securedRehabilitationAmount) {
-        totalSecuredPromise += Number(c.securedRehabilitationAmount);
+    // 별제권부 채권 여부에 따라 담보부/무담보 구분
+    if (c.isSecured) {
+        // 별제권부 채권: 원리금 합계를 담보부 회생채권액에 포함
+        totalSecuredPromise += total;
+    } else {
+        // 별제권부가 아닌 채권: 무담보 회생채권액에 포함
+        totalUnsecuredPromise += total;
     }
   });
 
   const grandTotal = totalPrincipal + totalInterest;
-  const totalUnsecuredPromise = grandTotal - totalSecuredPromise;
 
   // 2. Build Detail Rows (Section 2 - New Detailed Format)
   const detailRows = creditors.map((c: any) => {
@@ -175,26 +181,76 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
     return rows;
   }).join('');
 
-  // 3. Build Secured Rows (Section 3)
-  const securedCreditors = creditors.filter((c: any) => 
-      (c.securedRehabilitationAmount && c.securedRehabilitationAmount > 0) || c.collateralObject
-  );
+  // 3. Build Secured Rows (Section 3) - 별제권부채권 및 이에 준하는 채권의 내역
+  const securedCreditors = creditors.filter((c: any) => c.isSecured);
   
   let securedRows = '';
+  let securedTotalPrincipal = 0;
+  let securedTotalInterest = 0;
+  let securedTotalExpectedRepayment = 0;
+  let securedTotalUnrepayable = 0;
+  let securedTotalRehabilitationAmount = 0;
+  
   if (securedCreditors.length > 0) {
       securedRows = securedCreditors.map((c: any) => {
+          const principal = Number(c.principal) || 0;
+          const interest = Number(c.interest) || 0;
+          const securedData = c.securedData || {};
+          const expectedRepaymentAmount = Number(securedData.expectedRepaymentAmount) || 0;
+          const unrepayableAmount = Number(securedData.unrepayableAmount) || 0;
+          const securedRehabilitationAmount = Number(securedData.securedRehabilitationAmount) || 0;
+          
+          securedTotalPrincipal += principal;
+          securedTotalInterest += interest;
+          securedTotalExpectedRepayment += expectedRepaymentAmount;
+          securedTotalUnrepayable += unrepayableAmount;
+          securedTotalRehabilitationAmount += securedRehabilitationAmount;
+          
+          const maxAmount = securedData.maxAmount || 0;
+          const collateralObject = securedData.collateralObject || '-';
+          const expectedLiquidationValue = securedData.expectedLiquidationValue || '-';
+          const securedRightDetails = securedData.securedRightDetails || '';
+          
           return `
           <tr>
-            <td class="center">${c.number}</td>
-            <td>${c.name}</td>
-            <td>${c.collateralObject || '-'}${c.maxAmount ? '<br>채권최고액: ' + formatCurrency(c.maxAmount) : ''}</td>
-            <td class="amount">${c.expectedLiquidationValue ? formatCurrency(c.expectedLiquidationValue) : '-'}</td>
-            <td class="amount">${c.securedRehabilitationAmount ? formatCurrency(c.securedRehabilitationAmount) : '-'}</td>
+            <td rowspan="3" class="center">${c.number}</td>
+            <td rowspan="3" class="center">${c.name}</td>
+            <td class="text-right">${formatCurrency(principal)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(expectedRepaymentAmount)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(unrepayableAmount)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(securedRehabilitationAmount)}</td>
+          </tr>
+          <tr>
+            <td class="text-right">${formatCurrency(interest)}</td>
+          </tr>
+          <tr>
+            <td colspan="4" class="text-left" style="padding: 8px;">
+              <div>
+                ${securedRightDetails}<br>
+                채권최고액 : ${formatCurrency(maxAmount)}<br>
+                목적물 : ${collateralObject}<br>
+                환가예상액 : ${expectedLiquidationValue}
+              </div>
+            </td>
           </tr>
           `;
       }).join('');
+      
+      // 합계 행 추가
+      securedRows += `
+          <tr>
+            <th colspan="2" rowspan="2" class="center">합 계</th>
+            <td class="text-right">${formatCurrency(securedTotalPrincipal)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(securedTotalExpectedRepayment)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(securedTotalUnrepayable)}</td>
+            <td rowspan="2" class="text-right">${formatCurrency(securedTotalRehabilitationAmount)}</td>
+          </tr>
+          <tr>
+            <td class="text-right">${formatCurrency(securedTotalInterest)}</td>
+          </tr>
+      `;
   } else {
-      securedRows = `<tr><td colspan="5" class="center">해당 사항 없음</td></tr>`;
+      securedRows = `<tr><td colspan="6" class="center">해당 사항 없음</td></tr>`;
   }
 
   return `
@@ -294,58 +350,68 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
 
         .document-container .center { text-align: center; }
         .document-container .amount { text-align: right; padding-right: 8px; }
+        .document-container .text-right { text-align: right !important; padding-right: 8px; }
         
         /* Utility classes for new table layout */
         .header-bg { background-color: #f0f0f0 !important; }
         .left-align { text-align: left !important; padding: 5px; }
         .no-border-bottom { border-bottom: none !important; }
         .no-border-top { border-top: none !important; }
+        
+        /* Footer note styling */
+        .footer-note { 
+          font-size: 12px; 
+          margin: 10px 0 12px 0;
+          line-height: 1.4;
+        }
+        
+        /* Header info styling */
+        .header-info {
+          text-align: right;
+          margin-bottom: 8px;
+          font-size: 13px;
+        }
       </style>
       
       <h1>개인회생채권자 목록</h1>
 
       <div style="margin-bottom: 20px; font-size: 14px;">
          <b>성명:</b> ${debtorInfo.name} <span style="margin: 0 10px;">|</span>
-         <b>주민등록번호:</b> ${debtorInfo.birthDate}-*******
+         <b>생년월일:</b> ${debtorInfo.birthDate}
       </div>
 
-      <h2>1. 채권 총액 및 구분 [cite: 5, 7]</h2>
-      <table>
-        <colgroup>
-            <col width="25%" />
-            <col width="25%" />
-            <col width="25%" />
-            <col width="25%" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>구분</th>
-            <th>원금</th>
-            <th>이자</th>
-            <th>합계</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="center"><b>총 합계</b></td>
-            <td class="amount">${formatCurrency(totalPrincipal)}</td>
-            <td class="amount">${formatCurrency(totalInterest)}</td>
-            <td class="amount"><b>${formatCurrency(grandTotal)}</b></td>
-          </tr>
-          <tr>
-            <td class="center"><b>담보부 회생채권</b></td>
-            <td colspan="2" class="center">-</td>
-            <td class="amount">${formatCurrency(totalSecuredPromise)}</td>
-          </tr>
-          <tr>
-            <td class="center"><b>무담보 회생채권</b></td>
-            <td colspan="2" class="center">-</td>
-            <td class="amount">${formatCurrency(totalUnsecuredPromise)}</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="debt-table-container">
+        <div class="header-info">
+          <span>목록작성일: ${new Date().toISOString().split('T')[0]}</span>
+        </div>
 
-      <h2>2. 개인회생채권자 상세 목록 [cite: 9, 10, 11, 12, 13]</h2>
+        <table>
+          <tr>
+            <th rowspan="3" style="width: 15%;">채권현재액</th>
+            <th style="width: 8%;">합계</th>
+            <td class="text-right" style="width: 15%;">${formatCurrency(grandTotal)}</td>
+            
+            <th rowspan="3" style="width: 18%;">담보부 회생<br>채권액의 합계</th>
+            <td rowspan="3" class="text-right" style="width: 15%;">${formatCurrency(totalSecuredPromise)}</td>
+            
+            <th rowspan="3" style="width: 18%;">무담보 회생<br>채권액의 합계</th>
+            <td rowspan="3" class="text-right" style="width: 15%;">${formatCurrency(totalUnsecuredPromise)}</td>
+          </tr>
+          <tr>
+            <th>원금</th>
+            <td class="text-right">${formatCurrency(totalPrincipal)}</td>
+          </tr>
+          <tr>
+            <th>이자</th>
+            <td class="text-right">${formatCurrency(totalInterest)}</td>
+          </tr>
+        </table>
+
+        <div class="footer-note">
+          ※ 개시후이자 등: 아래 각 채권의 개시결정일 이후의 이자 · 지연손해금 등은 채무자 회생 및 파산에 관한 법률 제581조 제2항, 제446조 제1항 제1, 2호의 후순위채권입니다.
+        </div>
+      </div>
+
       <table>
         <colgroup>
             <col style="width: 8%;">
@@ -378,28 +444,31 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
           ${detailRows}
       </table>
 
-      <h2>3. 별제권부채권 및 담보 내역</h2>
+      ${securedCreditors.length > 0 ? `
+      <h2>부속서류 1. 별제권부채권 및 이에 준하는 채권의 내역</h2>
+      <div style="text-align: right; font-size: 13px; margin-bottom: 5px;">(단위 : 원)</div>
       <table>
-        <colgroup>
-            <col width="10%" />
-            <col width="20%" />
-            <col width="30%" />
-            <col width="20%" />
-            <col width="20%" />
-        </colgroup>
         <thead>
           <tr>
-            <th>채권번호</th>
-            <th>채권자</th>
-            <th>담보 및 목적물 내역</th>
-            <th>환가예상액(70%)</th>
-            <th>담보부 회생채권액</th>
+            <th rowspan="2" style="width: 8%;">채권<br>번호</th>
+            <th rowspan="2" style="width: 12%;">채권자</th>
+            <th style="width: 20%;">①채권현재액(원금)</th>
+            <th rowspan="2" style="width: 20%;">③별제권행사등으로<br>변제가 예상되는<br>채권액</th>
+            <th rowspan="2" style="width: 20%;">④별제권행사등으로<br>도 변제받을 수 없을<br>채권액</th>
+            <th rowspan="2" style="width: 20%;">⑤담보부<br>회생채권액</th>
+          </tr>
+          <tr>
+            <th>②채권현재액(이자)</th>
+          </tr>
+          <tr>
+            <th colspan="6">⑥별제권 등의 내용 및 목적물</th>
           </tr>
         </thead>
         <tbody>
             ${securedRows}
         </tbody>
       </table>
+      ` : ''}
       
       <div style="margin-top: 50px; text-align: center; color: #888; font-size: 10px;">
         <!-- Footer info if needed -->

@@ -52,6 +52,7 @@ export async function GET(
         try {
             const parsedData = JSON.parse(document.source_snapshot);
             document.html_preview = generateDocumentHTML(document.title, parsedData);
+            document.snapshot_data = parsedData; // 프론트엔드에서 사용할 수 있도록 파싱된 데이터 추가
         } catch (e) {
             console.error('Failed to parse snapshot or generate HTML:', e);
             // JSON 파싱 실패 시, 기존에 저장된(혹은 없을 수도 있는) html_preview를 그대로 둡니다.

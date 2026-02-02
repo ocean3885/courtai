@@ -10,7 +10,10 @@ interface DocumentDetail {
     title: string;
     html_preview: string;
     created_at: string;
+    snapshot_data?: any;
 }
+
+type TabType = 'creditor-list' | 'repayment-plan';
 
 export default function DocumentDetailPage() {
     const router = useRouter();
@@ -18,12 +21,20 @@ export default function DocumentDetailPage() {
     const documentId = params.id as string;
     const [document, setDocument] = useState<DocumentDetail | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<TabType>('creditor-list');
+    const [repaymentPlanHtml, setRepaymentPlanHtml] = useState<string>('');
 
     useEffect(() => {
         if (documentId) {
             fetchDocument();
         }
     }, [documentId]);
+
+    useEffect(() => {
+        if (document && activeTab === 'repayment-plan' && !repaymentPlanHtml) {
+            generateRepaymentPlan();
+        }
+    }, [activeTab, document]);
 
     const fetchDocument = async () => {
         try {
@@ -43,19 +54,37 @@ export default function DocumentDetailPage() {
         }
     };
 
+    const generateRepaymentPlan = async () => {
+        if (!document?.snapshot_data) return;
+
+        try {
+            // 동적 import로 클라이언트에서 서비스 로드
+            const { generateRepaymentPlanHTML } = await import('@/lib/repayment-plan-service');
+            const html = generateRepaymentPlanHTML(document.snapshot_data);
+            setRepaymentPlanHtml(html);
+        } catch (error) {
+            console.error('Failed to generate repayment plan:', error);
+            alert('변제계획안 생성 중 오류가 발생했습니다.');
+        }
+    };
+
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (printWindow && document) {
+            const contentToPrint = activeTab === 'creditor-list' 
+                ? document.html_preview 
+                : repaymentPlanHtml;
+            
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html lang="ko">
                 <head>
                     <meta charset="UTF-8">
                     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>${document.title}</title>
+                    <title>${document.title} - ${activeTab === 'creditor-list' ? '채권자목록' : '변제계획안'}</title>
                 </head>
                 <body>
-                    ${document.html_preview}
+                    ${contentToPrint}
                 </body>
                 </html>
             `);
@@ -130,11 +159,53 @@ export default function DocumentDetailPage() {
                     </div>
                 </div>
 
-                {/* 문서 미리보기 - A4 용지 느낌을 위해 배경색 변경 */}
+                {/* 탭 메뉴 */}
+                <div className="mb-6">
+                    <div className="border-b border-gray-200">
+                        <nav className="-mb-px flex space-x-8">
+                            <button
+                                onClick={() => setActiveTab('creditor-list')}
+                                className={`
+                                    py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                                    ${activeTab === 'creditor-list'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }
+                                `}
+                            >
+                                채권자목록
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('repayment-plan')}
+                                className={`
+                                    py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                                    ${activeTab === 'repayment-plan'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }
+                                `}
+                            >
+                                변제계획안
+                            </button>
+                        </nav>
+                    </div>
+                </div>
+
+                {/* 문서 미리보기 */}
                 <div className="bg-gray-100 border border-gray-200 rounded-xl shadow-inner overflow-auto flex justify-center py-12">
-                    <div
-                        dangerouslySetInnerHTML={{ __html: document.html_preview }}
-                    />
+                    {activeTab === 'creditor-list' ? (
+                        <div dangerouslySetInnerHTML={{ __html: document.html_preview }} />
+                    ) : (
+                        <>
+                            {repaymentPlanHtml ? (
+                                <div dangerouslySetInnerHTML={{ __html: repaymentPlanHtml }} />
+                            ) : (
+                                <div className="flex justify-center items-center py-20">
+                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                                </div>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         </MainLayout>
