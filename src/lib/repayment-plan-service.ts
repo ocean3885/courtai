@@ -44,10 +44,10 @@ function generateRepaymentSchedule(
       // 별제권부 채권: 별제권행사등으로 변제받을 수 없는 채권액만 대상
       repaymentTargetAmount = Number(c.securedData.unrepayableAmount) || 0;
     } else {
-      // 일반 채권: 원금 + 이자 전체
+      // 일반 채권: 원금만 대상 (이자 제외)
       const principal = Number(c.principal) || 0;
-      const interest = Number(c.interest) || 0;
-      repaymentTargetAmount = principal + interest;
+      // const interest = Number(c.interest) || 0;
+      repaymentTargetAmount = principal;
     }
     
     creditorBalances[c.id] = repaymentTargetAmount;
@@ -106,8 +106,9 @@ function generateRepaymentSchedule(
                     // 마지막 채권자: 남은 전체 금액 할당
                     payment = availableAmount - distributedAmount;
                   } else {
-                    // 비율에 따라 안분
-                    const ratio = creditorBalances[c.id] / totalRegularDebt;
+                    // 비율에 따라 안분 (초기 채권액 기준)
+                    const originalTotalDebt = activeRegularCreditors.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
+                    const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
                     payment = Math.floor(availableAmount * ratio);
                     distributedAmount += payment;
                   }
@@ -127,8 +128,9 @@ function generateRepaymentSchedule(
               // 마지막 채권자: 남은 전체 금액 할당
               payment = availableAmount - distributedAmount;
             } else {
-              // 비율에 따라 안분
-              const ratio = creditorBalances[c.id] / totalPreferentialDebt;
+              // 비율에 따라 안분 (초기 채권액 기준)
+              const originalTotalDebt = preferentialRemaining.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
+              const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
               payment = Math.floor(availableAmount * ratio);
               distributedAmount += payment;
             }
@@ -158,8 +160,9 @@ function generateRepaymentSchedule(
               // 마지막 채권자: 남은 전체 금액 할당
               payment = availableAmount - distributedAmount;
             } else {
-              // 비율에 따라 안분
-              const ratio = creditorBalances[c.id] / totalDebt;
+              // 비율에 따라 안분 (초기 채권액 기준)
+              const originalTotalDebt = activeCreditors.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
+              const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
               payment = Math.floor(availableAmount * ratio);
               distributedAmount += payment;
             }
@@ -306,10 +309,10 @@ function generateSingleRepaymentTable(
       confirmedDebt = 0;
       isUnconfirmed = true;
     } else {
-      // 일반 채권: 확정채권액으로 처리
+      // 일반 채권: 확정채권액으로 처리 (원금만)
       const principal = Number(c.principal) || 0;
-      const interest = Number(c.interest) || 0;
-      confirmedDebt = principal + interest;
+      // const interest = Number(c.interest) || 0;
+      confirmedDebt = principal;
       unconfirmedDebt = 0;
       isUnconfirmed = false;
     }
@@ -354,26 +357,30 @@ function generateSingleRepaymentTable(
   const sumUnconfirmedTotalPayment = creditorData.filter(c => c.isUnconfirmed).reduce((sum, c) => sum + c.totalPayment, 0);
   const sumTotalPayment = creditorData.reduce((sum, c) => sum + c.totalPayment, 0);
   
+  const title = startRound === endRound 
+    ? `제 ${startRound} 회차 변제예정액`
+    : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`;
+
   return `
     <div style="font-weight: bold; margin-bottom: 5px; margin-top: 20px;">
-      제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액
+      ${title}
     </div>
     <table class="repayment-plan">
       <thead>
         <tr>
-          <th rowspan="2" style="width: 5%;">채권<br>번호</th>
-          <th rowspan="2" style="width: 10%;">채권자</th>
-          <th colspan="2">(D)개인회생채권액</th>
-          <th colspan="2">(E)월변제예정(유보)액</th>
-          <th colspan="2">(F)총변제예정(유보)액</th>
+          <th rowspan="2" style="width: 8%;">채권<br>번호</th>
+          <th rowspan="2" style="width: 17%;">채권자</th>
+          <th colspan="2" style="width: 25%;">(D)개인회생채권액</th>
+          <th colspan="2" style="width: 25%;">(E)월변제예정(유보)액</th>
+          <th colspan="2" style="width: 25%;">(F)총변제예정(유보)액</th>
         </tr>
         <tr>
-          <th>확정<br>채권액(원금)</th>
-          <th>미확정<br>채권액(원금)</th>
-          <th>확정<br>채권액(원금)</th>
-          <th>미확정<br>채권액(원금)</th>
-          <th>확정<br>채권액(원금)</th>
-          <th>미확정<br>채권액(원금)</th>
+          <th>확정<br>채권액</th>
+          <th>미확정<br>채권액</th>
+          <th>확정<br>채권액</th>
+          <th>미확정<br>채권액</th>
+          <th>확정<br>채권액</th>
+          <th>미확정<br>채권액</th>
         </tr>
       </thead>
       <tbody>
@@ -381,28 +388,28 @@ function generateSingleRepaymentTable(
           <tr>
             <td class="center">${c.number}</td>
             <td>${c.name}</td>
-            <td class="text-right">${c.confirmedDebt > 0 ? formatCurrency(c.confirmedDebt) : '0'}</td>
-            <td class="text-right">${c.unconfirmedDebt > 0 ? formatCurrency(c.unconfirmedDebt) : '0'}</td>
-            <td class="text-right">${c.isUnconfirmed ? '0' : formatCurrency(Math.floor(c.monthlyPayment))}</td>
-            <td class="text-right">${c.isUnconfirmed ? formatCurrency(Math.floor(c.monthlyPayment)) : '0'}</td>
-            <td class="text-right">${c.isUnconfirmed ? '0' : formatCurrency(c.totalPayment)}</td>
-            <td class="text-right">${c.isUnconfirmed ? formatCurrency(c.totalPayment) : '0'}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.confirmedDebt > 0 ? formatCurrency(c.confirmedDebt) : '0'}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.unconfirmedDebt > 0 ? formatCurrency(c.unconfirmedDebt) : '0'}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? '0' : formatCurrency(Math.floor(c.monthlyPayment))}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? formatCurrency(Math.floor(c.monthlyPayment)) : '0'}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? '0' : formatCurrency(c.totalPayment)}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? formatCurrency(c.totalPayment) : '0'}</td>
           </tr>
         `).join('')}
         <tr style="font-weight: bold; background-color: #f3f4f6;">
           <th colspan="2">합계</th>
-          <td class="text-right">${formatCurrency(sumConfirmedDebt)}</td>
-          <td class="text-right">${formatCurrency(sumUnconfirmedDebt)}</td>
-          <td class="text-right">${formatCurrency(Math.floor(sumConfirmedMonthlyPayment))}</td>
-          <td class="text-right">${formatCurrency(Math.floor(sumUnconfirmedMonthlyPayment))}</td>
-          <td class="text-right">${formatCurrency(sumConfirmedTotalPayment)}</td>
-          <td class="text-right">${formatCurrency(sumUnconfirmedTotalPayment)}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumConfirmedDebt)}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumUnconfirmedDebt)}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumConfirmedMonthlyPayment))}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumUnconfirmedMonthlyPayment))}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumConfirmedTotalPayment)}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumUnconfirmedTotalPayment)}</td>
         </tr>
         <tr style="font-weight: bold; background-color: #e5e7eb;">
           <th colspan="2">총계</th>
-          <td colspan="2" class="text-right">${formatCurrency(sumTotalDebt)}</td>
-          <td colspan="2" class="text-right">${formatCurrency(Math.floor(sumMonthlyPayment))}</td>
-          <td colspan="2" class="text-right">${formatCurrency(sumTotalPayment)}</td>
+          <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(sumTotalDebt)}</td>
+          <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumMonthlyPayment))}</td>
+          <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(sumTotalPayment)}</td>
         </tr>
       </tbody>
     </table>
@@ -413,14 +420,39 @@ function generateSingleRepaymentTable(
  * 변제계획안 HTML 생성
  */
 export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
-  const { debtorInfo, creditors, repaymentPlan } = data;
+  const { debtorInfo, creditors: inputCreditors, repaymentPlan } = data;
 
-  // 총 채권액 계산
+  // 대위변제자(구상권자)를 포함한 전체 채권자 목록 생성
+  const creditors: any[] = [];
+  inputCreditors.forEach((c: any) => {
+    creditors.push(c);
+    
+    // 대위변제자 정보가 있는 경우 별도의 채권자로 추가
+    if (c.isSubrogated && c.subrogationData) {
+      const sub = c.subrogationData;
+      // 손해금(damages)이 있는 경우 원금에 포함(제외 요청으로 수정: 원금만 포함)
+      const principal = Number(sub.principal) || 0;
+      // const damages = Number(sub.damages) || 0;
+      
+      creditors.push({
+        id: sub.id,
+        number: sub.number,
+        name: sub.name,
+        principal: principal, // damages 제외
+        interest: Number(sub.interest) || 0,
+        isSecured: false, // 대위변제 채권은 일반적으로 일반회생채권
+        isPreferential: false,
+        securedData: null
+      });
+    }
+  });
+
+  // 총 채권액 계산 (원금만 포함)
   let totalDebt = 0;
   creditors.forEach((c: any) => {
     const principal = Number(c.principal) || 0;
-    const interest = Number(c.interest) || 0;
-    totalDebt += principal + interest;
+    // const interest = Number(c.interest) || 0;
+    totalDebt += principal; // 이자 제외
   });
 
   const repaymentPeriodMonths = repaymentPlan?.repaymentPeriod?.months || 36;
@@ -445,6 +477,48 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
     repaymentCount,
     0
   );
+
+  // 총합계 계산 (섹션 4용) - 스케줄 기반 재계산
+  // creditorTotals의 totalPayment대신 schedule을 순회하며 합산하여 섹션 3의 표와 100% 일치시킴
+  const scheduleBasedTotals: { [id: string]: number } = {};
+  schedule.forEach(row => {
+    creditors.forEach(c => {
+      const payment = row.payments[c.id] || 0;
+      scheduleBasedTotals[c.id] = (scheduleBasedTotals[c.id] || 0) + payment;
+    });
+  });
+
+  let section4SumConfirmedDebt = 0;
+  let section4SumUnconfirmedDebt = 0;
+  let section4SumConfirmedPayment = 0;
+  let section4SumUnconfirmedPayment = 0;
+  
+  creditorTotals.forEach(ct => {
+    const creditor = creditors.find(c => c.id === ct.creditorId);
+    const isSecured = creditor?.isSecured || false;
+    
+    // ct.totalDebt는 이미 generateRepaymentSchedule에서 계산됨
+    // 별제권부 채권: unrepayableAmount
+    // 일반 채권: principal + interest
+    const debtAmount = ct.totalDebt;
+    
+    // 스케줄에서 집계한 총 변제액 사용
+    const finalTotalPayment = scheduleBasedTotals[ct.creditorId] || 0;
+
+    // creditorTotals 객체 업데이트 (화면 표시용)
+    ct.totalPayment = finalTotalPayment;
+    
+    if (isSecured) {
+      section4SumUnconfirmedDebt += debtAmount;
+      section4SumUnconfirmedPayment += finalTotalPayment;
+    } else {
+      section4SumConfirmedDebt += debtAmount;
+      section4SumConfirmedPayment += finalTotalPayment;
+    }
+  });
+
+  const section4GrandTotalDebt = section4SumConfirmedDebt + section4SumUnconfirmedDebt;
+  const section4GrandTotalPayment = section4SumConfirmedPayment + section4SumUnconfirmedPayment;
 
   // 별제권부 채권 필터링 및 계산
   const securedCreditors = creditors.filter((c: any) => c.isSecured);
@@ -542,6 +616,9 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
             width: 99% !important;
             margin: 0 auto !important;
           }
+          thead {
+            display: table-row-group; /* 인쇄 시 헤더 반복 방지 */
+          }
           tr {
             page-break-inside: avoid;
             break-inside: avoid;
@@ -637,6 +714,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           border-collapse: collapse;
           margin-bottom: 20px;
           font-size: 13px;
+          table-layout: fixed; /* 표 레이아웃 고정 */
         }
         
         .repayment-plan th,
@@ -645,6 +723,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           padding: 8px;
           text-align: center;
           vertical-align: middle;
+          word-break: break-all; /* 너무 긴 텍스트 줄바꿈 */
         }
         
         .repayment-plan th {
@@ -733,53 +812,49 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
       <table>
         <thead>
           <tr>
-            <th rowspan="2" style="width: 10%; word-break: break-word;">채권번호</th>
-            <th rowspan="2" style="width: 20%; word-break: break-word;">채권자</th>
-            <th colspan="2" style="width: 35%;">채권액</th>
-            <th colspan="2" style="width: 35%;">총변제예정액</th>
+            <th rowspan="2" style="width: 8%; word-break: break-word;">채권번호</th>
+            <th rowspan="2" style="width: 17%; word-break: break-word;">채권자</th>
+            <th colspan="2">채권액</th>
+            <th colspan="2">총변제예정액</th>
           </tr>
           <tr>
-            <th style="width: 17.5%;">확정채권액</th>
-            <th style="width: 17.5%;">미확정채권액</th>
-            <th style="width: 17.5%;">확정채권액</th>
-            <th style="width: 17.5%;">미확정채권액</th>
+            <th style="white-space: nowrap;">확정채권액</th>
+            <th style="white-space: nowrap;">미확정채권액</th>
+            <th style="white-space: nowrap;">확정채권액</th>
+            <th style="white-space: nowrap;">미확정채권액</th>
           </tr>
         </thead>
         <tbody>
           ${creditorTotals.map(ct => {
             const creditor = creditors.find(c => c.id === ct.creditorId);
             const isSecured = creditor?.isSecured || false;
-            const principal = Number(creditor?.principal) || 0;
+            // ct.totalDebt는 이미 generateRepaymentSchedule에서 계산됨
+            // 별제권부 채권: unrepayableAmount
+            // 일반 채권: principal + interest
+            const debtAmount = ct.totalDebt;
             
             return `
             <tr>
               <td class="center">${ct.creditorNumber}</td>
-              <td class="text-left">${ct.creditorName}</td>
-              <td class="text-right">${isSecured ? '0' : formatCurrency(principal)}</td>
-              <td class="text-right">${isSecured ? formatCurrency(principal) : '0'}</td>
-              <td class="text-right">${isSecured ? '0' : formatCurrency(ct.totalPayment)}</td>
-              <td class="text-right">${isSecured ? formatCurrency(ct.totalPayment) : '0'}</td>
+              <td class="center">${ct.creditorName}</td>
+              <td class="text-right" style="white-space: nowrap;">${isSecured ? '0' : formatCurrency(debtAmount)}</td>
+              <td class="text-right" style="white-space: nowrap;">${isSecured ? formatCurrency(debtAmount) : '0'}</td>
+              <td class="text-right" style="white-space: nowrap;">${isSecured ? '0' : formatCurrency(ct.totalPayment)}</td>
+              <td class="text-right" style="white-space: nowrap;">${isSecured ? formatCurrency(ct.totalPayment) : '0'}</td>
             </tr>
           `;
           }).join('')}
           <tr style="font-weight: bold; background-color: #f3f4f6;">
             <td colspan="2" class="center">합계</td>
-            <td class="text-right">${formatCurrency(creditorTotals.reduce((sum, ct) => {
-              const creditor = creditors.find(c => c.id === ct.creditorId);
-              return sum + (creditor?.isSecured ? 0 : (Number(creditor?.principal) || 0));
-            }, 0))}</td>
-            <td class="text-right">${formatCurrency(creditorTotals.reduce((sum, ct) => {
-              const creditor = creditors.find(c => c.id === ct.creditorId);
-              return sum + (creditor?.isSecured ? (Number(creditor?.principal) || 0) : 0);
-            }, 0))}</td>
-            <td class="text-right">${formatCurrency(creditorTotals.reduce((sum, ct) => {
-              const creditor = creditors.find(c => c.id === ct.creditorId);
-              return sum + (creditor?.isSecured ? 0 : ct.totalPayment);
-            }, 0))}</td>
-            <td class="text-right">${formatCurrency(creditorTotals.reduce((sum, ct) => {
-              const creditor = creditors.find(c => c.id === ct.creditorId);
-              return sum + (creditor?.isSecured ? ct.totalPayment : 0);
-            }, 0))}</td>
+            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumConfirmedDebt)}</td>
+            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumUnconfirmedDebt)}</td>
+            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumConfirmedPayment)}</td>
+            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumUnconfirmedPayment)}</td>
+          </tr>
+          <tr style="font-weight: bold; background-color: #e5e7eb;">
+            <td colspan="2" class="center">총합계</td>
+            <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(section4GrandTotalDebt)}</td>
+            <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(section4GrandTotalPayment)}</td>
           </tr>
         </tbody>
       </table>
@@ -791,66 +866,3 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   `;
 }
 
-/**
- * 월별 변제 일정 행 생성
- */
-function generateMonthlyScheduleRows(months: number, monthlyPayment: number): string {
-  const rows: string[] = [];
-  let cumulativeAmount = 0;
-  const today = new Date();
-
-  for (let i = 1; i <= months; i++) {
-    cumulativeAmount += monthlyPayment;
-    const repaymentDate = new Date(today);
-    repaymentDate.setMonth(today.getMonth() + i);
-    
-    rows.push(`
-      <tr>
-        <td class="center">${i}회차</td>
-        <td class="center">${repaymentDate.getFullYear()}년 ${repaymentDate.getMonth() + 1}월</td>
-        <td class="text-right">${formatCurrency(monthlyPayment)}</td>
-        <td class="text-right">${formatCurrency(cumulativeAmount)}</td>
-      </tr>
-    `);
-  }
-
-  return rows.join('');
-}
-
-/**
- * 채권자별 변제 예상액 행 생성
- */
-function generateCreditorRepaymentRows(creditors: any[], totalRepayment: number, totalDebt: number): string {
-  const rows = creditors.map((c: any) => {
-    const principal = Number(c.principal) || 0;
-    const interest = Number(c.interest) || 0;
-    const creditorDebt = principal + interest;
-    
-    // 각 채권자의 채권액 비율에 따라 변제액 배분
-    const repaymentRate = totalDebt > 0 ? (creditorDebt / totalDebt) * 100 : 0;
-    const estimatedRepayment = totalDebt > 0 ? (creditorDebt / totalDebt) * totalRepayment : 0;
-
-    return `
-      <tr>
-        <td class="center">${c.number}</td>
-        <td class="text-left">${c.name}</td>
-        <td class="text-right">${formatCurrency(creditorDebt)}</td>
-        <td class="text-right">${repaymentRate.toFixed(2)}%</td>
-        <td class="text-right">${formatCurrency(Math.floor(estimatedRepayment))}</td>
-      </tr>
-    `;
-  });
-
-  // 합계 행 추가
-  const totalRepaymentRate = totalDebt > 0 ? ((totalRepayment / totalDebt) * 100).toFixed(2) : '0.00';
-  rows.push(`
-    <tr style="font-weight: bold; background-color: #f3f4f6;">
-      <td colspan="2" class="center">합계</td>
-      <td class="text-right">${formatCurrency(totalDebt)}</td>
-      <td class="text-right">${totalRepaymentRate}%</td>
-      <td class="text-right">${formatCurrency(totalRepayment)}</td>
-    </tr>
-  `);
-
-  return rows.join('');
-}

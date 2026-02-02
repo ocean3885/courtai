@@ -22,11 +22,6 @@ const navigation: (NavGroup | NavItem)[] = [
     groupName: '개인회생',
     items: [
       {
-        name: '변제계획 생성',
-        href: '/create-plan',
-        icon: '📊',
-      },
-      {
         name: '사건정보입력',
         href: '/case-input',
         icon: '📝',
