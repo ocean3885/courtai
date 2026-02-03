@@ -37,6 +37,7 @@ export default function CreditorListPage() {
             months: 36,
         },
         incomeType: 'wage',
+        companyName: '',
         monthlyAverageIncome: 0,
         monthlyAverageLivingCost: 0,
         monthlyAverageAvailableIncome: 0,
@@ -45,6 +46,9 @@ export default function CreditorListPage() {
         monthlyActualAvailableIncome: 0,
         repaymentCount: 0,
         totalActualAvailableIncome: 0,
+        liquidationValue: 0,
+        seizedReservesStatus: 'no',
+        seizedReservesAmount: 0,
         trusteeFee: {
             preConfirmation: 150000,
             postConfirmationRate: 1.0,

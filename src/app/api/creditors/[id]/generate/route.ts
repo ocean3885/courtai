@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import jwt from 'jsonwebtoken';
 import { enrichDocumentData } from '@/lib/document-service';
+import { generateChangeLog } from '@/lib/snapshot-diff';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
@@ -50,6 +51,24 @@ export async function POST(
     const day = now.getDate();
     const koreanDate = `${year}. ${month}. ${day}.자`;
 
+    // 이전 문서 조회 (가장 최근 문서)
+    const getPreviousDocument = db.prepare(`
+      SELECT source_snapshot, changes
+      FROM case_documents
+      WHERE creditor_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+    `);
+    const previousDocument: any = getPreviousDocument.get(creditorId);
+
+    // 변경사항 계산 (직전 문서와의 차이만 저장)
+    let changeLog = '';
+    if (previousDocument && previousDocument.source_snapshot) {
+      changeLog = generateChangeLog(previousDocument.source_snapshot, enrichedData);
+    } else {
+      changeLog = `[${now.toLocaleString('ko-KR')}] 최초 생성`;
+    }
+
     // case_documents 테이블에 저장
     // HTML은 저장하지 않고(빈 문자열), enrichedData(JSON)만 스냅샷으로 저장합니다.
     const insertDocument = db.prepare(`
@@ -61,7 +80,7 @@ export async function POST(
       creditorId,
       `${koreanDate} 채권자목록 및 변제계획안`,
       JSON.stringify(enrichedData),
-      '', // changes
+      changeLog, // 변경사항 저장
       ''  // html_preview (On-the-fly 생성으로 변경되어 빈 값 저장)
     );
 

@@ -71,6 +71,7 @@ export interface RepaymentPlan {
         months: number;
     };
     incomeType: 'wage' | 'business';
+    companyName: string; // 근무(운영)업체명
     monthlyAverageIncome: number;
     monthlyAverageLivingCost: number;
     monthlyAverageAvailableIncome: number;
@@ -79,6 +80,9 @@ export interface RepaymentPlan {
     monthlyActualAvailableIncome: number;
     repaymentCount: number;
     totalActualAvailableIncome: number;
+    liquidationValue: number; // 청산가치
+    seizedReservesStatus: 'yes' | 'no'; // 압류적립금 있음/없음
+    seizedReservesAmount: number; // 압류적립액
     trusteeFee: {
         preConfirmation: number;
         postConfirmationRate: number;

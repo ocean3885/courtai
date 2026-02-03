@@ -1,4 +1,5 @@
 import { formatCurrency } from '@/app/case-input/utils';
+import { generateRepaymentScheduleWithSeizedReserves } from './repayment-plan-seized-service';
 
 export interface RepaymentPlanData {
   debtorInfo: any;
@@ -6,13 +7,13 @@ export interface RepaymentPlanData {
   repaymentPlan: any;
 }
 
-interface RepaymentScheduleRow {
+export interface RepaymentScheduleRow {
   round: number;
   payments: { [creditorId: string]: number };
   total: number;
 }
 
-interface CreditorTotal {
+export interface CreditorTotal {
   creditorId: string;
   creditorNumber: string;
   creditorName: string;
@@ -192,6 +193,8 @@ function generateRepaymentSchedule(
   };
 }
 
+
+
 /**
  * 변제예정액표 테이블 생성 (회차별로 그룹화)
  */
@@ -199,7 +202,8 @@ function generateRepaymentPlanTables(
   creditors: any[],
   schedule: RepaymentScheduleRow[],
   monthlyActualAvailableIncome: number,
-  repaymentCount: number
+  repaymentCount: number,
+  seizedReservesAmount: number = 0
 ): string {
   
   // 우선변제권 채권자가 있는지 확인
@@ -207,7 +211,7 @@ function generateRepaymentPlanTables(
   const hasPreferential = preferentialCreditors.length > 0;
   
   // 회차를 그룹으로 나누기
-  const groups: { startRound: number; endRound: number; creditors: any[] }[] = [];
+  let groups: { startRound: number; endRound: number; creditors: any[] }[] = [];
   
   if (hasPreferential) {
     const regularCreditors = creditors.filter(c => !c.isPreferential);
@@ -263,6 +267,33 @@ function generateRepaymentPlanTables(
       endRound: repaymentCount,
       creditors: creditors
     });
+  }
+
+  // 압류적립금이 있는 경우 1회차 분리 로직 적용
+  if (seizedReservesAmount > 0 && schedule.length > 1) {
+    const newGroups: { startRound: number; endRound: number; creditors: any[] }[] = [];
+    
+    groups.forEach(group => {
+      // 그룹이 1회차를 포함하고, 1회차보다 더 긴 경우 분리
+      if (group.startRound === 1 && group.endRound > 1) {
+        // 1회차 그룹
+        newGroups.push({
+          startRound: 1,
+          endRound: 1,
+          creditors: group.creditors
+        });
+        // 나머지 그룹 (2 ~ end)
+        newGroups.push({
+          startRound: 2,
+          endRound: group.endRound,
+          creditors: group.creditors
+        });
+      } else {
+        newGroups.push(group);
+      }
+    });
+    
+    groups = newGroups;
   }
   
   let html = '';
@@ -470,13 +501,56 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const repaymentCount = repaymentPlan?.repaymentCount || repaymentPeriodMonths;
   const totalActualAvailableIncome = repaymentPlan?.totalActualAvailableIncome || (monthlyActualAvailableIncome * repaymentCount);
 
-  // 변제예정액표 생성
-  const { schedule, creditorTotals } = generateRepaymentSchedule(
-    creditors,
-    monthlyActualAvailableIncome,
-    repaymentCount,
-    0
-  );
+  // 압류적립금 관련 데이터
+  const seizedReservesStatus = repaymentPlan?.seizedReservesStatus || 'no';
+  const seizedReservesAmount = repaymentPlan?.seizedReservesAmount || 0;
+  // Ensure strict number comparison
+  const hasSeizedReserves = seizedReservesStatus === 'yes' && Number(seizedReservesAmount) > 0;
+
+  console.log(`[RepaymentPlan] Checking Seized Reserves: Status=${seizedReservesStatus}, Amount=${seizedReservesAmount}, HasSeized=${hasSeizedReserves}`);
+
+  // 압류적립금 계산 (화면 표시용)
+  let seizedCalculationHtml = '';
+  if (hasSeizedReserves) {
+     const seizedAmount = Number(seizedReservesAmount);
+     const totalIncome = Number(totalActualAvailableIncome);
+     const adjustedTotalIncome = totalIncome - seizedAmount;
+     const adjustedMonthlyIncome = repaymentCount > 1 ? Math.ceil(adjustedTotalIncome / (repaymentCount - 1)) : 0;
+     
+     seizedCalculationHtml = `
+      <div style="margin-top: 10px; margin-bottom: 5px; font-weight: bold; font-size: 14px;">※ 압류적립금이 있는 경우의 가용소득 산정</div>
+      <table class="income-table">
+        <tr>
+          <th class="wide-cell">압류적립금</th>
+          <th class="wide-cell">수정된 총가용소득<br>( ⑧ - 압류적립금 )</th>
+          <th class="wide-cell">수정된 월실제가용소득<br>( 수정된 총가용소득 / ${repaymentCount - 1}회 )</th>
+        </tr>
+        <tr>
+          <td>${formatCurrency(seizedAmount)}</td>
+          <td>${formatCurrency(adjustedTotalIncome)}</td>
+          <td>${formatCurrency(adjustedMonthlyIncome)}</td>
+        </tr>
+      </table>
+      <div style="font-size: 12px; color: #666; margin-top: 5px;">
+        * 1회차는 압류적립금을 변제재원으로 사용하고, 2회차부터 수정된 월실제가용소득을 변제재원으로 사용함.
+      </div>
+     `;
+  }
+
+  // 변제예정액표 생성 (압류적립금 여부에 따라 다른 함수 호출)
+  const { schedule, creditorTotals } = hasSeizedReserves
+    ? generateRepaymentScheduleWithSeizedReserves(
+        creditors,
+        monthlyActualAvailableIncome,
+        repaymentCount,
+        seizedReservesAmount
+      )
+    : generateRepaymentSchedule(
+        creditors,
+        monthlyActualAvailableIncome,
+        repaymentCount,
+        0
+      );
 
   // 총합계 계산 (섹션 4용) - 스케줄 기반 재계산
   // creditorTotals의 totalPayment대신 schedule을 순회하며 합산하여 섹션 3의 표와 100% 일치시킴
@@ -777,6 +851,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           <td>${formatCurrency(totalActualAvailableIncome)}</td>
         </tr>
       </table>
+      ${seizedCalculationHtml}
 
       <h2>2. 별제권부채권 및 이에 준하는 채권의 처리 [${hasSecuredCreditors ? '해당있음' : '해당없음'}]</h2>
       ${hasSecuredCreditors ? `
@@ -805,7 +880,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
       ` : '<p style="margin: 10px 0; color: #666;">별제권부 채권이 없습니다.</p>'}
 
       <h2>3. 개인회생채권 변제예정액표</h2>
-      ${generateRepaymentPlanTables(creditors, schedule, monthlyActualAvailableIncome, repaymentCount)}
+      ${generateRepaymentPlanTables(creditors, schedule, monthlyActualAvailableIncome, repaymentCount, hasSeizedReserves ? Number(seizedReservesAmount) : 0)}
 
       <h2>4. 가용소득에 의한 총변제예정액 산정내역</h2>
       <div style="text-align: right; font-size: 13px; margin-bottom: 5px;">(단위 : 원)</div>

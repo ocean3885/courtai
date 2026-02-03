@@ -39,13 +39,51 @@ export function PlanInfoForm({
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">수입형태</label>
-                    <select value={repaymentPlan.incomeType} onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none">
+                    <select value={repaymentPlan.incomeType} onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]">
                         <option value="wage">급여소득자</option>
                         <option value="business">영업소득자</option>
                     </select>
                 </div>
 
-                {/* Row 2 - 4 items */}
+                {/* Row 2 - 근무(운영)업체명, 청산가치, 압류적립금, 압류적립액 */}
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">근무(운영)업체명</label>
+                    <input type="text" value={repaymentPlan.companyName || ''} onChange={(e) => onChange({ ...repaymentPlan, companyName: e.target.value })} placeholder="업체명을 입력하세요" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">청산가치</label>
+                    <input type="text" value={formatCurrency(repaymentPlan.liquidationValue || 0)} onChange={(e) => onChange({ ...repaymentPlan, liquidationValue: parseCurrency(e.target.value) })} placeholder="청산가치를 입력하세요" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">압류적립금</label>
+                    <select 
+                        value={repaymentPlan.seizedReservesStatus || 'no'} 
+                        onChange={(e) => onChange({ 
+                            ...repaymentPlan, 
+                            seizedReservesStatus: e.target.value as 'yes' | 'no',
+                            seizedReservesAmount: e.target.value === 'no' ? 0 : repaymentPlan.seizedReservesAmount
+                        })} 
+                        className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]"
+                    >
+                        <option value="no">없음</option>
+                        <option value="yes">있음</option>
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">압류적립액</label>
+                    <input 
+                        type="text" 
+                        value={formatCurrency(repaymentPlan.seizedReservesAmount || 0)} 
+                        onChange={(e) => onChange({ ...repaymentPlan, seizedReservesAmount: parseCurrency(e.target.value) })} 
+                        placeholder="압류적립액을 입력하세요" 
+                        disabled={(repaymentPlan.seizedReservesStatus || 'no') !== 'yes'}
+                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none ${
+                            (repaymentPlan.seizedReservesStatus || 'no') !== 'yes' ? 'bg-gray-100 cursor-not-allowed' : ''
+                        }`}
+                    />
+                </div>
+
+                {/* Row 3 - 4 items */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">피부양자수</label>
                     <input type="number" value={repaymentPlan.dependentsCount} onChange={(e) => onChange({ ...repaymentPlan, dependentsCount: parseInt(e.target.value) || 0 })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />

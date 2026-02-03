@@ -11,9 +11,10 @@ interface DocumentDetail {
     html_preview: string;
     created_at: string;
     snapshot_data?: any;
+    changes?: string;
 }
 
-type TabType = 'creditor-list' | 'repayment-plan';
+type TabType = 'creditor-list' | 'repayment-plan' | 'changes';
 
 export default function DocumentDetailPage() {
     const router = useRouter();
@@ -187,6 +188,18 @@ export default function DocumentDetailPage() {
                             >
                                 변제계획안
                             </button>
+                            <button
+                                onClick={() => setActiveTab('changes')}
+                                className={`
+                                    py-4 px-1 border-b-2 font-medium text-sm transition-colors
+                                    ${activeTab === 'changes'
+                                        ? 'border-blue-500 text-blue-600'
+                                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }
+                                `}
+                            >
+                                변경사항
+                            </button>
                         </nav>
                     </div>
                 </div>
@@ -195,7 +208,7 @@ export default function DocumentDetailPage() {
                 <div className="bg-gray-100 border border-gray-200 rounded-xl shadow-inner overflow-auto flex justify-center py-12">
                     {activeTab === 'creditor-list' ? (
                         <div dangerouslySetInnerHTML={{ __html: document.html_preview }} />
-                    ) : (
+                    ) : activeTab === 'repayment-plan' ? (
                         <>
                             {repaymentPlanHtml ? (
                                 <div dangerouslySetInnerHTML={{ __html: repaymentPlanHtml }} />
@@ -205,6 +218,17 @@ export default function DocumentDetailPage() {
                                 </div>
                             )}
                         </>
+                    ) : (
+                        <div className="bg-white rounded-lg shadow-sm p-8 max-w-4xl w-full">
+                            <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-3">📝 변경 이력</h2>
+                            {document.changes ? (
+                                <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono bg-gray-50 p-6 rounded-lg border border-gray-200 leading-relaxed">
+                                    {document.changes}
+                                </pre>
+                            ) : (
+                                <p className="text-gray-500 text-center py-8">변경 이력이 없습니다.</p>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
