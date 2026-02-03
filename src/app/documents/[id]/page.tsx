@@ -109,7 +109,18 @@ export default function DocumentDetailPage() {
         try {
             // 동적 import로 클라이언트에서 서비스 로드
             const { generateRepaymentPlanHTML } = await import('@/lib/repayment-plan-service');
-            const html = generateRepaymentPlanHTML(document.snapshot_data);
+            const creationDate = document.created_at
+                ? new Date(document.created_at).toLocaleDateString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                })
+                : undefined;
+
+            const html = generateRepaymentPlanHTML({
+                ...document.snapshot_data,
+                creationDate
+            });
             setRepaymentPlanHtml(html);
         } catch (error) {
             console.error('Failed to generate repayment plan:', error);
