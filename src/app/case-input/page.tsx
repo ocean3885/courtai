@@ -15,7 +15,7 @@ import type {
     RepaymentPlan
 } from './types';
 
-export default function CreditorListPage() {
+function CreditorListContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const caseId = searchParams.get('id');
@@ -196,7 +196,7 @@ export default function CreditorListPage() {
         setCreditors(creditors.filter(c => c.id !== id));
     };
 
-    const updateCreditor = (id: string, field: keyof Creditor, value: string | number | boolean) => {
+    const updateCreditor = (id: string, field: keyof Creditor, value: string | number | boolean | string[]) => {
         setCreditors(creditors.map(c => {
             if (c.id === id) {
                 if (field === 'isSubrogated' && value === true && !c.subrogationData) {
@@ -662,5 +662,19 @@ export default function CreditorListPage() {
                 )
             }
         </MainLayout >
+    );
+}
+
+export default function CreditorListPage() {
+    return (
+        <React.Suspense fallback={
+            <MainLayout>
+                <div className="flex justify-center items-center py-20">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+            </MainLayout>
+        }>
+            <CreditorListContent />
+        </React.Suspense>
     );
 }

@@ -16,6 +16,54 @@ interface DocumentDetail {
 
 type TabType = 'creditor-list' | 'repayment-plan' | 'changes';
 
+const FIELD_NAME_MAP: Record<string, string> = {
+    // Repayment Plan
+    'repaymentPlan.monthlyAverageIncome': '월 평균 수입',
+    'repaymentPlan.monthlyAverageLivingCost': '월 평균 생계비',
+    'repaymentPlan.monthlyAverageAvailableIncome': '월 평균 가용소득',
+    'repaymentPlan.monthlyTrusteeFee': '월 회생위원 보수',
+    'repaymentPlan.otherEstateClaims': '기타 재단채권',
+    'repaymentPlan.monthlyActualAvailableIncome': '월 실제 가용소득',
+    'repaymentPlan.repaymentCount': '변제 횟수',
+    'repaymentPlan.totalActualAvailableIncome': '총 실제 변제예정액',
+    'repaymentPlan.liquidationValue': '청산가치',
+    'repaymentPlan.seizedReservesAmount': '압류적립금',
+    'repaymentPlan.companyName': '근무처',
+    'repaymentPlan.incomeType': '소득유형',
+    'repaymentPlan.dependentsCount': '부양가족 수',
+    'repaymentPlan.adjustedLivingCost': '조정 생계비',
+    'repaymentPlan.trusteeFee.preConfirmation': '회생위원 보수(인가전)',
+    'repaymentPlan.trusteeFee.postConfirmationRate': '회생위원 보수율',
+    'repaymentPlan.repaymentPeriod.months': '변제 기간(월)',
+
+    // Creditor
+    'name': '채권자명',
+    'principal': '원금',
+    'interest': '이자',
+    'interestRate': '이율',
+    'baseDate': '산정기준일',
+    'reason': '채권발생원인',
+    'isSecured': '별제권 여부',
+    'isSubrogated': '대위변제 여부',
+    'isPreferential': '우선변제 여부',
+    'address': '주소',
+    'phone': '전화번호',
+    'fax': '팩스',
+    'number': '채권번호',
+
+    // Subrogated/Secured details
+    'subrogationData.name': '대위변제자명',
+    'subrogationData.principal': '대위변제 원금',
+    'securedData.currentAmount': '채권현재액',
+    'securedData.maxAmount': '채권최고액',
+    'securedData.expectedRepaymentAmount': '별제권행사 변제예상액',
+    'securedData.securedRehabilitationAmount': '담보부회생채권액',
+    'securedData.unrepayableAmount': '별제권행사 변제불능액',
+    'securedData.collateralObject': '담보목적물',
+    'securedData.securedRightDetails': '별제권 내용',
+    'securedData.expectedLiquidationValue': '환가예상액',
+};
+
 export default function DocumentDetailPage() {
     const router = useRouter();
     const params = useParams();
@@ -72,10 +120,10 @@ export default function DocumentDetailPage() {
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (printWindow && document) {
-            const contentToPrint = activeTab === 'creditor-list' 
-                ? document.html_preview 
+            const contentToPrint = activeTab === 'creditor-list'
+                ? document.html_preview
                 : repaymentPlanHtml;
-            
+
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html lang="ko">
@@ -99,6 +147,23 @@ export default function DocumentDetailPage() {
 
     const handleDownloadPDF = () => {
         alert('PDF 다운로드 기능은 준비 중입니다. 현재는 인쇄 기능을 이용해주세요.');
+    };
+
+    const formatChangeLog = (log: string) => {
+        if (!log) return '';
+        let formatted = log;
+        Object.entries(FIELD_NAME_MAP).forEach(([key, label]) => {
+            // "key 수정" or "key: value" pattern replacement
+            // Use global regex to replace all occurrences
+            // Escape dots in key for regex
+            const escapedKey = key.replace(/\./g, '\\.');
+
+            // Regex to match the key when it's just the key name (e.g. in "key modified")
+            // or followed by colon/value
+            const regex = new RegExp(escapedKey, 'g');
+            formatted = formatted.replace(regex, label);
+        });
+        return formatted;
     };
 
     if (isLoading) {
@@ -129,7 +194,7 @@ export default function DocumentDetailPage() {
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900">{document.title}</h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            생성일: {new Date(document.created_at).toLocaleString('ko-KR')}
+                            생성일: {new Date(document.created_at + (document.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                         </p>
                     </div>
                     <div className="flex gap-3">
@@ -223,7 +288,7 @@ export default function DocumentDetailPage() {
                             <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-3">📝 변경 이력</h2>
                             {document.changes ? (
                                 <pre className="whitespace-pre-wrap text-sm text-gray-700 font-mono bg-gray-50 p-6 rounded-lg border border-gray-200 leading-relaxed">
-                                    {document.changes}
+                                    {formatChangeLog(document.changes)}
                                 </pre>
                             ) : (
                                 <p className="text-gray-500 text-center py-8">변경 이력이 없습니다.</p>
