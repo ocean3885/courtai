@@ -63,6 +63,15 @@ db.exec(`
     FOREIGN KEY (creditor_id) REFERENCES creditor(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS standard_median_income (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    year INTEGER NOT NULL,
+    household_size INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(year, household_size)
+  );
+
 `);
 
 // 마이그레이션: case_documents 테이블에 changes 컬럼이 없으면 추가

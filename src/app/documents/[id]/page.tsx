@@ -109,6 +109,36 @@ export default function DocumentDetailPage() {
         try {
             // 동적 import로 클라이언트에서 서비스 로드
             const { generateRepaymentPlanHTML } = await import('@/lib/repayment-plan-service');
+            
+            // 기준 중위소득 최신 데이터 가져오기
+            let snapshotData = { ...document.snapshot_data };
+            
+            if (snapshotData.repaymentPlan) {
+                try {
+                     const startStr = snapshotData.repaymentPlan.repaymentPeriod?.start;
+                     const year = startStr ? new Date(startStr).getFullYear() : new Date().getFullYear();
+                     const size = (snapshotData.repaymentPlan.dependentsCount || 0) + 1;
+
+                     const res = await fetch(`/api/median-income?year=${year}&size=${size}`);
+                     if (res.ok) {
+                         const data = await res.json();
+                         if (data.amount > 0) {
+                             // snapshotData는 깊은 복사가 아닐 수 있으므로 주의 필요하지만, 
+                             // 보통 1단계 depth copy로 repaymentPlan 객체를 교체하는 것이 안전함
+                             snapshotData = {
+                                ...snapshotData,
+                                repaymentPlan: {
+                                    ...snapshotData.repaymentPlan,
+                                    standardMedianIncome: data.amount
+                                }
+                             };
+                         }
+                     }
+                } catch (err) {
+                    console.error('Failed to update standard median income:', err);
+                }
+            }
+
             const creationDate = document.created_at
                 ? new Date(document.created_at).toLocaleDateString('ko-KR', {
                     year: 'numeric',
@@ -118,7 +148,7 @@ export default function DocumentDetailPage() {
                 : undefined;
 
             const html = generateRepaymentPlanHTML({
-                ...document.snapshot_data,
+                ...snapshotData,
                 creationDate
             });
             setRepaymentPlanHtml(html);

@@ -23,6 +23,49 @@ export interface CreditorTotal {
   repaymentRate: number;
 }
 
+// 월단위 라이프니츠 수치표 (누적 계수)
+// Index: 월 (0~70)
+const LEIBNIZ_CUMULATIVE = [
+  0,
+  0.99585062, 1.98756908, 2.97517253, 3.95867804, 4.93810261,
+  5.91346318, 6.88477661, 7.85205970, 8.81532916, 9.77460165,
+  10.72989376, 11.68122200, 12.62860283, 13.57205261, 14.51158766,
+  15.44722422, 16.37897848, 17.30686654, 18.23090443, 19.15110815,
+  20.06749359, 20.98007661, 21.88887297, 22.79389839, 23.69516853,
+  24.59269895, 25.48650517, 26.37660266, 27.26300680, 28.14573291,
+  29.02479626, 29.90021205, 30.77199540, 31.64016139, 32.50472504,
+  33.36570128, 34.22310501, 35.07695105, 35.92725416, 36.77402904,
+  37.61729033, 38.45705261, 39.29333040, 40.12613816, 40.95549028,
+  41.78140111, 42.60388492, 43.42295594, 44.23862832, 45.05091617,
+  45.85983353, 46.66539439, 47.46761267, 48.26650224, 49.06207692,
+  49.85435046, 50.64333656, 51.42904885, 52.21150093, 52.99070632,
+  53.76667850, 54.53943087, 55.30897680, 56.07532959, 56.83850250,
+  57.59850871, 58.35536137, 59.10907357, 59.85965832, 60.60712862
+];
+
+/**
+ * 라이프니츠 계수 계산 (연 5%, 월복리, 소수점 8자리 반올림)
+ */
+function getLeibnizCoefficient(month: number): number {
+  return 0; // Unused in new logic, but kept for interface compatibility if needed
+}
+
+/**
+ * 누적 라이프니츠 계수 가져오기
+ */
+function getCumulativeLeibniz(month: number): number {
+  if (month <= 0) return 0;
+  // 표 범위 내
+  if (month < LEIBNIZ_CUMULATIVE.length) {
+    return LEIBNIZ_CUMULATIVE[month];
+  }
+  // 표 범위 초과 시 공식 사용 (연 5%, 월복리)
+  const r = 0.05 / 12;
+  // 공식: (1 - (1+r)^-n) / r
+  const val = (1 - Math.pow(1 + r, -month)) / r;
+  return Math.round(val * 100000000) / 100000000;
+}
+
 /**
  * 변제계획안 날짜 포맷팅 (예: [2024]년 [06]월 [05]일)
  */
@@ -326,6 +369,16 @@ function generateRepaymentPlanTables(
     }
   });
 
+  // [수정] 총 변제예정액표 추가 (전체 기간 및 전체 채권자 합산)
+  html += generateSingleRepaymentTable(
+    1,
+    repaymentCount,
+    creditors, // 전체 채권자 포함
+    schedule,
+    monthlyActualAvailableIncome,
+    "총 변제예정액 산정내역"
+  );
+
   return html;
 }
 
@@ -337,7 +390,8 @@ function generateSingleRepaymentTable(
   endRound: number,
   tableCreditors: any[],
   schedule: RepaymentScheduleRow[],
-  monthlyActualAvailableIncome: number
+  monthlyActualAvailableIncome: number,
+  customTitle?: string
 ): string {
 
   const roundCount = endRound - startRound + 1;
@@ -402,9 +456,11 @@ function generateSingleRepaymentTable(
   const sumUnconfirmedTotalPayment = creditorData.filter(c => c.isUnconfirmed).reduce((sum, c) => sum + c.totalPayment, 0);
   const sumTotalPayment = creditorData.reduce((sum, c) => sum + c.totalPayment, 0);
 
-  const title = startRound === endRound
-    ? `제 ${startRound} 회차 변제예정액`
-    : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`;
+  const title = customTitle 
+    ? customTitle
+    : (startRound === endRound
+        ? `제 ${startRound} 회차 변제예정액`
+        : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`);
 
   return `
     <div style="font-weight: bold; margin-bottom: 5px; margin-top: 20px;">
@@ -470,9 +526,10 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   // 대위변제자(구상권자)를 포함한 전체 채권자 목록 생성
   const creditors: any[] = [];
   inputCreditors.forEach((c: any) => {
+    // 1. 원채권자 추가 (대위변제 여부와 상관없이 무조건 추가 - 잔존 채권액이 있다면 합산됨)
     creditors.push(c);
 
-    // 대위변제자 정보가 있는 경우 별도의 채권자로 추가
+    // 2. 대위변제자 정보가 있는 경우 별도의 채권자로 추가
     if (c.isSubrogated && c.subrogationData) {
       const sub = c.subrogationData;
       // 손해금(damages)이 있는 경우 원금에 포함(제외 요청으로 수정: 원금만 포함)
@@ -480,7 +537,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
       // const damages = Number(sub.damages) || 0;
 
       creditors.push({
-        id: sub.id,
+        id: sub.id, // inputCreditors의 id와 겹치지 않도록 주의 필요 (보통 DB/Frontend에서 관리)
         number: sub.number,
         name: sub.name,
         principal: principal, // damages 제외
@@ -492,12 +549,19 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
     }
   });
 
-  // 총 채권액 계산 (원금만 포함)
+  // 총 채권액 계산
+  // 별제권부 채권인 경우: 별제권행사 등으로 변제받을 수 없는 채권액(unrepayableAmount)만 합산
+  // 그 외: 원금(principal) 합산
   let totalDebt = 0;
   creditors.forEach((c: any) => {
-    const principal = Number(c.principal) || 0;
-    // const interest = Number(c.interest) || 0;
-    totalDebt += principal; // 이자 제외
+    if (c.isSecured && c.securedData) {
+        const unrepayableAmount = Number(c.securedData.unrepayableAmount) || 0;
+        totalDebt += unrepayableAmount;
+    } else {
+        const principal = Number(c.principal) || 0;
+        // const interest = Number(c.interest) || 0;
+        totalDebt += principal;
+    }
   });
 
   const repaymentPeriodMonths = repaymentPlan?.repaymentPeriod?.months || 36;
@@ -625,6 +689,32 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const section4GrandTotalDebt = section4SumConfirmedDebt + section4SumUnconfirmedDebt;
   const section4GrandTotalPayment = section4SumConfirmedPayment + section4SumUnconfirmedPayment;
 
+  // Calculate Present Value (Split: Saving Period + Input Period)
+  const savingPeriodMonths = 3;
+  let savingAmountA = 0;
+  let inputPeriodMonths = 0;
+  let inputAmountB = 0;
+
+  if (repaymentCount <= savingPeriodMonths) {
+      // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
+      savingAmountA = monthlyActualAvailableIncome * repaymentCount;
+      inputPeriodMonths = 0;
+      inputAmountB = 0;
+  } else {
+      // 3개월 초과 시
+      savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
+      inputPeriodMonths = repaymentCount - savingPeriodMonths;
+      
+      // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
+      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
+      const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
+      const leibnizFactor = leibnizTotal - leibnizSaving;
+      
+      inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor); 
+  }
+
+  const calculatedPresentValue = savingAmountA + inputAmountB;
+
   // 우선변제권 채권 필터링 및 데이터 준비
   const preferentialCreditors = creditors.filter(c => c.isPreferential);
   const hasPreferential = preferentialCreditors.length > 0;
@@ -722,8 +812,14 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           }
           table { 
             page-break-inside: auto;
+          }
+          .income-table, .repayment-plan {
             width: 99% !important;
             margin: 0 auto !important;
+          }
+          .top-tables {
+            display: flex !important;
+            justify-content: space-between !important;
           }
           thead {
             display: table-row-group; /* 인쇄 시 헤더 반복 방지 */
@@ -869,6 +965,29 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
         }
         .check-item {
           margin-bottom: 5px;
+        }
+
+        .calculation-container {
+          margin-top: 20px;
+        }
+        .top-tables {
+          display: flex;
+          justify-content: space-between;
+          width: 100%;
+          margin-bottom: 20px;
+        }
+        .basis-table {
+           width: 100%;
+           border-collapse: collapse;
+           margin-top: 10px;
+        }
+        .basis-table th, .basis-table td {
+           border: 1px solid #444;
+           padding: 8px;
+           text-align: center;
+        }
+        .bg-gray {
+           background-color: #f8f9fa;
         }
         .underline {
           text-decoration: underline;
@@ -1127,80 +1246,150 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           <div class="sub-title">나. 재산의 처분에 의한 변제 [ 해당있음 □ / 해당없음 ■ ]</div>
       </div>
 
+      <h2>7. 미확정 개인회생채권에 대한 조치 [ 해당있음 ${hasSecuredCreditors ? '■' : '□'} / 해당없음 ${hasSecuredCreditors ? '□' : '■'} ]</h2>
+      ${hasSecuredCreditors ? `
+      <div class="sub-section">
+          <div class="sub-title">가. 변제금액의 유보</div>
+          <div class="info-box">
+              (1) 미확정 개인회생채권에 대하여는 변제를 유보하고, 별제 개인회생채권 변제예정액표에 기재한 금액을 당해 채권이 확정될 때까지 유보하여 둔다.<br>
+              (2) 채무자는 위와 같이 유보한 금액도, 즉시 지급되는 다른 채권에 대한 변제금과 마찬가지로 아래 8항 기재 계좌에 입금한다.
+          </div>
+
+          <div class="sub-title">나. 미확정 개인회생채권에 대한 변제</div>
+          <div class="info-box">
+              <div style="font-weight: bold; margin-bottom: 5px;">(1) 미확정 개인회생채권이 전부 그대로 확정된 경우</div>
+              <div style="padding-left: 10px; margin-bottom: 10px;">
+                  미확정 개인회생채권의 전액에 관하여 채권의 존재가 확정된 경우에는, 그 확정 직후 유보비율을 변제비율로 적용하여 변제를 개시하고 매월의 변제기에 그 해당금액을 변제하되, 이미 분할 변제기가 도래한 부분 즉 그 동안의 유보액에 대하여 곧바로 일시 변제한다.
+              </div>
+
+              <div style="font-weight: bold; margin-bottom: 5px;">(2) 미확정 개인회생채권이 전부 또는 일부 부존재 하는 것으로 확정된 경우</div>
+              <div style="padding-left: 10px; margin-bottom: 10px;">
+                  미확정 개인회생채권이 전부 또는 일부 부존재하는 것으로 확정된 경우에는, 그 확정 직후, 존재하는 것으로 확정된 [ 원금 ]의 인용 비율에 위 가항에 의하여 지급을 유보한 금액을 곱하여 산출된 금액을 당해 개인회생채권자에게 일시에 변제한다. 유보금액 중, 미확정 개인회생채권의 일부가 존재하지 않는 것으로 됨에 따라 그 개인회생채권자에게 변제할 필요가 없게 된 나머지 유보금액은, 그 채권액 확정 직후 전체 일반 개인회생채권자들에게 각 [ 원금 ]의 액수를 기준으로 안분하여 변제한다. 향후의 매월 입금액을 분배하는 기준이 될 변제비율은 위 확정 원금들 사이의 비율에 따라 새로 계산하여 정하는데, 미확정 개인회생채권의 일부가 존재하지 않는 것으로 확정됨에 따라 향후 당해 개인회생채권자를 위한 유보가 불필요하게 된 변제기 미도래분에 대한 변제 유보예정액은, 향후 변제기 도래시 전체 일반 개인회생채권자들에게 그 각 [ 원금 ]의 액수를 기준으로 안분되도록 한다.
+              </div>
+
+              <div style="font-weight: bold; margin-bottom: 5px;">(3) 변제기간 종료시까지 미확정 개인회생채권이 미확정상태로 남는 경우</div>
+              <div style="padding-left: 10px; margin-bottom: 10px;">
+                  변제기간 종료시까지 미확정 개인회생채권이 미확정상태로 남는 경우에는 최종변제기에 유보한 금액 전부를 일반개인회생채권자들에게 각 [ 원금 ]의 액수를 기준으로 안분하여 변제한다.
+              </div>
+
+              <div style="font-weight: bold; margin-bottom: 5px;">(4) 임대차보증금반환채권</div>
+              <div style="padding-left: 10px;">
+                  임대차보증금반환액수가 확정되지 않은 임대차보증금 반환채권은 미확정채권으로 보아 위 가, 나항에 따라 변제하되 그 액수가 확정되고 임차인이 임차목적물을 명도함과 동시에 변제한다.
+              </div>
+          </div>
+      </div>
+      ` : ''}
+
+      <h2>8. 변제금원의 회생위원에 대한 임치 및 지급</h2>
+      <div class="info-box">
+          채무자는 위 [ 3, 6 ]항에 의하여 개인회생채권자들에게 변제하여야 할 금액을 개시결정시 통지되는 개인회생위원의 예금계좌 [                        ]에 순차 임치하고, 개인회생채권자는 법원에 예금계좌를 신고하여 회생위원으로부터 변제액을 송금받는 방법으로 지급받는다. 회생위원은 계좌번호를 신고하지 않은 개인회생채권자에 대하여는 변제액을 적립하였다가 이를 연 1회 개인회생사건이 계속되어 있는 지방법원에 공탁하여 지급할 수 있다.
+      </div>
+
+      <h2>9. 면책의 범위 및 효력발생시기</h2>
+      <div class="info-box">
+          채무자가 개인회생채권에 대하여 이 변제계획에 따라 변제를 완료하고 면책신청을 하여 면책결정이 확정되었을 경우에는, 이 변제계획에 따라 변제한 것을 제외하고 개인회생채권자에 대한 채무에 관하여 그 책임이 면제된다. 단, 채무자 회생 및 파산에 관한 법률 제625조 제2항 단서 각호 소정의 채무에 관하여는 그러하지 아니하다.
+      </div>
+
+      <h2>10. 기타사항</h2>
+      <div style="margin-bottom: 20px;">
+          [ 해당있음 □ / 해당없음 ■ ]
+      </div>
+
       <div style="page-break-before: always; margin-top: 50px;"></div>
 
       <h1 style="text-decoration: none;">개인회생채권 변제예정액표</h1>
 
       <h2 style="margin-top: 0;">1. 기초사항</h2>
       <table class="income-table">
-          <tr>
-            <th class="wide-cell">총 원리금(원금)</th>
-            <th class="wide-cell">총 변제예정액</th>
-            <th class="wide-cell">변제율(원금 대비)</th>
-            <th class="wide-cell">청산가치</th>
-          </tr>
-          <tr>
-            <td>${formatCurrency(totalDebt)}원</td>
-            <td>${formatCurrency(totalRepaymentAmount)}원</td>
-            <td>${repaymentRate}%</td>
-            <td>${formatCurrency(liquidationValue)}원</td>
-          </tr>
+          <thead>
+              <tr>
+                  <th>① 월 평균<br>수입</th>
+                  <th>② 월 평균<br>생계비</th>
+                  <th>③ 월 평균<br>가용소득<br>(① - ②)</th>
+                  <th>④ 월<br>회생위원<br>보수</th>
+                  <th>⑤ 월 실제<br>가용소득<br>(③ - ④)</th>
+                  <th>⑥ 변제 횟수<br>(월 단위로<br>환산)</th>
+                  <th>⑦ 총 실제<br>가용소득<br>(⑤ x ⑥)</th>
+              </tr>
+          </thead>
+          <tbody>
+              <tr>
+                  <td>${formatCurrency(monthlyAverageIncome)}</td>
+                  <td>${formatCurrency(monthlyAverageLivingCost)}</td>
+                  <td>${formatCurrency(monthlyAverageAvailableIncome)}</td>
+                  <td>${formatCurrency(monthlyTrusteeFee)}</td>
+                  <td>${formatCurrency(monthlyActualAvailableIncome)}</td>
+                  <td>${repaymentCount}</td>
+                  <td>${formatCurrency(totalActualAvailableIncome)}</td>
+              </tr>
+          </tbody>
       </table>
+      ${seizedCalculationHtml}
 
       <h2>2. 채권자별 변제예정액의 산정내역 및 변제율</h2>
-      <div style="text-align: right; font-size: 13px; margin-bottom: 5px;">(단위 : 원)</div>
-      <table>
-        <thead>
-          <tr>
-            <th rowspan="2" style="width: 8%; word-break: break-word;">채권번호</th>
-            <th rowspan="2" style="width: 17%; word-break: break-word;">채권자</th>
-            <th colspan="2">채권액</th>
-            <th colspan="2">총변제예정액</th>
-          </tr>
-          <tr>
-            <th style="white-space: nowrap;">확정채권액</th>
-            <th style="white-space: nowrap;">미확정채권액</th>
-            <th style="white-space: nowrap;">확정채권액</th>
-            <th style="white-space: nowrap;">미확정채권액</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${creditorTotals.map(ct => {
-    const creditor = creditors.find(c => c.id === ct.creditorId);
-    const isSecured = creditor?.isSecured || false;
-    const debtAmount = ct.totalDebt;
-
-    return `
-            <tr>
-              <td class="center">${ct.creditorNumber}</td>
-              <td class="center">${ct.creditorName}</td>
-              <td class="text-right" style="white-space: nowrap;">${isSecured ? '0' : formatCurrency(debtAmount)}</td>
-              <td class="text-right" style="white-space: nowrap;">${isSecured ? formatCurrency(debtAmount) : '0'}</td>
-              <td class="text-right" style="white-space: nowrap;">${isSecured ? '0' : formatCurrency(ct.totalPayment)}</td>
-              <td class="text-right" style="white-space: nowrap;">${isSecured ? formatCurrency(ct.totalPayment) : '0'}</td>
-            </tr>
-          `;
-  }).join('')}
-          <tr style="font-weight: bold; background-color: #f3f4f6;">
-            <td colspan="2" class="center">합계</td>
-            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumConfirmedDebt)}</td>
-            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumUnconfirmedDebt)}</td>
-            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumConfirmedPayment)}</td>
-            <td class="text-right" style="white-space: nowrap;">${formatCurrency(section4SumUnconfirmedPayment)}</td>
-          </tr>
-          <tr style="font-weight: bold; background-color: #e5e7eb;">
-            <td colspan="2" class="center">총합계</td>
-            <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(section4GrandTotalDebt)}</td>
-            <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(section4GrandTotalPayment)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <h2>3. 청산가치와의 비교</h2>
       <div style="margin-left: 10px; margin-bottom: 20px;">
-          총 변제예정액(현가액) ${formatCurrency(totalRepaymentAmount)}원 > 청산가치 ${formatCurrency(liquidationValue)}원
+          <div>가. 가용소득에 의한 변제내역 : 별표(1)과 같음</div>
+          <div style="margin-top: 5px;">나. 변제율 : 원금의 [ ${repaymentRate} ]% 상당액</div>
+          <div style="margin-top: 5px; font-size: 12px; color: #666;">
+            (산출근거: 총 변제예정액 ${formatCurrency(totalRepaymentAmount)}원 / 총 원금 ${formatCurrency(totalDebt)}원 × 100)
+          </div>
       </div>
 
+      <h2>3. 청산가치와의 비교</h2>
+      <div class="calculation-container">
+          <div class="top-tables">
+              <table style="width: 45%;">
+                  <tr>
+                      <td class="bg-gray" style="width: 40%; text-align: center; white-space: nowrap;">청산가치(원)</td>
+                      <td class="text-right">${formatCurrency(liquidationValue)}</td>
+                  </tr>
+              </table>
+
+              <table style="width: 50%;">
+                  <tr>
+                      <td class="bg-gray" style="text-align: center;">가용소득에 의한 총<br>변제예정(유보)액</td>
+                      <td class="text-right">${formatCurrency(totalRepaymentAmount)}</td>
+                  </tr>
+                  <tr>
+                      <td class="bg-gray" style="text-align: center;">현재가치</td>
+                      <td class="text-right">${formatCurrency(calculatedPresentValue)}</td>
+                  </tr>
+              </table>
+          </div>
+
+          <div class="sub-title">○ 총 변제예정(유보)액의 현재가치 산정근거</div>
+          <table class="basis-table" style="width: 50%;">
+              <colgroup>
+                  <col style="width: 10%;">
+                  <col style="width: 40%;">
+                  <col style="width: 15%;">
+                  <col style="width: 35%;">
+              </colgroup>
+              <tbody>
+                  <tr>
+                      <td>1</td>
+                      <td>적립기간(월)</td>
+                      <td>${repaymentCount - inputPeriodMonths}</td>
+                      <td class="text-right">${formatCurrency(savingAmountA)}</td>
+                  </tr>
+                  <tr>
+                      <td>2</td>
+                      <td>변제투입기간(월)</td>
+                      <td>${inputPeriodMonths}</td>
+                      <td class="text-right">${formatCurrency(inputAmountB)}</td>
+                  </tr>
+              </tbody>
+              <tfoot>
+                  <tr class="bg-gray" style="font-weight: bold;">
+                      <td colspan="2">합 계</td>
+                      <td>${repaymentCount}</td>
+                      <td class="text-right">${formatCurrency(calculatedPresentValue)}</td>
+                  </tr>
+              </tfoot>
+          </table>
+      </div>
+
+      <div style="page-break-before: always;"></div>
       <h2>별표(1) 가용소득에 의한 변제내역</h2>
       ${generateRepaymentPlanTables(creditors, schedule, monthlyActualAvailableIncome, repaymentCount, hasSeizedReserves ? Number(seizedReservesAmount) : 0)}
       

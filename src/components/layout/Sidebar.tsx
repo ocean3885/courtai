@@ -43,6 +43,12 @@ const navigation: (NavGroup | NavItem)[] = [
         icon: '👥',
         isAdminOnly: true,
       },
+      {
+        name: '기준 중위소득 관리',
+        href: '/admin/median-income',
+        icon: '💰',
+        isAdminOnly: true,
+      },
     ],
   },
 ];
