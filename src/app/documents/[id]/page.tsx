@@ -159,36 +159,84 @@ export default function DocumentDetailPage() {
     };
 
     const handlePrint = () => {
+        // activeTab에 따라 대상 결정
+        let targetSelector = '';
+        let titleName = '';
+
+        if (activeTab === 'repayment-plan') {
+            if (!repaymentPlanHtml) {
+                alert('변제계획안이 아직 생성되지 않았습니다.');
+                return;
+            }
+            targetSelector = '#repayment-plan-content';
+            titleName = '변제계획안';
+        } else if (activeTab === 'creditor-list') {
+            targetSelector = '#creditor-list-content';
+            titleName = '채권자목록';
+            // 미리보기 HTML이 있는지 확인
+            if (!document?.html_preview) {
+                alert('문서 내용을 찾을 수 없습니다.');
+                return;
+            }
+        } else {
+            alert('인쇄할 수 없는 탭입니다.');
+            return;
+        }
+
+        // 화면에 렌더링된 요소에서 HTML 가져오기 (스타일 적용된 상태)
+        // 만약 렌더링되지 않았으면 저장된 원본 사용
+        const targetElement = window.document.querySelector(targetSelector);
+        const contentHtml = targetElement ? targetElement.innerHTML : (activeTab === 'creditor-list' ? document?.html_preview || '' : repaymentPlanHtml);
+        
+        // 날짜 및 채무자명 포맷팅
+        const today = new Date();
+        const dateStr = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
+        const debtorName = document?.snapshot_data?.debtorInfo?.name || '채무자';
+        const finalFileName = `${titleName}_${debtorName}_${dateStr}`;
+
+
         const printWindow = window.open('', '_blank');
-        if (printWindow && document) {
-            const contentToPrint = activeTab === 'creditor-list'
-                ? document.html_preview
-                : repaymentPlanHtml;
+        if (printWindow) {
+            // 현재 페이지의 스타일(Tailwind 등)을 모두 복사하여 인쇄 창에 적용
+            const styles = Array.from(window.document.querySelectorAll('style, link[rel="stylesheet"]'))
+                .map(node => node.outerHTML)
+                .join('');
 
             printWindow.document.write(`
                 <!DOCTYPE html>
                 <html lang="ko">
                 <head>
                     <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>${document.title} - ${activeTab === 'creditor-list' ? '채권자목록' : '변제계획안'}</title>
+                    <title>${finalFileName}</title>
+                    ${styles}
+                    <style>
+                        body { margin: 0; padding: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                        /* 인쇄 시 불필요한 스크롤바 숨김, 여백 설정 */
+                        @media print {
+                            body { -webkit-print-color-adjust: exact; }
+                            @page { margin: 10mm; }
+                        }
+                    </style>
                 </head>
                 <body>
-                    ${contentToPrint}
+                    ${contentHtml}
+                    <script>
+                        // 이미지나 폰트 로딩 대기 후 인쇄
+                        window.onload = () => {
+                            setTimeout(() => {
+                                window.print();
+                            }, 500);
+                        };
+                    </script>
                 </body>
                 </html>
             `);
             printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-            }, 500);
+            // printWindow.focus(); // 일부 브라우저 보안 정책상 필요할 수 있음
         }
     };
 
-    const handleDownloadPDF = () => {
-        alert('PDF 다운로드 기능은 준비 중입니다. 현재는 인쇄 기능을 이용해주세요.');
-    };
+
 
     const formatChangeLog = (log: string) => {
         if (!log) return '';
@@ -245,24 +293,19 @@ export default function DocumentDetailPage() {
                         >
                             목록으로
                         </button>
-                        <button
-                            onClick={handlePrint}
-                            className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                            인쇄
-                        </button>
-                        <button
-                            onClick={handleDownloadPDF}
-                            className="px-4 py-2 bg-green-600 text-white hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            PDF 다운로드
-                        </button>
+                        <div className="flex flex-col items-end">
+                            <button
+                                onClick={handlePrint}
+                                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                                title="인쇄 창에서 'PDF로 저장'을 선택할 수 있습니다."
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                인쇄 / PDF 저장
+                            </button>
+                            <span className="text-xs text-gray-500 mt-1">(*인쇄 창에서 PDF 저장 가능)</span>
+                        </div>
                     </div>
                 </div>
 
@@ -313,11 +356,11 @@ export default function DocumentDetailPage() {
                 {/* 문서 미리보기 */}
                 <div className="bg-gray-100 border border-gray-200 rounded-xl shadow-inner overflow-auto flex justify-center py-12">
                     {activeTab === 'creditor-list' ? (
-                        <div dangerouslySetInnerHTML={{ __html: document.html_preview }} />
+                        <div id="creditor-list-content" dangerouslySetInnerHTML={{ __html: document.html_preview }} />
                     ) : activeTab === 'repayment-plan' ? (
                         <>
                             {repaymentPlanHtml ? (
-                                <div dangerouslySetInnerHTML={{ __html: repaymentPlanHtml }} />
+                                <div id="repayment-plan-content" dangerouslySetInnerHTML={{ __html: repaymentPlanHtml }} />
                             ) : (
                                 <div className="flex justify-center items-center py-20">
                                     <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
