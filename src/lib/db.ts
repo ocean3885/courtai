@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import path from 'path';
+import bcrypt from 'bcryptjs';
 
 const dbPath = path.resolve(process.cwd(), 'courteasy.db');
 const db = new Database(dbPath);
@@ -87,13 +88,19 @@ try {
 }
 
 
-// 초기 운영자 계정 생성 (아이디: courteasy, 비번: qwer1234)
+// 초기 운영자 계정 생성 (환경변수 또는 기본값 사용)
+const adminUsername = process.env.ADMIN_USERNAME || 'courteasy';
+const adminPassword = process.env.ADMIN_PASSWORD || 'qwer1234';
+
+// 비밀번호 해싱
+const salt = bcrypt.genSaltSync(10);
+const hashedPassword = bcrypt.hashSync(adminPassword, salt);
+
 const insertUser = db.prepare(`
   INSERT OR IGNORE INTO users (username, password, name, role)
   VALUES (?, ?, ?, ?)
 `);
 
-const hashedPassword = '$2b$10$/POXb2jbXeaC1Tnzx5bnjuB3exLvbrzIe5KeKx5O0V9w2pgBi6YKW';
-insertUser.run('courteasy', hashedPassword, '운영자', 'ADMIN');
+insertUser.run(adminUsername, hashedPassword, '운영자', 'ADMIN');
 
 export default db;

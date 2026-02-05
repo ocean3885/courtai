@@ -488,7 +488,7 @@ function calculateRepaymentSchedule(data: DocumentData): any[] {
   for (let i = 1; i <= months; i++) {
     schedule.push({
       month: i,
-      payment: data.repaymentPlan.monthlyActualAvailableIncome
+      payment: data.repaymentPlan?.monthlyActualAvailableIncome || 0
     });
   }
   return schedule;

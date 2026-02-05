@@ -13,12 +13,16 @@ import type {
     Creditor,
     SavedList,
     RepaymentPlan
-} from './types';
-
+} from './types';import {
+    SAMPLE_DEBTOR_INFO,
+    SAMPLE_CREDITORS,
+    SAMPLE_REPAYMENT_PLAN
+} from './sample-data';
 function CreditorListContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const caseId = searchParams.get('id');
+    const loadTemp = searchParams.get('load_temp');
 
     const [user, setUser] = useState<{ id: number; role: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'debtor' | 'creditor' | 'plan'>('debtor');
@@ -80,7 +84,25 @@ function CreditorListContent() {
         if (caseId && !loadedId) {
             loadCaseData(caseId);
         }
-    }, [caseId]);
+        
+        // 임시 저장 데이터 로드 (비로그인 수정)
+        if (loadTemp === 'true' && !caseId) {
+            const raw = localStorage.getItem('temp_case_data');
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    setTitle(parsed.title || '');
+                    if (parsed.data) {
+                        if (parsed.data.debtorInfo) setDebtorInfo(parsed.data.debtorInfo);
+                        if (parsed.data.creditors) setCreditors(parsed.data.creditors);
+                        if (parsed.data.repaymentPlan) setRepaymentPlan(parsed.data.repaymentPlan);
+                    }
+                } catch (e) {
+                    console.error('Failed to load temp data', e);
+                }
+            }
+        }
+    }, [caseId, loadTemp]);
 
     const loadCaseData = async (id: string) => {
         setIsLoading(true);
@@ -290,6 +312,20 @@ function CreditorListContent() {
         }));
     };
 
+    const handleLoadSampleData = () => {
+        // if (!confirm('현재 입력된 내용이 있다면 지워집니다. 샘플 데이터를 불러오시겠습니까?')) return;
+
+        setDebtorInfo(SAMPLE_DEBTOR_INFO);
+        setCreditors(SAMPLE_CREDITORS);
+        setRepaymentPlan({
+            ...SAMPLE_REPAYMENT_PLAN,
+            createDate: new Date().toISOString().split('T')[0], // 생성일만 오늘 날짜로 갱신
+        });
+
+        setTitle('샘플(체험) 사건');
+        // alert('샘플 데이터가 입력되었습니다. 각 탭을 확인해보시고 변제계획 탭에서 생성버튼을 눌러보세요.');
+    };
+
     const handleSave = async () => {
         if (activeTab === 'debtor') {
             if (!debtorInfo.name.trim() || !debtorInfo.birthDate.trim()) {
@@ -386,36 +422,56 @@ function CreditorListContent() {
     };
 
     const handleGenerate = async () => {
-        if (!loadedId) {
-            alert('먼저 데이터를 저장해주세요.');
-            return;
-        }
-
         setIsGenerating(true);
         try {
-            const res = await fetch(`/api/creditors/${loadedId}/generate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    title,
-                    data: { debtorInfo, creditors, repaymentPlan }
-                }),
-            });
+            console.log(`Generating document... LoggedIn: ${isLoggedIn}, LoadedId: ${loadedId}`);
+            let res;
+            if (isLoggedIn) {
+                if (!loadedId) {
+                    alert('먼저 데이터를 저장해주세요.');
+                    setIsGenerating(false);
+                    return;
+                }
+                res = await fetch(`/api/creditors/${loadedId}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title,
+                        data: { debtorInfo, creditors, repaymentPlan }
+                    }),
+                });
 
-            if (res.ok) {
-                const data = await res.json();
-                setSaveMessage('채권자목록 및 변제계획안이 생성되었습니다.');
-                setTimeout(() => setSaveMessage(''), 2000);
+                if (res.ok) {
+                    const data = await res.json();
+                    setSaveMessage('채권자목록 및 변제계획안이 생성되었습니다.');
+                    setTimeout(() => setSaveMessage(''), 2000);
 
-                // 생성된 문서 상세보기 페이지로 이동
-                router.push(`/documents/${data.documentId}`);
+                    // 생성된 문서 상세보기 페이지로 이동
+                    router.push(`/documents/${data.documentId}`);
+                } else {
+                    const errorData = await res.json();
+                    const errorMessage = errorData.error || JSON.stringify(errorData);
+                    console.error('Generate failed:', errorMessage);
+                    alert(`생성 실패 (회원): ${errorMessage}`);
+                }
             } else {
-                const error = await res.json();
-                alert(`생성 실패: ${error.error}`);
+                console.log('Generating local preview for guest');
+                // 비로그인 사용자: 로컬 스토리지에 저장하고 미리보기 페이지로 이동 (DB 저장 안 함)
+                const tempData = {
+                    title: title || '체험용 문서',
+                    data: { debtorInfo, creditors, repaymentPlan }
+                };
+                localStorage.setItem('temp_case_data', JSON.stringify(tempData));
+                
+                setSaveMessage('문서가 생성되었습니다.');
+                setTimeout(() => setSaveMessage(''), 2000);
+                
+                // 미리보기 페이지로 이동
+                router.push('/documents/preview');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error('Generation error:', error);
-            alert('생성 중 오류가 발생했습니다.');
+            alert(`생성 중 오류가 발생했습니다: ${error.message}`);
         } finally {
             setIsGenerating(false);
         }
@@ -453,10 +509,10 @@ function CreditorListContent() {
                     </button>
                     <button
                         onClick={() => setActiveTab('creditor')}
-                        disabled={!debtorInfo.name || !debtorInfo.birthDate}
+                        disabled={!debtorInfo.name || debtorInfo.birthDate.length !== 8}
                         className={`px-4 py-2 font-medium text-base ${activeTab === 'creditor'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
-                            : debtorInfo.name && debtorInfo.birthDate
+                            : debtorInfo.name && debtorInfo.birthDate.length === 8
                                 ? 'text-gray-600 hover:text-gray-900'
                                 : 'text-gray-400 cursor-not-allowed'
                             }`}
@@ -465,10 +521,10 @@ function CreditorListContent() {
                     </button>
                     <button
                         onClick={() => setActiveTab('plan')}
-                        disabled={!loadedId}
+                        disabled={!loadedId && creditors.length === 0}
                         className={`px-4 py-2 font-medium text-base ${activeTab === 'plan'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
-                            : loadedId
+                            : loadedId || creditors.length > 0
                                 ? 'text-gray-600 hover:text-gray-900'
                                 : 'text-gray-400 cursor-not-allowed'
                             }`}
@@ -483,6 +539,17 @@ function CreditorListContent() {
                             {title || '사건정보입력'}
                         </h1>
                     </div>
+                    {!isLoggedIn && (
+                         <button
+                            onClick={handleLoadSampleData}
+                            className="px-3 py-1 bg-green-600 text-white border border-green-700 hover:bg-green-700 text-base rounded shadow-sm flex items-center gap-1"
+                        >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                            </svg>
+                            샘플데이터 입력(체험)
+                        </button>
+                    )}
                     {isLoggedIn && (
                         <div className="flex gap-2">
                             <button

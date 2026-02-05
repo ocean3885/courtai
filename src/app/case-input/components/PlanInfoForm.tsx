@@ -17,6 +17,18 @@ export function PlanInfoForm({
     isGenerating,
     isLoaded
 }: PlanInfoFormProps) {
+    // Validation for "wageAndBusiness" type
+    const isWageAndBusiness = repaymentPlan.incomeType === 'wageAndBusiness';
+    const isCompanyNameValid = !isWageAndBusiness || (repaymentPlan.companyName && repaymentPlan.companyName.includes(','));
+    
+    const handleGenerate = () => {
+        if (!isCompanyNameValid) {
+            // Validation is displayed on screen, but doubly ensure we don't proceed
+            return;
+        }
+        onGenerate();
+    };
+
     return (
         <div className="bg-white border-2 border-gray-400 p-4">
             <div className="flex justify-between items-center mb-4">
@@ -39,16 +51,28 @@ export function PlanInfoForm({
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">수입형태</label>
-                    <select value={repaymentPlan.incomeType} onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]">
+                    <select value={repaymentPlan.incomeType} onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' | 'wageAndBusiness' })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]">
                         <option value="wage">급여소득자</option>
                         <option value="business">영업소득자</option>
+                        <option value="wageAndBusiness">급여및운영</option>
                     </select>
                 </div>
 
                 {/* Row 2 - 근무(운영)업체명, 청산가치, 압류적립금, 압류적립액 */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">근무(운영)업체명</label>
-                    <input type="text" value={repaymentPlan.companyName || ''} onChange={(e) => onChange({ ...repaymentPlan, companyName: e.target.value })} placeholder="업체명을 입력하세요" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                    <input 
+                        type="text" 
+                        value={repaymentPlan.companyName || ''} 
+                        onChange={(e) => onChange({ ...repaymentPlan, companyName: e.target.value })} 
+                        placeholder={isWageAndBusiness ? "예: 국민연금,카페" : "업체명을 입력하세요"}
+                        className={`w-full px-2 py-1 border text-base focus:outline-none ${!isCompanyNameValid ? 'border-red-500 focus:border-red-500 bg-red-50' : 'border-gray-400 focus:border-gray-600'}`} 
+                    />
+                    {!isCompanyNameValid && (
+                        <p className="text-red-500 text-xs mt-1">
+                            * 급여및운영 선택 시 쉼표(,)로 구분하여 두 개를 입력해주세요. (예: 이디야,어디야)
+                        </p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">청산가치</label>
@@ -144,9 +168,9 @@ export function PlanInfoForm({
             {/* 문서 생성 버튼 */}
             <div className="mt-8 pt-6 border-t-2 border-gray-300 flex flex-col items-center">
                 <button
-                    onClick={onGenerate}
-                    disabled={!isLoaded || isGenerating}
-                    className={`px-8 py-4 text-lg font-bold rounded-lg transition-all flex items-center justify-center gap-3 ${!isLoaded || isGenerating
+                    onClick={handleGenerate}
+                    disabled={isGenerating || !isCompanyNameValid}
+                    className={`px-8 py-4 text-lg font-bold rounded-lg transition-all flex items-center justify-center gap-3 ${(isGenerating || !isCompanyNameValid)
                         ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
                         : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl active:scale-[0.98]'
                         }`}

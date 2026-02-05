@@ -376,7 +376,8 @@ function generateRepaymentPlanTables(
     creditors, // 전체 채권자 포함
     schedule,
     monthlyActualAvailableIncome,
-    "총 변제예정액 산정내역"
+    "총 변제예정액 산정내역",
+    true
   );
 
   return html;
@@ -391,7 +392,8 @@ function generateSingleRepaymentTable(
   tableCreditors: any[],
   schedule: RepaymentScheduleRow[],
   monthlyActualAvailableIncome: number,
-  customTitle?: string
+  customTitle?: string,
+  hideMonthlyPayment: boolean = false
 ): string {
 
   const roundCount = endRound - startRound + 1;
@@ -462,6 +464,13 @@ function generateSingleRepaymentTable(
         ? `제 ${startRound} 회차 변제예정액`
         : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`);
 
+  // Column Width Management
+  const colWidthNumber = "8%";
+  const colWidthName = hideMonthlyPayment ? "22%" : "17%";
+  const colWidthDebt = hideMonthlyPayment ? "35%" : "25%";
+  const colWidthMonthly = "25%";
+  const colWidthTotal = hideMonthlyPayment ? "35%" : "25%";
+
   return `
     <div style="font-weight: bold; margin-bottom: 5px; margin-top: 20px;">
       ${title}
@@ -469,17 +478,17 @@ function generateSingleRepaymentTable(
     <table class="repayment-plan">
       <thead>
         <tr>
-          <th rowspan="2" style="width: 8%;">채권<br>번호</th>
-          <th rowspan="2" style="width: 17%;">채권자</th>
-          <th colspan="2" style="width: 25%;">(D)개인회생채권액</th>
-          <th colspan="2" style="width: 25%;">(E)월변제예정(유보)액</th>
-          <th colspan="2" style="width: 25%;">(F)총변제예정(유보)액</th>
+          <th rowspan="2" style="width: ${colWidthNumber};">채권<br>번호</th>
+          <th rowspan="2" style="width: ${colWidthName};">채권자</th>
+          <th colspan="2" style="width: ${colWidthDebt};">(D)개인회생채권액</th>
+          ${!hideMonthlyPayment ? `<th colspan="2" style="width: ${colWidthMonthly};">(E)월변제예정(유보)액</th>` : ''}
+          <th colspan="2" style="width: ${colWidthTotal};">(F)총변제예정(유보)액</th>
         </tr>
         <tr>
           <th>확정<br>채권액</th>
           <th>미확정<br>채권액</th>
-          <th>확정<br>채권액</th>
-          <th>미확정<br>채권액</th>
+          ${!hideMonthlyPayment ? `<th>확정<br>채권액</th>
+          <th>미확정<br>채권액</th>` : ''}
           <th>확정<br>채권액</th>
           <th>미확정<br>채권액</th>
         </tr>
@@ -491,8 +500,8 @@ function generateSingleRepaymentTable(
             <td>${c.name}</td>
             <td class="text-right" style="white-space: nowrap;">${c.confirmedDebt > 0 ? formatCurrency(c.confirmedDebt) : '0'}</td>
             <td class="text-right" style="white-space: nowrap;">${c.unconfirmedDebt > 0 ? formatCurrency(c.unconfirmedDebt) : '0'}</td>
-            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? '0' : formatCurrency(Math.floor(c.monthlyPayment))}</td>
-            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? formatCurrency(Math.floor(c.monthlyPayment)) : '0'}</td>
+            ${!hideMonthlyPayment ? `<td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? '0' : formatCurrency(Math.floor(c.monthlyPayment))}</td>
+            <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? formatCurrency(Math.floor(c.monthlyPayment)) : '0'}</td>` : ''}
             <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? '0' : formatCurrency(c.totalPayment)}</td>
             <td class="text-right" style="white-space: nowrap;">${c.isUnconfirmed ? formatCurrency(c.totalPayment) : '0'}</td>
           </tr>
@@ -501,15 +510,15 @@ function generateSingleRepaymentTable(
           <th colspan="2">합계</th>
           <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumConfirmedDebt)}</td>
           <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumUnconfirmedDebt)}</td>
-          <td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumConfirmedMonthlyPayment))}</td>
-          <td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumUnconfirmedMonthlyPayment))}</td>
+          ${!hideMonthlyPayment ? `<td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumConfirmedMonthlyPayment))}</td>
+          <td class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumUnconfirmedMonthlyPayment))}</td>` : ''}
           <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumConfirmedTotalPayment)}</td>
           <td class="text-right" style="white-space: nowrap;">${formatCurrency(sumUnconfirmedTotalPayment)}</td>
         </tr>
         <tr style="font-weight: bold; background-color: #e5e7eb;">
           <th colspan="2">총계</th>
           <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(sumTotalDebt)}</td>
-          <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumMonthlyPayment))}</td>
+          ${!hideMonthlyPayment ? `<td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(Math.floor(sumMonthlyPayment))}</td>` : ''}
           <td colspan="2" class="text-right" style="white-space: nowrap;">${formatCurrency(sumTotalPayment)}</td>
         </tr>
       </tbody>

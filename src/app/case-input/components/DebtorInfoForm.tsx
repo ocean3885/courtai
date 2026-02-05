@@ -11,7 +11,7 @@ export function DebtorInfoForm({ debtorInfo, onChange }: DebtorInfoFormProps) {
         <div className="bg-white border-2 border-gray-400 p-4">
             <h2 className="text-lg font-bold mb-2 text-gray-900">채무자 기본정보</h2>
             <p className="text-base text-blue-600 mb-4 bg-blue-50 p-2 border-l-4 border-blue-600">
-                ℹ️ 채무자 정보를 입력하고 저장하면 채권자정보를 입력할 수 있습니다.
+                ℹ️ 채무자 필수정보(성명, 생년월일)를 입력하면 채권자정보 탭으로 이동할 수 있습니다.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>

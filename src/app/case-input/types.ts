@@ -70,7 +70,7 @@ export interface RepaymentPlan {
         endDate: string;
         months: number;
     };
-    incomeType: 'wage' | 'business';
+    incomeType: 'wage' | 'business' | 'wageAndBusiness';
     companyName: string; // 근무(운영)업체명
     monthlyAverageIncome: number;
     monthlyAverageLivingCost: number;
