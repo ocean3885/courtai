@@ -31,6 +31,11 @@ const navigation: (NavGroup | NavItem)[] = [
         href: '/case-list',
         icon: '📁',
       },
+      {
+        name: '문의하기',
+        href: '/inquiry',
+        icon: '✉️',
+      },
     ],
   },
   {
@@ -44,14 +49,15 @@ const navigation: (NavGroup | NavItem)[] = [
         isAdminOnly: true,
       },
       {
-        name: '기준 중위소득 관리',
-        href: '/admin/median-income',
-        icon: '💰',
+        name: '문의 확인',
+        href: '/admin/inquiries',
+        icon: '📥',
         isAdminOnly: true,
       },
     ],
   },
 ];
+
 
 interface SidebarProps {
   isOpen?: boolean;

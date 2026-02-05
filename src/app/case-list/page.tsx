@@ -155,8 +155,8 @@ export default function CaseListPage() {
                                                             )}
                                                         </div>
                                                         <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
-                                                            <span>생성: {new Date(caseItem.created_at).toLocaleDateString('ko-KR')}</span>
-                                                            <span>수정: {new Date(caseItem.updated_at).toLocaleDateString('ko-KR')}</span>
+                                                            <span>생성: {new Date(caseItem.created_at + (caseItem.created_at.includes('Z') ? '' : 'Z')).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
+                                                            <span>수정: {new Date(caseItem.updated_at + (caseItem.updated_at.includes('Z') ? '' : 'Z')).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -197,7 +197,7 @@ export default function CaseListPage() {
                                                                 <div className="flex-1 min-w-0">
                                                                     <p className="text-sm text-gray-900 truncate">{doc.title}</p>
                                                                     <p className="text-xs text-gray-500">
-                                                                        {new Date(doc.created_at).toLocaleString('ko-KR')}
+                                                                        {new Date(doc.created_at + (doc.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                                                                     </p>
                                                                 </div>
                                                             </div>

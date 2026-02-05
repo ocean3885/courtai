@@ -13,7 +13,7 @@ import type {
     Creditor,
     SavedList,
     RepaymentPlan
-} from './types';import {
+} from './types'; import {
     SAMPLE_DEBTOR_INFO,
     SAMPLE_CREDITORS,
     SAMPLE_REPAYMENT_PLAN
@@ -84,7 +84,7 @@ function CreditorListContent() {
         if (caseId && !loadedId) {
             loadCaseData(caseId);
         }
-        
+
         // 임시 저장 데이터 로드 (비로그인 수정)
         if (loadTemp === 'true' && !caseId) {
             const raw = localStorage.getItem('temp_case_data');
@@ -462,10 +462,10 @@ function CreditorListContent() {
                     data: { debtorInfo, creditors, repaymentPlan }
                 };
                 localStorage.setItem('temp_case_data', JSON.stringify(tempData));
-                
+
                 setSaveMessage('문서가 생성되었습니다.');
                 setTimeout(() => setSaveMessage(''), 2000);
-                
+
                 // 미리보기 페이지로 이동
                 router.push('/documents/preview');
             }
@@ -482,6 +482,8 @@ function CreditorListContent() {
     const itemsPerPage = 5;
     const totalPages = Math.ceil(filteredLists.length / itemsPerPage);
     const paginatedLists = filteredLists.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+
 
     if (isLoading) {
         return (
@@ -540,7 +542,7 @@ function CreditorListContent() {
                         </h1>
                     </div>
                     {!isLoggedIn && (
-                         <button
+                        <button
                             onClick={handleLoadSampleData}
                             className="px-3 py-1 bg-green-600 text-white border border-green-700 hover:bg-green-700 text-base rounded shadow-sm flex items-center gap-1"
                         >

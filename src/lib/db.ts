@@ -73,12 +73,22 @@ db.exec(`
     UNIQUE(year, household_size)
   );
 
+  CREATE TABLE IF NOT EXISTS inquiries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  );
+
+
 `);
 
 // 마이그레이션: case_documents 테이블에 changes 컬럼이 없으면 추가
 try {
   const tableInfo = db.prepare("PRAGMA table_info(case_documents)").all() as any[];
-  const hasChangesColumn = tableInfo.some(col => col.name === 'changes'); 
+  const hasChangesColumn = tableInfo.some(col => col.name === 'changes');
   if (!hasChangesColumn) {
     db.exec("ALTER TABLE case_documents ADD COLUMN changes TEXT DEFAULT ''");
     console.log('Added "changes" column to case_documents table.');

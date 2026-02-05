@@ -109,35 +109,10 @@ export default function DocumentDetailPage() {
         try {
             // 동적 import로 클라이언트에서 서비스 로드
             const { generateRepaymentPlanHTML } = await import('@/lib/repayment-plan-service');
-            
-            // 기준 중위소득 최신 데이터 가져오기
-            let snapshotData = { ...document.snapshot_data };
-            
-            if (snapshotData.repaymentPlan) {
-                try {
-                     const startStr = snapshotData.repaymentPlan.repaymentPeriod?.start;
-                     const year = startStr ? new Date(startStr).getFullYear() : new Date().getFullYear();
-                     const size = (snapshotData.repaymentPlan.dependentsCount || 0) + 1;
 
-                     const res = await fetch(`/api/median-income?year=${year}&size=${size}`);
-                     if (res.ok) {
-                         const data = await res.json();
-                         if (data.amount > 0) {
-                             // snapshotData는 깊은 복사가 아닐 수 있으므로 주의 필요하지만, 
-                             // 보통 1단계 depth copy로 repaymentPlan 객체를 교체하는 것이 안전함
-                             snapshotData = {
-                                ...snapshotData,
-                                repaymentPlan: {
-                                    ...snapshotData.repaymentPlan,
-                                    standardMedianIncome: data.amount
-                                }
-                             };
-                         }
-                     }
-                } catch (err) {
-                    console.error('Failed to update standard median income:', err);
-                }
-            }
+            // 기준 중위소득 최신 데이터 가져오기 로직 제거 (사용자 입력값 유지)
+            // let snapshotData = { ...document.snapshot_data };
+            const snapshotData = document.snapshot_data;
 
             const creationDate = document.created_at
                 ? new Date(document.created_at).toLocaleDateString('ko-KR', {
@@ -187,7 +162,7 @@ export default function DocumentDetailPage() {
         // 만약 렌더링되지 않았으면 저장된 원본 사용
         const targetElement = window.document.querySelector(targetSelector);
         const contentHtml = targetElement ? targetElement.innerHTML : (activeTab === 'creditor-list' ? document?.html_preview || '' : repaymentPlanHtml);
-        
+
         // 날짜 및 채무자명 포맷팅
         const today = new Date();
         const dateStr = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0');
@@ -286,17 +261,17 @@ export default function DocumentDetailPage() {
                             생성일: {new Date(document.created_at + (document.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                         </p>
                     </div>
-                    <div className="flex gap-3">
+                    <div className="flex gap-3 items-start">
                         <button
                             onClick={() => router.push('/case-list')}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 rounded-lg transition-colors"
+                            className="h-10 px-4 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 rounded-lg transition-colors"
                         >
                             목록으로
                         </button>
                         <div className="flex flex-col items-end">
                             <button
                                 onClick={handlePrint}
-                                className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                                className="h-10 px-4 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
                                 title="인쇄 창에서 'PDF로 저장'을 선택할 수 있습니다."
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

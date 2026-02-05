@@ -59,7 +59,13 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             {user ? (
               <div className="flex items-center space-x-4">
                 <div className="flex flex-col items-end">
-                  <span className="text-sm font-semibold text-gray-900">{user.username}님</span>
+                  <Link
+                    href="/auth/change-password"
+                    className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition-colors cursor-pointer"
+                    title="비밀번호 변경"
+                  >
+                    {user.username}님
+                  </Link>
                   <span className="text-xs text-gray-500">{user.role === 'ADMIN' ? '관리자' : '사용자'}</span>
                 </div>
                 <button
