@@ -4,6 +4,8 @@ import bcrypt from 'bcryptjs';
 
 const dbPath = path.resolve(process.cwd(), 'courteasy.db');
 const db = new Database(dbPath);
+db.pragma('journal_mode = WAL');
+
 
 // 테이블 초기화
 db.exec(`
