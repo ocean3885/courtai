@@ -1,4 +1,4 @@
-import { formatCurrency } from '@/app/case-input/utils';
+import { formatCurrency, parseCurrency } from '@/app/case-input/utils';
 import { generateRepaymentScheduleWithSeizedReserves } from './repayment-plan-seized-service';
 
 export interface RepaymentPlanData {
@@ -458,11 +458,11 @@ function generateSingleRepaymentTable(
   const sumUnconfirmedTotalPayment = creditorData.filter(c => c.isUnconfirmed).reduce((sum, c) => sum + c.totalPayment, 0);
   const sumTotalPayment = creditorData.reduce((sum, c) => sum + c.totalPayment, 0);
 
-  const title = customTitle 
+  const title = customTitle
     ? customTitle
     : (startRound === endRound
-        ? `제 ${startRound} 회차 변제예정액`
-        : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`);
+      ? `제 ${startRound} 회차 변제예정액`
+      : `제 ${startRound} 회차 ~ 제 ${endRound} 회차 변제예정액`);
 
   // Column Width Management
   const colWidthNumber = "8%";
@@ -564,12 +564,12 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   let totalDebt = 0;
   creditors.forEach((c: any) => {
     if (c.isSecured && c.securedData) {
-        const unrepayableAmount = Number(c.securedData.unrepayableAmount) || 0;
-        totalDebt += unrepayableAmount;
+      const unrepayableAmount = Number(c.securedData.unrepayableAmount) || 0;
+      totalDebt += unrepayableAmount;
     } else {
-        const principal = Number(c.principal) || 0;
-        // const interest = Number(c.interest) || 0;
-        totalDebt += principal;
+      const principal = Number(c.principal) || 0;
+      // const interest = Number(c.interest) || 0;
+      totalDebt += principal;
     }
   });
 
@@ -705,21 +705,21 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   let inputAmountB = 0;
 
   if (repaymentCount <= savingPeriodMonths) {
-      // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
-      savingAmountA = monthlyActualAvailableIncome * repaymentCount;
-      inputPeriodMonths = 0;
-      inputAmountB = 0;
+    // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
+    savingAmountA = monthlyActualAvailableIncome * repaymentCount;
+    inputPeriodMonths = 0;
+    inputAmountB = 0;
   } else {
-      // 3개월 초과 시
-      savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
-      inputPeriodMonths = repaymentCount - savingPeriodMonths;
-      
-      // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
-      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
-      const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
-      const leibnizFactor = leibnizTotal - leibnizSaving;
-      
-      inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor); 
+    // 3개월 초과 시
+    savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
+    inputPeriodMonths = repaymentCount - savingPeriodMonths;
+
+    // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
+    const leibnizTotal = getCumulativeLeibniz(repaymentCount);
+    const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
+    const leibnizFactor = leibnizTotal - leibnizSaving;
+
+    inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor);
   }
 
   const calculatedPresentValue = savingAmountA + inputAmountB;
@@ -1027,9 +1027,71 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           <div class="sub-title">가. 소득</div>
           
           <div class="info-box">
+          <div class="info-box">
               <div class="sub-title">(1) 수입</div>
-              <div class="check-item">${repaymentPlan?.incomeType === 'wage' ? '■' : '□'} 변제기간 동안 [ ${repaymentPlan?.incomeType === 'wage' ? (repaymentPlan?.companyName || '') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]에서 받는 월 평균 수입 [ ${repaymentPlan?.incomeType === 'wage' ? formatCurrency(monthlyAverageIncome) : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]원</div>
-              <div class="check-item">${repaymentPlan?.incomeType === 'business' ? '■' : '□'} 변제기간 동안 [ ${repaymentPlan?.incomeType === 'business' ? (repaymentPlan?.companyName || '') : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]를 운영하여 얻는 월 평균 수입 <span class="underline">[${repaymentPlan?.incomeType === 'business' ? formatCurrency(monthlyAverageIncome) : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}]원</span></div>
+              
+              ${(() => {
+      // 수입 상세 내역 파싱 (급여및운영일 경우)
+      let wageName = '';
+      let wageAmount = 0;
+      let businessName = '';
+      let businessAmount = 0;
+
+      const incomeType = repaymentPlan?.incomeType;
+
+      if (incomeType === 'wage') {
+        wageName = repaymentPlan?.companyName || '';
+        wageAmount = monthlyAverageIncome;
+      } else if (incomeType === 'business') {
+        businessName = repaymentPlan?.companyName || '';
+        businessAmount = monthlyAverageIncome;
+      } else if (incomeType === 'wageAndBusiness') {
+        // 1. JSON 파싱 시도 (모달 입력)
+        let parsed = false;
+        if (repaymentPlan?.monthlyIncomeDetails) {
+          try {
+            // JSON 형식 체크
+            if (repaymentPlan.monthlyIncomeDetails.trim().startsWith('{')) {
+              const details = JSON.parse(repaymentPlan.monthlyIncomeDetails);
+              wageName = details.wage?.name || '';
+              wageAmount = Number(details.wage?.amount) || 0;
+              businessName = details.business?.name || '';
+              businessAmount = Number(details.business?.amount) || 0;
+              parsed = true;
+            } else if (repaymentPlan.monthlyIncomeDetails.includes('+')) {
+              // 구버전: "100+200" 형식 (단순 금액 분리)
+              const amounts = repaymentPlan.monthlyIncomeDetails.split('+').map((s: string) => parseCurrency(s));
+              wageAmount = amounts[0] || 0;
+              businessAmount = amounts[1] || 0;
+
+              // 업체명 분리 (콤마 기준)
+              const companies = (repaymentPlan?.companyName || '').split(',');
+              wageName = companies[0] ? companies[0].trim() : '';
+              businessName = companies[1] ? companies[1].trim() : '';
+              parsed = true;
+            }
+          } catch (e) {
+            console.error('Income details parse error', e);
+          }
+        }
+
+        if (!parsed) {
+          // Fallback
+          const companies = (repaymentPlan?.companyName || '').split(',');
+          wageName = companies[0] ? companies[0].trim() : '';
+          businessName = companies[1] ? companies[1].trim() : '';
+          wageAmount = monthlyAverageIncome; // 금액 분리 불가시 전액 표시? 일단 0으로 처리하거나 이슈
+        }
+      }
+
+      const isWageChecked = incomeType === 'wage' || incomeType === 'wageAndBusiness';
+      const isBusinessChecked = incomeType === 'business' || incomeType === 'wageAndBusiness';
+
+      return `
+                  <div class="check-item">${isWageChecked ? '■' : '□'} 변제기간 동안 [ ${isWageChecked ? wageName : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]에서 받는 월 평균 수입 [ ${isWageChecked ? formatCurrency(wageAmount) : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]원</div>
+                  <div class="check-item">${isBusinessChecked ? '■' : '□'} 변제기간 동안 [ ${isBusinessChecked ? businessName : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'} ]를 운영하여 얻는 월 평균 수입 <span class="underline">[${isBusinessChecked ? formatCurrency(businessAmount) : '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;'}]원</span></div>
+                `;
+    })()}
           </div>
 
           <div class="info-box">

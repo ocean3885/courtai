@@ -1,6 +1,7 @@
 import React from 'react';
 import { formatCurrency, parseCurrency } from '../utils';
 import { RepaymentPlan } from '../types';
+import { WageBusinessModal } from './WageBusinessModal';
 
 interface PlanInfoFormProps {
     repaymentPlan: RepaymentPlan;
@@ -20,7 +21,39 @@ export function PlanInfoForm({
     // Validation for "wageAndBusiness" type
     const isWageAndBusiness = repaymentPlan.incomeType === 'wageAndBusiness';
     const isCompanyNameValid = !isWageAndBusiness || (repaymentPlan.companyName && repaymentPlan.companyName.includes(','));
-    
+    const [isWageModalOpen, setIsWageModalOpen] = React.useState(false);
+
+    const handleWageModalConfirm = (data: { wageName: string; wageAmount: number; businessName: string; businessAmount: number }) => {
+        onChange({
+            ...repaymentPlan,
+            companyName: `${data.wageName}, ${data.businessName}`, // 쉼표로 구분하여 저장
+            monthlyAverageIncome: data.wageAmount + data.businessAmount,
+            monthlyIncomeDetails: JSON.stringify({
+                wage: { name: data.wageName, amount: data.wageAmount },
+                business: { name: data.businessName, amount: data.businessAmount }
+            })
+        });
+        setIsWageModalOpen(false);
+    };
+
+    // Parse initial data for modal if exists
+    const getModalInitialData = () => {
+        if (repaymentPlan.monthlyIncomeDetails && repaymentPlan.monthlyIncomeDetails.startsWith('{')) {
+            try {
+                const details = JSON.parse(repaymentPlan.monthlyIncomeDetails);
+                return {
+                    wageName: details.wage?.name || '',
+                    wageAmount: details.wage?.amount || 0,
+                    businessName: details.business?.name || '',
+                    businessAmount: details.business?.amount || 0
+                };
+            } catch (e) {
+                return undefined;
+            }
+        }
+        return undefined;
+    };
+
     const handleGenerate = () => {
         if (!isCompanyNameValid) {
             // Validation is displayed on screen, but doubly ensure we don't proceed
@@ -61,16 +94,20 @@ export function PlanInfoForm({
                 {/* Row 2 - 근무(운영)업체명, 청산가치, 압류적립금, 압류적립액 */}
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">근무(운영)업체명</label>
-                    <input 
-                        type="text" 
-                        value={repaymentPlan.companyName || ''} 
-                        onChange={(e) => onChange({ ...repaymentPlan, companyName: e.target.value })} 
-                        placeholder={isWageAndBusiness ? "예: 국민연금,카페" : "업체명을 입력하세요"}
-                        className={`w-full px-2 py-1 border text-base focus:outline-none ${!isCompanyNameValid ? 'border-red-500 focus:border-red-500 bg-red-50' : 'border-gray-400 focus:border-gray-600'}`} 
+                    <input
+                        type="text"
+                        value={repaymentPlan.companyName || ''}
+                        onChange={(e) => !isWageAndBusiness && onChange({ ...repaymentPlan, companyName: e.target.value })}
+                        onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
+                        readOnly={isWageAndBusiness}
+                        placeholder={isWageAndBusiness ? "클릭하여 업체명 입력" : "업체명을 입력하세요"}
+                        className={`w-full px-2 py-1 border text-base focus:outline-none ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''
+                            } ${!isCompanyNameValid ? 'border-red-500 focus:border-red-500 bg-red-50' : 'border-gray-400 focus:border-gray-600'
+                            }`}
                     />
                     {!isCompanyNameValid && (
                         <p className="text-red-500 text-xs mt-1">
-                            * 급여및운영 선택 시 쉼표(,)로 구분하여 두 개를 입력해주세요. (예: 이디야,어디야)
+                            * 상세 입력이 필요합니다. 입력창을 클릭하세요.
                         </p>
                     )}
                 </div>
@@ -80,13 +117,13 @@ export function PlanInfoForm({
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">압류적립금</label>
-                    <select 
-                        value={repaymentPlan.seizedReservesStatus || 'no'} 
-                        onChange={(e) => onChange({ 
-                            ...repaymentPlan, 
+                    <select
+                        value={repaymentPlan.seizedReservesStatus || 'no'}
+                        onChange={(e) => onChange({
+                            ...repaymentPlan,
                             seizedReservesStatus: e.target.value as 'yes' | 'no',
                             seizedReservesAmount: e.target.value === 'no' ? 0 : repaymentPlan.seizedReservesAmount
-                        })} 
+                        })}
                         className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]"
                     >
                         <option value="no">없음</option>
@@ -95,15 +132,14 @@ export function PlanInfoForm({
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">압류적립액</label>
-                    <input 
-                        type="text" 
-                        value={formatCurrency(repaymentPlan.seizedReservesAmount || 0)} 
-                        onChange={(e) => onChange({ ...repaymentPlan, seizedReservesAmount: parseCurrency(e.target.value) })} 
-                        placeholder="압류적립액을 입력하세요" 
+                    <input
+                        type="text"
+                        value={formatCurrency(repaymentPlan.seizedReservesAmount || 0)}
+                        onChange={(e) => onChange({ ...repaymentPlan, seizedReservesAmount: parseCurrency(e.target.value) })}
+                        placeholder="압류적립액을 입력하세요"
                         disabled={(repaymentPlan.seizedReservesStatus || 'no') !== 'yes'}
-                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none ${
-                            (repaymentPlan.seizedReservesStatus || 'no') !== 'yes' ? 'bg-gray-100 cursor-not-allowed' : ''
-                        }`}
+                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none ${(repaymentPlan.seizedReservesStatus || 'no') !== 'yes' ? 'bg-gray-100 cursor-not-allowed' : ''
+                            }`}
                     />
                 </div>
 
@@ -130,8 +166,32 @@ export function PlanInfoForm({
 
                 {/* Row 3 - 4 items */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">월평균수입 ①</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.monthlyAverageIncome)} onChange={(e) => onChange({ ...repaymentPlan, monthlyAverageIncome: parseCurrency(e.target.value) })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                        월평균수입 ①
+                    </label>
+                    <input
+                        type="text"
+                        value={formatCurrency(repaymentPlan.monthlyAverageIncome)}
+                        onChange={(e) => {
+                            if (!isWageAndBusiness) {
+                                onChange({
+                                    ...repaymentPlan,
+                                    monthlyAverageIncome: parseCurrency(e.target.value),
+                                    monthlyIncomeDetails: undefined
+                                });
+                            }
+                        }}
+                        onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
+                        readOnly={isWageAndBusiness}
+                        placeholder={isWageAndBusiness ? "클릭하여 소득 입력" : "0"}
+                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:outline-none ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''
+                            }`}
+                    />
+                    {isWageAndBusiness && (
+                        <p className="text-xs text-blue-600 mt-1 cursor-pointer hover:underline" onClick={() => setIsWageModalOpen(true)}>
+                            * 클릭하여 상세 소득을 입력/수정하세요
+                        </p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">월평균생계비 ②</label>
@@ -196,6 +256,13 @@ export function PlanInfoForm({
                     💡 저장된 데이터를 기반으로 법원 제출용 문서를 생성합니다
                 </p>
             </div>
+            {/* Wage Modal */}
+            <WageBusinessModal
+                isOpen={isWageModalOpen}
+                onClose={() => setIsWageModalOpen(false)}
+                onConfirm={handleWageModalConfirm}
+                initialData={getModalInitialData()}
+            />
         </div>
     );
 }

@@ -73,6 +73,7 @@ export interface RepaymentPlan {
     incomeType: 'wage' | 'business' | 'wageAndBusiness';
     companyName: string; // 근무(운영)업체명
     monthlyAverageIncome: number;
+    monthlyIncomeDetails?: string; // 급여및운영일 경우 상세 내역 (예: "3000000, 2000000")
     monthlyAverageLivingCost: number;
     monthlyAverageAvailableIncome: number;
     monthlyTrusteeFee: number;
