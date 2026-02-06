@@ -54,10 +54,10 @@ function CreditorListContent() {
         seizedReservesStatus: 'no',
         seizedReservesAmount: 0,
         trusteeFee: {
-            preConfirmation: 150000,
-            postConfirmationRate: 1.0,
+            preConfirmation: 0,
+            postConfirmationRate: 0,
         },
-        dependentsCount: 0,
+        dependentsCount: 1,
         standardMedianIncome: 0,
         adjustedLivingCost: 0,
         createDate: new Date().toISOString().split('T')[0],
@@ -221,27 +221,43 @@ function CreditorListContent() {
     const updateCreditor = (id: string, field: keyof Creditor, value: string | number | boolean | string[]) => {
         setCreditors(creditors.map(c => {
             if (c.id === id) {
-                if (field === 'isSubrogated' && value === true && !c.subrogationData) {
-                    return {
-                        ...c,
-                        [field]: value,
-                        subrogationData: {
-                            id: Date.now().toString() + '-sub',
-                            number: `${c.number}-1`,
-                            name: '',
-                            reason: '',
-                            address: '',
-                            phone: '',
-                            fax: '',
-                            principal: 0,
-                            damages: 0,
-                            interest: 0,
-                            interestStartDate: '',
-                            interestRate: '약정',
-                            baseDate: c.baseDate,
+                // 대위변제자 체크 시 초기 데이터 생성
+                if (field === 'isSubrogated') {
+                    if (value === true) {
+                        // 이미 데이터가 있다면 유지, 없다면 초기화
+                        const hasData = (c.subrogatedList && c.subrogatedList.length > 0) || c.subrogationData;
+                        if (!hasData) {
+                            return {
+                                ...c,
+                                [field]: value,
+                                subrogatedList: [{
+                                    id: Date.now().toString() + '-sub-1',
+                                    number: `${c.number}-1`,
+                                    name: '',
+                                    reason: '',
+                                    address: '',
+                                    phone: '',
+                                    fax: '',
+                                    principal: 0,
+                                    damages: 0,
+                                    interest: 0,
+                                    interestStartDate: '',
+                                    interestRate: '약정',
+                                    baseDate: c.baseDate,
+                                }]
+                            };
                         }
-                    };
+                    } else {
+                        // 체크 해제 시 데이터 초기화 (삭제)
+                        return {
+                            ...c,
+                            [field]: value,
+                            subrogatedList: [],
+                            subrogationData: undefined
+                        };
+                    }
                 }
+
                 if (field === 'isSecured' && value === true && !c.securedData) {
                     return {
                         ...c,
@@ -264,13 +280,75 @@ function CreditorListContent() {
         }));
     };
 
-    const updateSubrogation = (id: string, field: keyof SubrogatedCreditor, value: string | number) => {
+    const handleAddSubrogation = (creditorId: string) => {
         setCreditors(creditors.map(c => {
-            if (c.id === id && c.subrogationData) {
+            if (c.id === creditorId) {
+                const currentList = c.subrogatedList || [];
+                // 기존 subrogationData가 있다면 마이그레이션해서 리스트에 포함
+                if (currentList.length === 0 && c.subrogationData) {
+                    currentList.push(c.subrogationData);
+                }
+
+                const nextSubNumber = currentList.length + 1;
+                const newSub: SubrogatedCreditor = {
+                    id: Date.now().toString() + `-sub-${nextSubNumber}`,
+                    number: `${c.number}-${nextSubNumber}`,
+                    name: '',
+                    reason: '',
+                    address: '',
+                    phone: '',
+                    fax: '',
+                    principal: 0,
+                    damages: 0,
+                    interest: 0,
+                    interestStartDate: '',
+                    interestRate: '약정',
+                    baseDate: c.baseDate,
+                };
+
                 return {
                     ...c,
-                    subrogationData: { ...c.subrogationData, [field]: value }
+                    subrogatedList: [...currentList, newSub]
                 };
+            }
+            return c;
+        }));
+    };
+
+    const handleRemoveSubrogation = (creditorId: string, subId: string) => {
+        setCreditors(creditors.map(c => {
+            if (c.id === creditorId && c.subrogatedList) {
+                const updatedList = c.subrogatedList.filter(s => s.id !== subId);
+                // 번호 재정렬 (예: 2-1, 2-3 -> 2-1, 2-2)
+                const reindexedList = updatedList.map((s, index) => ({
+                    ...s,
+                    number: `${c.number}-${index + 1}`
+                }));
+                return { ...c, subrogatedList: reindexedList };
+            }
+            return c;
+        }));
+    };
+
+    const updateSubrogation = (creditorId: string, subId: string, field: keyof SubrogatedCreditor, value: string | number) => {
+        setCreditors(creditors.map(c => {
+            if (c.id === creditorId) {
+                // subrogatedList 업데이트
+                if (c.subrogatedList) {
+                    return {
+                        ...c,
+                        subrogatedList: c.subrogatedList.map(s =>
+                            s.id === subId ? { ...s, [field]: value } : s
+                        )
+                    };
+                }
+                // 하위 호환성 (subrogationData만 있는 경우)
+                else if (c.subrogationData && c.subrogationData.id === subId) {
+                    return {
+                        ...c,
+                        subrogationData: { ...c.subrogationData, [field]: value }
+                    };
+                }
             }
             return c;
         }));
@@ -327,59 +405,59 @@ function CreditorListContent() {
     };
 
     const handleSave = async () => {
+        // 채무자 탭일 경우 기본 유효성 검사 유지 (최소한의 입력 확인)
         if (activeTab === 'debtor') {
             if (!debtorInfo.name.trim() || !debtorInfo.birthDate.trim()) {
                 alert('채무자 이름과 생년월일을 입력해주세요.');
                 return;
             }
-            const autoTitle = `${debtorInfo.court} ${debtorInfo.name} ${debtorInfo.birthDate}`;
-            setTitle(autoTitle);
-            setIsSaving(true);
-            try {
-                const res = await fetch(loadedId ? `/api/creditors/${loadedId}` : '/api/creditors', {
-                    method: loadedId ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        title: autoTitle,
-                        data: { debtorInfo, creditors, repaymentPlan }
-                    }),
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (!loadedId) setLoadedId(json.id);
-                    setSaveMessage('저장되었습니다.');
-                    setTimeout(() => setSaveMessage(''), 3000);
-                }
-            } catch {
-                setSaveMessage('저장 중 오류가 발생했습니다.');
+        }
+
+
+        // 제목 생성 로직: 사용자가 입력한 제목이 있으면 그것을 우선 사용
+        // 제목이 공란이면 채무자 정보를 기반으로 자동 생성
+        let saveTitle = title.trim();
+
+        if (!saveTitle) {
+            const autoTitle = `${debtorInfo.court || ''} ${debtorInfo.name || ''} ${debtorInfo.birthDate || ''}`.trim();
+            if (autoTitle) {
+                saveTitle = autoTitle;
+            } else {
+                // 채무자 정보도 없고 제목도 없으면 임시 제목 생성
+                saveTitle = `임시저장 ${new Date().toLocaleDateString()}`;
+            }
+        }
+
+        // 상태 업데이트
+        setTitle(saveTitle);
+        setIsSaving(true);
+        setSaveMessage('');
+
+        try {
+            const res = await fetch(loadedId ? `/api/creditors/${loadedId}` : '/api/creditors', {
+                method: loadedId ? 'PATCH' : 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    title: saveTitle,
+                    data: { debtorInfo, creditors, repaymentPlan }
+                }),
+            });
+
+            if (res.ok) {
+                const json = await res.json();
+                if (!loadedId) setLoadedId(json.id);
+                setSaveMessage('저장되었습니다.');
                 setTimeout(() => setSaveMessage(''), 3000);
-            } finally {
-                setIsSaving(false);
-            }
-        } else if (activeTab === 'creditor' || activeTab === 'plan') {
-            if (!title.trim()) {
-                alert('채무자 정보를 먼저 저장해주세요.');
-                return;
-            }
-            setIsSaving(true);
-            try {
-                const res = await fetch(loadedId ? `/api/creditors/${loadedId}` : '/api/creditors', {
-                    method: loadedId ? 'PATCH' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title, data: { debtorInfo, creditors, repaymentPlan } }),
-                });
-                if (res.ok) {
-                    const json = await res.json();
-                    if (!loadedId) setLoadedId(json.id);
-                    setSaveMessage('저장되었습니다.');
-                    setTimeout(() => setSaveMessage(''), 3000);
-                }
-            } catch {
-                setSaveMessage('저장 중 오류가 발생했습니다.');
+            } else {
+                setSaveMessage('저장 실패.');
                 setTimeout(() => setSaveMessage(''), 3000);
-            } finally {
-                setIsSaving(false);
             }
+        } catch (e) {
+            console.error(e);
+            setSaveMessage('저장 중 오류가 발생했습니다.');
+            setTimeout(() => setSaveMessage(''), 3000);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -401,7 +479,17 @@ function CreditorListContent() {
                 setDebtorInfo(list.data.debtorInfo);
             }
             if (list.data.creditors) {
-                setCreditors(list.data.creditors);
+                // 데이터 마이그레이션: subrogationData -> subrogatedList
+                const migratedCreditors = list.data.creditors.map(c => {
+                    if (c.isSubrogated && c.subrogationData && (!c.subrogatedList || c.subrogatedList.length === 0)) {
+                        return {
+                            ...c,
+                            subrogatedList: [c.subrogationData]
+                        };
+                    }
+                    return c;
+                });
+                setCreditors(migratedCreditors);
             }
             if (list.data.repaymentPlan) {
                 setRepaymentPlan(list.data.repaymentPlan);
@@ -536,10 +624,16 @@ function CreditorListContent() {
                 </div>
 
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4 pb-3 border-b-2 border-gray-300">
-                    <div className="flex-1">
-                        <h1 className="text-lg font-bold text-gray-900">
-                            {title || '사건정보입력'}
-                        </h1>
+                    <div className="flex-1 w-full md:w-auto">
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="text"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="사건명을 입력하세요 (미입력 시 자동생성)"
+                                className="text-lg font-bold text-gray-900 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none bg-transparent w-full transition-colors placeholder:text-gray-400 placeholder:font-normal"
+                            />
+                        </div>
                     </div>
                     {!isLoggedIn && (
                         <button
@@ -614,6 +708,8 @@ function CreditorListContent() {
                         onRemove={handleRemoveCreditor}
                         onUpdate={updateCreditor}
                         onUpdateSubrogation={updateSubrogation}
+                        onAddSubrogation={handleAddSubrogation}
+                        onRemoveSubrogation={handleRemoveSubrogation}
                         onUpdateSecured={updateSecuredData}
                     />
                 )}

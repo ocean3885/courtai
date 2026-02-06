@@ -51,7 +51,8 @@ export interface Creditor {
     attachmentTypes?: string[];
 
     isSubrogated: boolean;
-    subrogationData?: SubrogatedCreditor;
+    subrogationData?: SubrogatedCreditor; // @deprecated: use subrogatedList instead
+    subrogatedList?: SubrogatedCreditor[]; // 다수 대위변제자 지원
     isSecured: boolean; // 별제권부채권 여부
     securedData?: SecuredCreditorData; // 별제권부채권 정보
     isPreferential: boolean; // 우선변제 여부

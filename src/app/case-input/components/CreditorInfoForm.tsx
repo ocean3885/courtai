@@ -7,7 +7,9 @@ interface CreditorInfoFormProps {
     onAdd: () => void;
     onRemove: (id: string) => void;
     onUpdate: (id: string, field: keyof Creditor, value: string | number | boolean | string[]) => void;
-    onUpdateSubrogation: (id: string, field: keyof SubrogatedCreditor, value: string | number) => void;
+    onUpdateSubrogation: (creditorId: string, subId: string, field: keyof SubrogatedCreditor, value: string | number) => void;
+    onAddSubrogation: (creditorId: string) => void;
+    onRemoveSubrogation: (creditorId: string, subId: string) => void;
     onUpdateSecured: (id: string, field: keyof SecuredCreditorData, value: string | number) => void;
 }
 
@@ -17,6 +19,8 @@ export function CreditorInfoForm({
     onRemove,
     onUpdate,
     onUpdateSubrogation,
+    onAddSubrogation,
+    onRemoveSubrogation,
     onUpdateSecured
 }: CreditorInfoFormProps) {
     return (
@@ -111,23 +115,23 @@ export function CreditorInfoForm({
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">이자이율</label>
-                                <input 
+                                <input
                                     id={`interest-rate-${c.id}`}
-                                    type="text" 
-                                    value={c.interestRate} 
+                                    type="text"
+                                    value={c.interestRate}
                                     onChange={(e) => {
                                         const val = e.target.value;
                                         // Allow max 2 decimals, max 2 digits integer (block 100 or >= 100 logic by digit count), allow empty
                                         if ((/^\d{0,2}(\.\d{0,2})?$/.test(val)) || val === '') {
                                             onUpdate(c.id, 'interestRate', val);
                                         }
-                                    }} 
-                                    placeholder="숫자 입력" 
-                                    className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" 
+                                    }}
+                                    placeholder="숫자 입력"
+                                    className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none"
                                 />
                                 <div className="flex gap-2 mt-1">
                                     {['약정', '연체'].map(val => (
-                                        <button 
+                                        <button
                                             key={val}
                                             onClick={() => onUpdate(c.id, 'interestRate', val)}
                                             className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded text-gray-700 border border-gray-300"
@@ -135,7 +139,7 @@ export function CreditorInfoForm({
                                             {val}
                                         </button>
                                     ))}
-                                    <button 
+                                    <button
                                         onClick={() => {
                                             onUpdate(c.id, 'interestRate', '0');
                                             setTimeout(() => document.getElementById(`interest-rate-${c.id}`)?.focus(), 0);
@@ -179,7 +183,7 @@ export function CreditorInfoForm({
                                     <span className="text-sm text-gray-700">우선변제</span>
                                 </label>
                             </div>
-                            
+
                             <div className="md:col-span-2 lg:col-span-4 border-t border-gray-300 pt-2 mt-1">
                                 <label className="block text-sm font-medium text-gray-700 mb-2">부속서류 (중복 선택 가능)</label>
                                 <div className="flex flex-col md:flex-row gap-x-4 gap-y-2 flex-wrap">
@@ -209,91 +213,111 @@ export function CreditorInfoForm({
                             </div>
                         </div>
 
-                        {c.isSubrogated && c.subrogationData && (
-                            <div className="bg-blue-50 p-3 border-t-2 border-blue-400">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <span className="bg-blue-700 text-white px-2 py-1 text-sm font-bold">
-                                        {c.subrogationData.number}
-                                    </span>
-                                    <h4 className="font-bold text-base text-blue-900">대위변제자 정보</h4>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">채권번호</label>
-                                        <input readOnly value={c.subrogationData.number} className="w-full px-2 py-1 bg-gray-100 border border-gray-400 text-base cursor-default outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">대위변제자명</label>
-                                        <input type="text" value={c.subrogationData.name} onChange={(e) => onUpdateSubrogation(c.id, 'name', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div className="md:col-span-2">
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">주소</label>
-                                        <input type="text" value={c.subrogationData.address} onChange={(e) => onUpdateSubrogation(c.id, 'address', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div className="lg:col-span-4">
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">원인 (대위변제)</label>
-                                        <textarea value={c.subrogationData.reason} onChange={(e) => onUpdateSubrogation(c.id, 'reason', e.target.value)} rows={2} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none resize-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">전화</label>
-                                        <input type="text" value={c.subrogationData.phone} onChange={(e) => onUpdateSubrogation(c.id, 'phone', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">구상원금</label>
-                                        <input type="text" value={formatCurrency(c.subrogationData.principal)} onChange={(e) => onUpdateSubrogation(c.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">손해금(기타)</label>
-                                        <input type="text" value={formatCurrency(c.subrogationData.damages || 0)} onChange={(e) => onUpdateSubrogation(c.id, 'damages', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자</label>
-                                        <input type="text" value={formatCurrency(c.subrogationData.interest || 0)} onChange={(e) => onUpdateSubrogation(c.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자기산일</label>
-                                        <input type="date" max="9999-12-31" value={c.subrogationData.interestStartDate || ''} onChange={(e) => onUpdateSubrogation(c.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">이자이율</label>
-                                        <input 
-                                            id={`sub-interest-rate-${c.id}`}
-                                            type="text" 
-                                            value={c.subrogationData.interestRate || ''} 
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                if ((/^\d{0,2}(\.\d{0,2})?$/.test(val)) || val === '') {
-                                                    onUpdateSubrogation(c.id, 'interestRate', val);
-                                                }
-                                            }} 
-                                            placeholder="숫자 입력" 
-                                            className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" 
-                                        />
-                                        <div className="flex gap-2 mt-1">
-                                            {['약정', '연체'].map(val => (
-                                                <button 
-                                                    key={val}
-                                                    onClick={() => onUpdateSubrogation(c.id, 'interestRate', val)}
-                                                    className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
-                                                >
-                                                    {val}
-                                                </button>
-                                            ))}
-                                            <button 
-                                                onClick={() => {
-                                                    onUpdateSubrogation(c.id, 'interestRate', '0');
-                                                    setTimeout(() => document.getElementById(`sub-interest-rate-${c.id}`)?.focus(), 0);
-                                                }}
-                                                className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
+                        {/* 대위변제자 목록 렌더링 */}
+                        {c.isSubrogated && (
+                            <div className="bg-blue-50 border-t-2 border-blue-400">
+                                {((c.subrogatedList) || (c.subrogationData ? [c.subrogationData] : [])).map((sub, idx) => (
+                                    <div key={sub.id} className={`${idx > 0 ? 'border-t border-blue-200' : ''} p-3 relative`}>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div className="flex items-center gap-2">
+                                                <span className="bg-blue-700 text-white px-2 py-1 text-sm font-bold">
+                                                    {sub.number}
+                                                </span>
+                                                <h4 className="font-bold text-base text-blue-900">대위변제자 정보 {idx + 1}</h4>
+                                            </div>
+                                            {/* 첫 번째 대위변제자 삭제 불가 정책이 있다면 idx > 0 조건 추가 가능하지만, 
+                                                기본적으로 모든 대위변제자는 삭제 가능하게 하고, 다 지워지면 대위변제 여부를 false로 끌지는 UX 결정 사항.
+                                                여기서는 자유롭게 삭제 가능하게 함. */}
+                                            <button
+                                                onClick={() => onRemoveSubrogation(c.id, sub.id)}
+                                                className="text-blue-500 hover:text-red-600 text-sm px-2 py-1 border border-blue-200 bg-white hover:bg-red-50"
                                             >
-                                                숫자
+                                                삭제
                                             </button>
                                         </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">채권번호</label>
+                                                <input readOnly value={sub.number} className="w-full px-2 py-1 bg-gray-100 border border-gray-400 text-base cursor-default outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">대위변제자명</label>
+                                                <input type="text" value={sub.name} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'name', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">주소</label>
+                                                <input type="text" value={sub.address} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'address', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div className="lg:col-span-4">
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">원인 (대위변제)</label>
+                                                <textarea value={sub.reason} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'reason', e.target.value)} rows={2} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none resize-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">전화</label>
+                                                <input type="text" value={sub.phone} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'phone', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">원금</label>
+                                                <input type="text" value={formatCurrency(sub.principal)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자</label>
+                                                <input type="text" value={formatCurrency(sub.interest || 0)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자기산일</label>
+                                                <input type="date" max="9999-12-31" value={sub.interestStartDate || ''} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자이율</label>
+                                                <input
+                                                    id={`sub-interest-rate-${sub.id}`}
+                                                    type="text"
+                                                    value={sub.interestRate || ''}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value;
+                                                        if ((/^\d{0,2}(\.\d{0,2})?$/.test(val)) || val === '') {
+                                                            onUpdateSubrogation(c.id, sub.id, 'interestRate', val);
+                                                        }
+                                                    }}
+                                                    placeholder="숫자 입력"
+                                                    className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none"
+                                                />
+                                                <div className="flex gap-2 mt-1">
+                                                    {['약정', '연체'].map(val => (
+                                                        <button
+                                                            key={val}
+                                                            onClick={() => onUpdateSubrogation(c.id, sub.id, 'interestRate', val)}
+                                                            className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
+                                                        >
+                                                            {val}
+                                                        </button>
+                                                    ))}
+                                                    <button
+                                                        onClick={() => {
+                                                            onUpdateSubrogation(c.id, sub.id, 'interestRate', '0');
+                                                            setTimeout(() => document.getElementById(`sub-interest-rate-${sub.id}`)?.focus(), 0);
+                                                        }}
+                                                        className="text-xs px-2 py-1 bg-white hover:bg-gray-100 rounded text-blue-900 border border-blue-200"
+                                                    >
+                                                        숫자
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-medium text-blue-900 mb-1">산정기준일</label>
+                                                <input type="date" max="9999-12-31" value={sub.baseDate} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-blue-900 mb-1">산정기준일</label>
-                                        <input type="date" max="9999-12-31" value={c.subrogationData.baseDate} onChange={(e) => onUpdateSubrogation(c.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                                    </div>
+                                ))}
+                                <div className="p-3 bg-blue-100/50 border-t border-blue-200">
+                                    <button
+                                        onClick={() => onAddSubrogation(c.id)}
+                                        className="w-full py-2 bg-white text-blue-800 border-2 border-dashed border-blue-300 hover:bg-blue-50 hover:border-blue-400 text-base font-medium rounded"
+                                    >
+                                        + 대위변제자 추가
+                                    </button>
                                 </div>
                             </div>
                         )}

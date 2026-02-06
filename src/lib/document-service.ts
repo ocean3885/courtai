@@ -43,20 +43,41 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   let totalUnsecuredPromise = 0; // 무담보 회생채권액 합계 (별제권부 제외)
 
   creditors.forEach((c: any) => {
+    // 1. Main Creditor
     const p = Number(c.principal) || 0;
     const i = Number(c.interest) || 0;
     const total = p + i;
-    
+
     totalPrincipal += p;
     totalInterest += i;
-    
+
     // 별제권부 채권 여부에 따라 담보부/무담보 구분
     if (c.isSecured) {
-        // 별제권부 채권: 원리금 합계를 담보부 회생채권액에 포함
-        totalSecuredPromise += total;
+      // 별제권부 채권: 원리금 합계를 담보부 회생채권액에 포함
+      totalSecuredPromise += total;
     } else {
-        // 별제권부가 아닌 채권: 무담보 회생채권액에 포함
-        totalUnsecuredPromise += total;
+      // 별제권부가 아닌 채권: 무담보 회생채권액에 포함
+      totalUnsecuredPromise += total;
+    }
+
+    // 2. Subrogated Creditors
+    // Support multiple subrogated creditors (subrogatedList) or single legacy (subrogationData)
+    const subList = c.subrogatedList && c.subrogatedList.length > 0
+      ? c.subrogatedList
+      : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
+
+    if (subList.length > 0) {
+      subList.forEach((sub: any) => {
+        const sp = Number(sub.principal) || 0;
+        const si = Number(sub.interest) || 0;
+        const stotal = sp + si;
+
+        totalPrincipal += sp;
+        totalInterest += si;
+
+        // 대위변제자는 일반적으로 무담보 회생채권으로 분류 (별도 담보 설정이 없는 한)
+        totalUnsecuredPromise += stotal;
+      });
     }
   });
 
@@ -65,7 +86,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   // 2. Build Detail Rows (Section 2 - New Detailed Format)
   const detailRows = creditors.map((c: any) => {
     const baseDate = c.baseDate || '-';
-    
+
     // Description text for the debt
     const principal = Number(c.principal) || 0;
     const interest = Number(c.interest) || 0;
@@ -74,9 +95,9 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
     let interestRateText = '';
     const rate = c.interestRate;
     if (!rate || (!isNaN(Number(rate)) && rate !== '')) {
-       interestRateText = `연 ${rate || 0}%의 비율에 의한 금원`;
+      interestRateText = `연 ${rate || 0}%의 비율에 의한 금원`;
     } else {
-       interestRateText = `${rate}이율에 의한 금원`;
+      interestRateText = `${rate}이율에 의한 금원`;
     }
 
     const description = `원리금 ${formatCurrency(total)} 및 그 중 원금 ${formatCurrency(principal)}에 대한 ${c.interestStartDate || '-'}부터 완제일까지 ${interestRateText}.`;
@@ -85,9 +106,9 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
     const attachmentTypes = c.attachmentTypes || [];
     let attachments = '';
     if (attachmentTypes.length > 0) {
-       attachments = `■ 부속서류<br>( ${attachmentTypes.sort().join(', ')} )`;
+      attachments = `■ 부속서류<br>( ${attachmentTypes.sort().join(', ')} )`;
     } else {
-       attachments = `□ 부속서류<br>(부속서류없음)`;
+      attachments = `□ 부속서류<br>(부속서류없음)`;
     }
     // Basis text
     const basisText = `부채증명서 참조(산정기준일 : ${baseDate})`;
@@ -125,93 +146,99 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
       </tbody>`;
 
     // Subrogated (Linked) Creditor for this row
-    if (c.isSubrogated && c.subrogationData) {
-      const sc = c.subrogationData;
-      const scBaseDate = sc.baseDate || baseDate;
+    // Support multiple subrogated creditors (subrogatedList) or single legacy (subrogationData)
+    const subList = c.subrogatedList && c.subrogatedList.length > 0
+      ? c.subrogatedList
+      : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
 
-      const scPrincipal = Number(sc.principal) || 0;
-      const scInterest = Number(sc.interest) || 0;
-      const scTotal = scPrincipal + scInterest;
+    if (subList.length > 0) {
+      subList.forEach((sc: any) => {
+        const scBaseDate = sc.baseDate || baseDate;
 
-      let scInterestRateText = '';
-      const scRate = sc.interestRate;
-      if (!scRate || (!isNaN(Number(scRate)) && scRate !== '')) {
-         scInterestRateText = `연 ${scRate || 0}%의 비율에 의한 금원`;
-      } else {
-         scInterestRateText = `${scRate}이율에 의한 금원`;
-      }
+        const scPrincipal = Number(sc.principal) || 0;
+        const scInterest = Number(sc.interest) || 0;
+        const scTotal = scPrincipal + scInterest;
 
-      const scDescription = `원리금 ${formatCurrency(scTotal)} 및 그 중 구상원금 ${formatCurrency(scPrincipal)}에 대한 ${sc.interestStartDate || '-'}부터 완제일까지 ${scInterestRateText}.`;
-      
-      const scAttachments = `□ 부속서류<br>부속서류없음`;
-      const scBasisText = `부채증명서 참조(산정기준일 : ${scBaseDate})`;
+        let scInterestRateText = '';
+        const scRate = sc.interestRate;
+        if (!scRate || (!isNaN(Number(scRate)) && scRate !== '')) {
+          scInterestRateText = `연 ${scRate || 0}%의 비율에 의한 금원`;
+        } else {
+          scInterestRateText = `${scRate}이율에 의한 금원`;
+        }
 
-      rows += `
-      <tbody style="page-break-inside: avoid; break-inside: avoid;">
-      <tr>
-        <td rowspan="4" class="center">${sc.number}</td>
-        <td rowspan="4" class="center">${sc.name}</td>
-        <td class="left-align" colspan="2">
-            ${sc.reason || '구상금'}
-        </td>
-        <td class="left-align" colspan="2">
-            (주소) ${sc.address || '-'}<br>
-            (전화) ${sc.phone || '-'}<br>
-            (팩스) ${sc.fax || '-'}
-        </td>
-      </tr>
-      <tr>
-        <td class="left-align" rowspan="1" colspan="3">
-            ${scDescription}
-        </td>
-        <td colspan="1" class="left-align" style="vertical-align: top;">
-            ${scAttachments}
-        </td>
-      </tr>
-      <tr>
-        <td class="amount">${formatCurrency(scPrincipal)}</td>
-        <td colspan="3" class="left-align">${scBasisText}</td>
-      </tr>
-      <tr>
-        <td class="amount">${sc.interest > 0 ? formatCurrency(sc.interest) : '-'}</td>
-        <td colspan="3" class="left-align">${sc.interest > 0 ? scBasisText : ' - '}</td>
-      </tr>
-      </tbody>`;
+        const scDescription = `원리금 ${formatCurrency(scTotal)} 및 그 중 원금 ${formatCurrency(scPrincipal)}에 대한 ${sc.interestStartDate || '-'}부터 완제일까지 ${scInterestRateText}.`;
+
+        const scAttachments = `□ 부속서류<br>부속서류없음`;
+        const scBasisText = `부채증명서 참조(산정기준일 : ${scBaseDate})`;
+
+        rows += `
+          <tbody style="page-break-inside: avoid; break-inside: avoid;">
+          <tr>
+            <td rowspan="4" class="center">${sc.number}</td>
+            <td rowspan="4" class="center">${sc.name}</td>
+            <td class="left-align" colspan="2">
+                ${sc.reason || '구상금'}
+            </td>
+            <td class="left-align" colspan="2">
+                (주소) ${sc.address || '-'}<br>
+                (전화) ${sc.phone || '-'}<br>
+                (팩스) ${sc.fax || '-'}
+            </td>
+          </tr>
+          <tr>
+            <td class="left-align" rowspan="1" colspan="3">
+                ${scDescription}
+            </td>
+            <td colspan="1" class="left-align" style="vertical-align: top;">
+                ${scAttachments}
+            </td>
+          </tr>
+          <tr>
+            <td class="amount">${formatCurrency(scPrincipal)}</td>
+            <td colspan="3" class="left-align">${scBasisText}</td>
+          </tr>
+          <tr>
+            <td class="amount">${sc.interest > 0 ? formatCurrency(sc.interest) : '-'}</td>
+            <td colspan="3" class="left-align">${sc.interest > 0 ? scBasisText : ' - '}</td>
+          </tr>
+          </tbody>`;
+      });
     }
     return rows;
   }).join('');
 
   // 3. Build Secured Rows (Section 3) - 별제권부채권 및 이에 준하는 채권의 내역
   const securedCreditors = creditors.filter((c: any) => c.isSecured);
-  
+
   let securedRows = '';
   let securedTotalPrincipal = 0;
   let securedTotalInterest = 0;
   let securedTotalExpectedRepayment = 0;
   let securedTotalUnrepayable = 0;
   let securedTotalRehabilitationAmount = 0;
-  
+
   if (securedCreditors.length > 0) {
-      securedRows = securedCreditors.map((c: any) => {
-          const principal = Number(c.principal) || 0;
-          const interest = Number(c.interest) || 0;
-          const securedData = c.securedData || {};
-          const expectedRepaymentAmount = Number(securedData.expectedRepaymentAmount) || 0;
-          const unrepayableAmount = Number(securedData.unrepayableAmount) || 0;
-          const securedRehabilitationAmount = Number(securedData.securedRehabilitationAmount) || 0;
-          
-          securedTotalPrincipal += principal;
-          securedTotalInterest += interest;
-          securedTotalExpectedRepayment += expectedRepaymentAmount;
-          securedTotalUnrepayable += unrepayableAmount;
-          securedTotalRehabilitationAmount += securedRehabilitationAmount;
-          
-          const maxAmount = securedData.maxAmount || 0;
-          const collateralObject = securedData.collateralObject || '-';
-          const expectedLiquidationValue = securedData.expectedLiquidationValue || '-';
-          const securedRightDetails = securedData.securedRightDetails || '';
-          
-          return `
+    securedRows = securedCreditors.map((c: any) => {
+      const principal = Number(c.principal) || 0;
+      const interest = Number(c.interest) || 0;
+      const securedData = c.securedData || {};
+      const expectedRepaymentAmount = Number(securedData.expectedRepaymentAmount) || 0;
+      const unrepayableAmount = Number(securedData.unrepayableAmount) || 0;
+      const securedRehabilitationAmount = Number(securedData.securedRehabilitationAmount) || 0;
+
+      securedTotalPrincipal += principal;
+      securedTotalInterest += interest;
+      securedTotalExpectedRepayment += expectedRepaymentAmount;
+      securedTotalUnrepayable += unrepayableAmount;
+      securedTotalRehabilitationAmount += securedRehabilitationAmount;
+
+      const maxAmount = securedData.maxAmount || 0;
+      const collateralObject = securedData.collateralObject || '-';
+      const expectedLiquidationValue = securedData.expectedLiquidationValue || '-';
+      const securedRightDetails = securedData.securedRightDetails || '';
+
+      return `
           <tr>
             <td rowspan="3" class="center">${c.number}</td>
             <td rowspan="3" class="center">${c.name}</td>
@@ -234,10 +261,10 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
             </td>
           </tr>
           `;
-      }).join('');
-      
-      // 합계 행 추가
-      securedRows += `
+    }).join('');
+
+    // 합계 행 추가
+    securedRows += `
           <tr>
             <th colspan="2" rowspan="2" class="center">합 계</th>
             <td class="text-right">${formatCurrency(securedTotalPrincipal)}</td>
@@ -250,7 +277,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
           </tr>
       `;
   } else {
-      securedRows = `<tr><td colspan="6" class="center">해당 사항 없음</td></tr>`;
+    securedRows = `<tr><td colspan="6" class="center">해당 사항 없음</td></tr>`;
   }
 
   return `

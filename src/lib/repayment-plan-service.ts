@@ -538,22 +538,28 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
     // 1. 원채권자 추가 (대위변제 여부와 상관없이 무조건 추가 - 잔존 채권액이 있다면 합산됨)
     creditors.push(c);
 
-    // 2. 대위변제자 정보가 있는 경우 별도의 채권자로 추가
-    if (c.isSubrogated && c.subrogationData) {
-      const sub = c.subrogationData;
-      // 손해금(damages)이 있는 경우 원금에 포함(제외 요청으로 수정: 원금만 포함)
-      const principal = Number(sub.principal) || 0;
-      // const damages = Number(sub.damages) || 0;
+    // 2. 대위변제자 정보 처리 (다수 대위변제자 지원)
+    // Support multiple subrogated creditors (subrogatedList) or single legacy (subrogationData)
+    const subList = c.subrogatedList && c.subrogatedList.length > 0
+      ? c.subrogatedList
+      : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
 
-      creditors.push({
-        id: sub.id, // inputCreditors의 id와 겹치지 않도록 주의 필요 (보통 DB/Frontend에서 관리)
-        number: sub.number,
-        name: sub.name,
-        principal: principal, // damages 제외
-        interest: Number(sub.interest) || 0,
-        isSecured: false, // 대위변제 채권은 일반적으로 일반회생채권
-        isPreferential: false,
-        securedData: null
+    if (subList.length > 0) {
+      subList.forEach((sub: any) => {
+        // 손해금(damages) 제외 요청으로 원금만 포함
+        const principal = Number(sub.principal) || 0;
+        // const damages = Number(sub.damages) || 0;
+
+        creditors.push({
+          id: sub.id, // ID must be unique
+          number: sub.number,
+          name: sub.name,
+          principal: principal,
+          interest: Number(sub.interest) || 0,
+          isSecured: false, // 대위변제 채권은 일반적으로 일반회생채권
+          isPreferential: false,
+          securedData: null
+        });
       });
     }
   });
@@ -699,27 +705,58 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const section4GrandTotalPayment = section4SumConfirmedPayment + section4SumUnconfirmedPayment;
 
   // Calculate Present Value (Split: Saving Period + Input Period)
-  const savingPeriodMonths = 3;
+  // Calculate Present Value (Split: Saving Period + Input Period)
+  let savingPeriodMonths = 0;
   let savingAmountA = 0;
   let inputPeriodMonths = 0;
   let inputAmountB = 0;
 
-  if (repaymentCount <= savingPeriodMonths) {
-    // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
-    savingAmountA = monthlyActualAvailableIncome * repaymentCount;
-    inputPeriodMonths = 0;
-    inputAmountB = 0;
+  if (hasSeizedReserves) {
+    // 압류적립금이 있는 경우: 1회차(압류적립금) + 나머지 회차(수정된 가용소득)
+    savingPeriodMonths = 1;
+    savingAmountA = Number(seizedReservesAmount);
+
+    inputPeriodMonths = repaymentCount - 1;
+
+    if (inputPeriodMonths > 0) {
+      const seizedAmount = Number(seizedReservesAmount);
+      const totalIncome = Number(totalActualAvailableIncome);
+      const adjustedTotalIncome = totalIncome - seizedAmount;
+      // 2회차부터의 월 변제액 (위쪽 계산 로직과 동일하게 Math.ceil 사용)
+      const adjustedMonthlyIncome = Math.ceil(adjustedTotalIncome / inputPeriodMonths);
+
+      // 라이프니츠 계수 적용 (2회차 ~ 마지막 회차)
+      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
+      const leibnizFirst = getCumulativeLeibniz(1);
+      const leibnizFactor = leibnizTotal - leibnizFirst;
+
+      inputAmountB = Math.floor(adjustedMonthlyIncome * leibnizFactor);
+    } else {
+      inputAmountB = 0;
+    }
   } else {
-    // 3개월 초과 시
-    savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
-    inputPeriodMonths = repaymentCount - savingPeriodMonths;
+    // 일반적인 경우: 3개월 적립기간 후 나머지 기간 라이프니츠 계수 적용
+    const defaultSavingMonths = 3;
 
-    // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
-    const leibnizTotal = getCumulativeLeibniz(repaymentCount);
-    const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
-    const leibnizFactor = leibnizTotal - leibnizSaving;
+    if (repaymentCount <= defaultSavingMonths) {
+      // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
+      savingPeriodMonths = repaymentCount;
+      savingAmountA = monthlyActualAvailableIncome * repaymentCount;
+      inputPeriodMonths = 0;
+      inputAmountB = 0;
+    } else {
+      // 3개월 초과 시
+      savingPeriodMonths = defaultSavingMonths;
+      savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
+      inputPeriodMonths = repaymentCount - savingPeriodMonths;
 
-    inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor);
+      // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
+      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
+      const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
+      const leibnizFactor = leibnizTotal - leibnizSaving;
+
+      inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor);
+    }
   }
 
   const calculatedPresentValue = savingAmountA + inputAmountB;
@@ -1096,7 +1133,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
 
           <div class="info-box">
               <div class="sub-title">(2) 채무자 및 피부양자의 생활에 필요한 생계비</div>
-              <div>(가) 채무자 및 피부양자 : 총 <span class="underline">[${(repaymentPlan?.dependentsCount || 0) + 1}]명</span></div>
+              <div>(가) 채무자 및 피부양자 : 총 <span class="underline">[${repaymentPlan?.dependentsCount || 0}]명</span></div>
               <div>(나) 국민기초생활보장법에 의한 기준 중위소득 : 월 <span class="underline">[${formatCurrency(repaymentPlan?.standardMedianIncome || 0)}] 원</span></div>
               <div>(다) 채무자 회생 및 파산에 관한 법률에 따라 조정된 생계비 : 월 <span class="underline">[${formatCurrency(monthlyAverageLivingCost)}]원</span></div>
           </div>

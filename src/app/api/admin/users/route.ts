@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
 
 async function isAdmin(request: NextRequest) {
   const token = request.cookies.get('auth_token')?.value;
@@ -55,7 +55,7 @@ export async function DELETE(request: NextRequest) {
     if (user?.username === 'courteasy') {
       return NextResponse.json({ error: '초기 관리자 계정은 삭제할 수 없습니다.' }, { status: 400 });
     }
-    
+
     db.prepare('DELETE FROM users WHERE id = ?').run(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
