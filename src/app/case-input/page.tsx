@@ -245,16 +245,16 @@ function CreditorListContent() {
                                     interestRate: '약정',
                                     baseDate: c.baseDate,
                                 }]
-                            };
+                            } as Creditor;
                         }
                     } else {
                         // 체크 해제 시 데이터 초기화 (삭제)
                         return {
                             ...c,
                             [field]: value,
-                            subrogatedList: [],
+                            subrogatedList: [] as SubrogatedCreditor[],
                             subrogationData: undefined
-                        };
+                        } as Creditor;
                     }
                 }
 
@@ -272,9 +272,9 @@ function CreditorListContent() {
                             securedRightDetails: '',
                             expectedLiquidationValue: '',
                         }
-                    };
+                    } as Creditor;
                 }
-                return { ...c, [field]: value };
+                return { ...c, [field]: value } as Creditor;
             }
             return c;
         }));
@@ -337,17 +337,17 @@ function CreditorListContent() {
                 if (c.subrogatedList) {
                     return {
                         ...c,
-                        subrogatedList: c.subrogatedList.map(s =>
-                            s.id === subId ? { ...s, [field]: value } : s
+                        subrogatedList: (c.subrogatedList || []).map(s =>
+                            s.id === subId ? { ...s, [field]: value } as SubrogatedCreditor : s
                         )
-                    };
+                    } as Creditor;
                 }
                 // 하위 호환성 (subrogationData만 있는 경우)
                 else if (c.subrogationData && c.subrogationData.id === subId) {
                     return {
                         ...c,
-                        subrogationData: { ...c.subrogationData, [field]: value }
-                    };
+                        subrogationData: { ...c.subrogationData, [field]: value } as SubrogatedCreditor
+                    } as Creditor;
                 }
             }
             return c;
@@ -357,7 +357,7 @@ function CreditorListContent() {
     const updateSecuredData = (id: string, field: keyof SecuredCreditorData, value: string | number) => {
         setCreditors(creditors.map(c => {
             if (c.id === id && c.securedData) {
-                const updatedSecuredData = { ...c.securedData, [field]: value };
+                const updatedSecuredData = { ...c.securedData, [field]: value } as SecuredCreditorData;
 
                 // 별제권행사 변제예상액이 변경되면 담보부회생채권액에 같은 값을 복사
                 if (field === 'expectedRepaymentAmount') {
