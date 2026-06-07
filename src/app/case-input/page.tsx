@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 import { DebtorInfoForm } from './components/DebtorInfoForm';
@@ -13,11 +13,52 @@ import type {
     Creditor,
     SavedList,
     RepaymentPlan
-} from './types'; import {
+} from './types';
+import {
     SAMPLE_DEBTOR_INFO,
     SAMPLE_CREDITORS,
     SAMPLE_REPAYMENT_PLAN
 } from './sample-data';
+
+const createInitialDebtorInfo = (): DebtorInfo => ({
+    name: '',
+    birthDate: '',
+    address: '',
+    phone: '',
+    court: '',
+});
+
+const createInitialRepaymentPlan = (): RepaymentPlan => ({
+    repaymentPeriod: {
+        startDate: '',
+        endDate: '',
+        months: 36,
+    },
+    incomeType: 'wage',
+    companyName: '',
+    monthlyAverageIncome: 0,
+    monthlyAverageLivingCost: 0,
+    monthlyAverageAvailableIncome: 0,
+    monthlyTrusteeFee: 0,
+    otherEstateClaims: 0,
+    monthlyActualAvailableIncome: 0,
+    repaymentCount: 0,
+    totalActualAvailableIncome: 0,
+    liquidationValue: 0,
+    seizedReservesStatus: 'no',
+    seizedReservesAmount: 0,
+    trusteeFee: {
+        preConfirmation: 0,
+        postConfirmationRate: 0,
+    },
+    dependentsCount: 1,
+    standardMedianIncome: 0,
+    adjustedLivingCost: 0,
+    createDate: new Date().toISOString().split('T')[0],
+});
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 function CreditorListContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -26,42 +67,9 @@ function CreditorListContent() {
 
     const [user, setUser] = useState<{ id: number; role: string } | null>(null);
     const [activeTab, setActiveTab] = useState<'debtor' | 'creditor' | 'plan'>('debtor');
-    const [debtorInfo, setDebtorInfo] = useState<DebtorInfo>({
-        name: '',
-        birthDate: '',
-        address: '',
-        phone: '',
-        court: '',
-    });
+    const [debtorInfo, setDebtorInfo] = useState<DebtorInfo>(createInitialDebtorInfo);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
-    const [repaymentPlan, setRepaymentPlan] = useState<RepaymentPlan>({
-        repaymentPeriod: {
-            startDate: '',
-            endDate: '',
-            months: 36,
-        },
-        incomeType: 'wage',
-        companyName: '',
-        monthlyAverageIncome: 0,
-        monthlyAverageLivingCost: 0,
-        monthlyAverageAvailableIncome: 0,
-        monthlyTrusteeFee: 0,
-        otherEstateClaims: 0,
-        monthlyActualAvailableIncome: 0,
-        repaymentCount: 0,
-        totalActualAvailableIncome: 0,
-        liquidationValue: 0,
-        seizedReservesStatus: 'no',
-        seizedReservesAmount: 0,
-        trusteeFee: {
-            preConfirmation: 0,
-            postConfirmationRate: 0,
-        },
-        dependentsCount: 1,
-        standardMedianIncome: 0,
-        adjustedLivingCost: 0,
-        createDate: new Date().toISOString().split('T')[0],
-    });
+    const [repaymentPlan, setRepaymentPlan] = useState<RepaymentPlan>(createInitialRepaymentPlan);
     const [title, setTitle] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
@@ -79,32 +87,33 @@ function CreditorListContent() {
             .then(data => data && setUser(data.user));
     }, []);
 
-    // URL 파라미터로 케이스 ID가 있으면 자동으로 로드
-    useEffect(() => {
-        if (caseId && !loadedId) {
-            loadCaseData(caseId);
-        }
-
-        // 임시 저장 데이터 로드 (비로그인 수정)
-        if (loadTemp === 'true' && !caseId) {
-            const raw = localStorage.getItem('temp_case_data');
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    setTitle(parsed.title || '');
-                    if (parsed.data) {
-                        if (parsed.data.debtorInfo) setDebtorInfo(parsed.data.debtorInfo);
-                        if (parsed.data.creditors) setCreditors(parsed.data.creditors);
-                        if (parsed.data.repaymentPlan) setRepaymentPlan(parsed.data.repaymentPlan);
+    const handleLoad = useCallback((list: SavedList) => {
+        setTitle(list.title);
+        if (!Array.isArray(list.data)) {
+            setDebtorInfo(list.data.debtorInfo || createInitialDebtorInfo());
+            setCreditors(
+                (list.data.creditors || []).map(c => {
+                    if (c.isSubrogated && c.subrogationData && (!c.subrogatedList || c.subrogatedList.length === 0)) {
+                        return {
+                            ...c,
+                            subrogatedList: [c.subrogationData]
+                        };
                     }
-                } catch (e) {
-                    console.error('Failed to load temp data', e);
-                }
-            }
+                    return c;
+                })
+            );
+            setRepaymentPlan(list.data.repaymentPlan || createInitialRepaymentPlan());
+        } else {
+            // 이전 버전 호환성
+            setDebtorInfo(createInitialDebtorInfo());
+            setCreditors(list.data);
+            setRepaymentPlan(createInitialRepaymentPlan());
         }
-    }, [caseId, loadTemp]);
+        setLoadedId(list.id);
+        setShowLoadModal(false);
+    }, []);
 
-    const loadCaseData = async (id: string) => {
+    const loadCaseData = useCallback(async (id: string) => {
         setIsLoading(true);
         try {
             const res = await fetch(`/api/creditors/${id}`);
@@ -126,7 +135,33 @@ function CreditorListContent() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [handleLoad, router]);
+
+    // URL 파라미터로 케이스 ID가 있으면 자동으로 로드
+    useEffect(() => {
+        if (caseId && loadedId !== caseId) {
+            loadCaseData(caseId);
+            return;
+        }
+
+        // 임시 저장 데이터 로드 (비로그인 수정)
+        if (loadTemp === 'true' && !caseId) {
+            const raw = localStorage.getItem('temp_case_data');
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    setTitle(parsed.title || '');
+                    if (parsed.data) {
+                        setDebtorInfo(parsed.data.debtorInfo || createInitialDebtorInfo());
+                        setCreditors(parsed.data.creditors || []);
+                        setRepaymentPlan(parsed.data.repaymentPlan || createInitialRepaymentPlan());
+                    }
+                } catch (e) {
+                    console.error('Failed to load temp data', e);
+                }
+            }
+        }
+    }, [caseId, loadTemp, loadedId, loadCaseData]);
 
     // 월평균가용소득 자동 계산
     useEffect(() => {
@@ -140,7 +175,7 @@ function CreditorListContent() {
                 monthlyAverageAvailableIncome: available
             }));
         }
-    }, [repaymentPlan.monthlyAverageIncome, repaymentPlan.monthlyAverageLivingCost]);
+    }, [repaymentPlan.monthlyAverageIncome, repaymentPlan.monthlyAverageLivingCost, repaymentPlan.monthlyAverageAvailableIncome]);
 
     // 월회생위원보수 자동 계산
     useEffect(() => {
@@ -154,7 +189,7 @@ function CreditorListContent() {
                 monthlyTrusteeFee: fee
             }));
         }
-    }, [repaymentPlan.monthlyAverageAvailableIncome, repaymentPlan.trusteeFee.postConfirmationRate]);
+    }, [repaymentPlan.monthlyAverageAvailableIncome, repaymentPlan.monthlyTrusteeFee, repaymentPlan.trusteeFee.postConfirmationRate]);
 
     // 월실제가용소득 자동 계산 (월평균가용소득 - 월회생위원보수 - 기타재단채권)
     useEffect(() => {
@@ -169,7 +204,7 @@ function CreditorListContent() {
                 monthlyActualAvailableIncome: actualAvailable
             }));
         }
-    }, [repaymentPlan.monthlyAverageAvailableIncome, repaymentPlan.monthlyTrusteeFee, repaymentPlan.otherEstateClaims]);
+    }, [repaymentPlan.monthlyAverageAvailableIncome, repaymentPlan.monthlyTrusteeFee, repaymentPlan.otherEstateClaims, repaymentPlan.monthlyActualAvailableIncome]);
 
     // 총실제가용소득 자동 계산 (월실제가용소득 * 변제기간)
     useEffect(() => {
@@ -183,9 +218,10 @@ function CreditorListContent() {
                 totalActualAvailableIncome: totalActual
             }));
         }
-    }, [repaymentPlan.monthlyActualAvailableIncome, repaymentPlan.repaymentPeriod.months]);
+    }, [repaymentPlan.monthlyActualAvailableIncome, repaymentPlan.repaymentPeriod.months, repaymentPlan.totalActualAvailableIncome]);
 
     const isLoggedIn = !!user;
+    const hasRequiredDebtorInfo = debtorInfo.name.trim().length > 0 && debtorInfo.birthDate.trim().length === 8;
 
     const handleAddCreditor = () => {
         const nextNumber = creditors.length > 0
@@ -283,7 +319,7 @@ function CreditorListContent() {
     const handleAddSubrogation = (creditorId: string) => {
         setCreditors(creditors.map(c => {
             if (c.id === creditorId) {
-                const currentList = c.subrogatedList || [];
+                const currentList = [...(c.subrogatedList || [])];
                 // 기존 subrogationData가 있다면 마이그레이션해서 리스트에 포함
                 if (currentList.length === 0 && c.subrogationData) {
                     currentList.push(c.subrogationData);
@@ -405,14 +441,10 @@ function CreditorListContent() {
     };
 
     const handleSave = async () => {
-        // 채무자 탭일 경우 기본 유효성 검사 유지 (최소한의 입력 확인)
-        if (activeTab === 'debtor') {
-            if (!debtorInfo.name.trim() || !debtorInfo.birthDate.trim()) {
-                alert('채무자 이름과 생년월일을 입력해주세요.');
-                return;
-            }
+        if (!hasRequiredDebtorInfo) {
+            alert('채무자 이름과 생년월일 8자리를 입력해주세요.');
+            return;
         }
-
 
         // 제목 생성 로직: 사용자가 입력한 제목이 있으면 그것을 우선 사용
         // 제목이 공란이면 채무자 정보를 기반으로 자동 생성
@@ -472,36 +504,6 @@ function CreditorListContent() {
         }
     };
 
-    const handleLoad = (list: SavedList) => {
-        setTitle(list.title);
-        if (!Array.isArray(list.data)) {
-            if (list.data.debtorInfo) {
-                setDebtorInfo(list.data.debtorInfo);
-            }
-            if (list.data.creditors) {
-                // 데이터 마이그레이션: subrogationData -> subrogatedList
-                const migratedCreditors = list.data.creditors.map(c => {
-                    if (c.isSubrogated && c.subrogationData && (!c.subrogatedList || c.subrogatedList.length === 0)) {
-                        return {
-                            ...c,
-                            subrogatedList: [c.subrogationData]
-                        };
-                    }
-                    return c;
-                });
-                setCreditors(migratedCreditors);
-            }
-            if (list.data.repaymentPlan) {
-                setRepaymentPlan(list.data.repaymentPlan);
-            }
-        } else {
-            // 이전 버전 호환성
-            setCreditors(list.data);
-        }
-        setLoadedId(list.id);
-        setShowLoadModal(false);
-    };
-
     const handleDeleteList = async (id: string, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!confirm('정말 삭제하시겠습니까?')) return;
@@ -512,7 +514,6 @@ function CreditorListContent() {
     const handleGenerate = async () => {
         setIsGenerating(true);
         try {
-            console.log(`Generating document... LoggedIn: ${isLoggedIn}, LoadedId: ${loadedId}`);
             let res;
             if (isLoggedIn) {
                 if (!loadedId) {
@@ -543,7 +544,6 @@ function CreditorListContent() {
                     alert(`생성 실패 (회원): ${errorMessage}`);
                 }
             } else {
-                console.log('Generating local preview for guest');
                 // 비로그인 사용자: 로컬 스토리지에 저장하고 미리보기 페이지로 이동 (DB 저장 안 함)
                 const tempData = {
                     title: title || '체험용 문서',
@@ -557,9 +557,10 @@ function CreditorListContent() {
                 // 미리보기 페이지로 이동
                 router.push('/documents/preview');
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Generation error:', error);
-            alert(`생성 중 오류가 발생했습니다: ${error.message}`);
+            const message = error instanceof Error ? error.message : '알 수 없는 오류';
+            alert(`생성 중 오류가 발생했습니다: ${message}`);
         } finally {
             setIsGenerating(false);
         }
@@ -570,6 +571,7 @@ function CreditorListContent() {
     const itemsPerPage = 5;
     const totalPages = Math.ceil(filteredLists.length / itemsPerPage);
     const paginatedLists = filteredLists.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const escapedSearchTerm = escapeRegExp(searchTerm);
 
 
 
@@ -599,24 +601,18 @@ function CreditorListContent() {
                     </button>
                     <button
                         onClick={() => setActiveTab('creditor')}
-                        disabled={!debtorInfo.name || debtorInfo.birthDate.length !== 8}
                         className={`px-4 py-2 font-medium text-base ${activeTab === 'creditor'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
-                            : debtorInfo.name && debtorInfo.birthDate.length === 8
-                                ? 'text-gray-600 hover:text-gray-900'
-                                : 'text-gray-400 cursor-not-allowed'
+                            : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
                         2. 채권자정보
                     </button>
                     <button
                         onClick={() => setActiveTab('plan')}
-                        disabled={!loadedId && creditors.length === 0}
                         className={`px-4 py-2 font-medium text-base ${activeTab === 'plan'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
-                            : loadedId || creditors.length > 0
-                                ? 'text-gray-600 hover:text-gray-900'
-                                : 'text-gray-400 cursor-not-allowed'
+                            : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
                         3. 변제계획
@@ -656,8 +652,11 @@ function CreditorListContent() {
                             </button>
                             <button
                                 onClick={handleSave}
-                                disabled={isSaving}
-                                className="px-3 py-1 bg-blue-700 text-white border border-blue-800 hover:bg-blue-800 text-base"
+                                disabled={isSaving || !hasRequiredDebtorInfo}
+                                className={`px-3 py-1 border text-base ${isSaving || !hasRequiredDebtorInfo
+                                    ? 'bg-gray-200 text-gray-400 border-gray-300 cursor-not-allowed'
+                                    : 'bg-blue-700 text-white border-blue-800 hover:bg-blue-800'
+                                    }`}
                             >
                                 {isSaving ? '저장 중...' : '저장'}
                             </button>
@@ -667,13 +666,8 @@ function CreditorListContent() {
                                         setLoadedId(null);
                                         setTitle('');
                                         setCreditors([]);
-                                        setDebtorInfo({
-                                            name: '',
-                                            birthDate: '',
-                                            address: '',
-                                            phone: '',
-                                            court: '',
-                                        });
+                                        setDebtorInfo(createInitialDebtorInfo());
+                                        setRepaymentPlan(createInitialRepaymentPlan());
                                         setActiveTab('debtor');
                                     }}
                                     className="px-3 py-1 bg-white text-gray-700 border border-gray-400 hover:bg-gray-100 text-base"
@@ -722,7 +716,6 @@ function CreditorListContent() {
                             onChange={setRepaymentPlan}
                             onGenerate={handleGenerate}
                             isGenerating={isGenerating}
-                            isLoaded={!!loadedId}
                         />
                     )
                 }
@@ -772,7 +765,7 @@ function CreditorListContent() {
                                         >
                                             <div>
                                                 <p className="font-bold text-gray-900 group-hover:text-blue-700">
-                                                    {list.title.split(new RegExp(`(${searchTerm})`, 'gi')).map((part, i) =>
+                                                    {(searchTerm ? list.title.split(new RegExp(`(${escapedSearchTerm})`, 'gi')) : [list.title]).map((part, i) =>
                                                         part.toLowerCase() === searchTerm.toLowerCase() && searchTerm
                                                             ? <span key={i} className="bg-yellow-200 text-black px-1 rounded">{part}</span>
                                                             : part

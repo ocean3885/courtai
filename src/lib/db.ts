@@ -95,7 +95,6 @@ export const getDb = (): Database.Database => {
     const hasChangesColumn = tableInfo.some(col => col.name === 'changes');
     if (!hasChangesColumn) {
       _db.exec("ALTER TABLE case_documents ADD COLUMN changes TEXT DEFAULT ''");
-      console.log('Added "changes" column to case_documents table.');
     }
   } catch (error) {
     console.error('Migration error:', error);

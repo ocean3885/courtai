@@ -1,45 +1,29 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { formatCurrency, parseCurrency } from '../utils';
+
+interface WageBusinessData {
+    wageName: string;
+    wageAmount: number;
+    businessName: string;
+    businessAmount: number;
+}
 
 interface WageBusinessModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onConfirm: (data: {
-        wageName: string;
-        wageAmount: number;
-        businessName: string;
-        businessAmount: number;
-    }) => void;
-    initialData?: {
-        wageName: string;
-        wageAmount: number;
-        businessName: string;
-        businessAmount: number;
-    };
+    onConfirm: (data: WageBusinessData) => void;
+    initialData?: WageBusinessData;
 }
 
-export function WageBusinessModal({ isOpen, onClose, onConfirm, initialData }: WageBusinessModalProps) {
-    const [wageName, setWageName] = useState('');
-    const [wageAmount, setWageAmount] = useState(0);
-    const [businessName, setBusinessName] = useState('');
-    const [businessAmount, setBusinessAmount] = useState(0);
-
-    useEffect(() => {
-        if (isOpen && initialData) {
-            setWageName(initialData.wageName);
-            setWageAmount(initialData.wageAmount);
-            setBusinessName(initialData.businessName);
-            setBusinessAmount(initialData.businessAmount);
-        } else if (isOpen) {
-            // Reset fields when opening fresh
-            setWageName('');
-            setWageAmount(0);
-            setBusinessName('');
-            setBusinessAmount(0);
-        }
-    }, [isOpen, initialData]);
-
-    if (!isOpen) return null;
+function WageBusinessModalContent({
+    onClose,
+    onConfirm,
+    initialData
+}: Omit<WageBusinessModalProps, 'isOpen'>) {
+    const [wageName, setWageName] = useState(initialData?.wageName || '');
+    const [wageAmount, setWageAmount] = useState(initialData?.wageAmount || 0);
+    const [businessName, setBusinessName] = useState(initialData?.businessName || '');
+    const [businessAmount, setBusinessAmount] = useState(initialData?.businessAmount || 0);
 
     const handleConfirm = () => {
         if (!wageName.trim() || !businessName.trim()) {
@@ -154,5 +138,18 @@ export function WageBusinessModal({ isOpen, onClose, onConfirm, initialData }: W
                 </div>
             </div>
         </div>
+    );
+}
+
+export function WageBusinessModal({ isOpen, onClose, onConfirm, initialData }: WageBusinessModalProps) {
+    if (!isOpen) return null;
+
+    return (
+        <WageBusinessModalContent
+            key={JSON.stringify(initialData || {})}
+            onClose={onClose}
+            onConfirm={onConfirm}
+            initialData={initialData}
+        />
     );
 }

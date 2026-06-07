@@ -14,12 +14,12 @@ export function MainLayout({ children, wide }: MainLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header onMenuClick={() => setIsSidebarOpen(true)} />
-      <div className="flex flex-1 relative">
+    <div className="min-h-screen bg-white text-slate-950">
+      <div className="flex min-h-screen">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-        <div className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1 p-4 md:p-8 w-full">
+        <div className="flex min-w-0 flex-1 flex-col bg-white">
+          <Header onMenuClick={() => setIsSidebarOpen(true)} />
+          <main className="flex-1 border-l border-slate-200 bg-white">
             <div className={`${wide ? 'max-w-none' : 'max-w-7xl'} mx-auto w-full`}>
               {children}
             </div>

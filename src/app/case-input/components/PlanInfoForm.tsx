@@ -8,17 +8,57 @@ interface PlanInfoFormProps {
     onChange: (plan: RepaymentPlan) => void;
     onGenerate: () => void;
     isGenerating: boolean;
-    isLoaded: boolean;
 }
+
+interface FieldProps {
+    label: string;
+    children: React.ReactNode;
+    note?: string;
+    className?: string;
+}
+
+function Field({ label, children, note, className = '' }: FieldProps) {
+    return (
+        <div className={className}>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
+            {children}
+            {note && <p className="mt-1.5 text-xs leading-5 text-blue-600">{note}</p>}
+        </div>
+    );
+}
+
+function Section({
+    title,
+    children
+}: {
+    title: string;
+    children: React.ReactNode;
+}) {
+    return (
+        <section className="rounded-lg border border-gray-300 bg-white p-4">
+            <h3 className="mb-4 text-base font-bold text-gray-900">{title}</h3>
+            {children}
+        </section>
+    );
+}
+
+function ResultBox({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 p-4">
+            <p className="text-sm font-medium text-blue-900">{label}</p>
+            <p className="mt-2 text-xl font-bold text-blue-700">{formatCurrency(value)}원</p>
+        </div>
+    );
+}
+
+const inputClass = 'h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
 export function PlanInfoForm({
     repaymentPlan,
     onChange,
     onGenerate,
-    isGenerating,
-    isLoaded
+    isGenerating
 }: PlanInfoFormProps) {
-    // Validation for "wageAndBusiness" type
     const isWageAndBusiness = repaymentPlan.incomeType === 'wageAndBusiness';
     const isCompanyNameValid = !isWageAndBusiness || (repaymentPlan.companyName && repaymentPlan.companyName.includes(','));
     const [isWageModalOpen, setIsWageModalOpen] = React.useState(false);
@@ -26,7 +66,7 @@ export function PlanInfoForm({
     const handleWageModalConfirm = (data: { wageName: string; wageAmount: number; businessName: string; businessAmount: number }) => {
         onChange({
             ...repaymentPlan,
-            companyName: `${data.wageName}, ${data.businessName}`, // 쉼표로 구분하여 저장
+            companyName: `${data.wageName}, ${data.businessName}`,
             monthlyAverageIncome: data.wageAmount + data.businessAmount,
             monthlyIncomeDetails: JSON.stringify({
                 wage: { name: data.wageName, amount: data.wageAmount },
@@ -36,7 +76,6 @@ export function PlanInfoForm({
         setIsWageModalOpen(false);
     };
 
-    // Parse initial data for modal if exists
     const getModalInitialData = () => {
         if (repaymentPlan.monthlyIncomeDetails && repaymentPlan.monthlyIncomeDetails.startsWith('{')) {
             try {
@@ -47,7 +86,7 @@ export function PlanInfoForm({
                     businessName: details.business?.name || '',
                     businessAmount: details.business?.amount || 0
                 };
-            } catch (e) {
+            } catch {
                 return undefined;
             }
         }
@@ -55,189 +94,232 @@ export function PlanInfoForm({
     };
 
     const handleGenerate = () => {
-        if (!isCompanyNameValid) {
-            // Validation is displayed on screen, but doubly ensure we don't proceed
-            return;
-        }
+        if (!isCompanyNameValid) return;
         onGenerate();
     };
 
     return (
-        <div className="bg-white border-2 border-gray-400 p-4">
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-bold text-gray-900">변제계획</h2>
+        <div className="space-y-5">
+            <div className="rounded-lg border border-gray-300 bg-white p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                    <div>
+                        <h2 className="text-lg font-bold text-gray-900">변제계획</h2>
+                        <p className="mt-1 text-sm text-gray-500">기간, 소득, 공제 항목을 입력하면 하단 결과가 자동 계산됩니다.</p>
+                    </div>
+                    <Field label="작성일" className="w-full md:w-48">
+                        <input
+                            type="date"
+                            value={repaymentPlan.createDate}
+                            onChange={(e) => onChange({ ...repaymentPlan, createDate: e.target.value })}
+                            className={inputClass}
+                        />
+                    </Field>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-4">
-                {/* Row 1 */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">변제시작일</label>
-                    <input type="date" max="9999-12-31" value={repaymentPlan.repaymentPeriod.startDate} onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, startDate: e.target.value } })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">변제종료일</label>
-                    <input type="date" max="9999-12-31" value={repaymentPlan.repaymentPeriod.endDate} onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, endDate: e.target.value } })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">변제기간(개월) ⑧</label>
-                    <input type="number" value={repaymentPlan.repaymentPeriod.months} onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, months: parseInt(e.target.value) || 0 } })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">수입형태</label>
-                    <select value={repaymentPlan.incomeType} onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' | 'wageAndBusiness' })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]">
-                        <option value="wage">급여소득자</option>
-                        <option value="business">영업소득자</option>
-                        <option value="wageAndBusiness">급여및운영</option>
-                    </select>
-                </div>
-
-                {/* Row 2 - 근무(운영)업체명, 청산가치, 압류적립금, 압류적립액 */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">근무(운영)업체명</label>
-                    <input
-                        type="text"
-                        value={repaymentPlan.companyName || ''}
-                        onChange={(e) => !isWageAndBusiness && onChange({ ...repaymentPlan, companyName: e.target.value })}
-                        onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
-                        readOnly={isWageAndBusiness}
-                        placeholder={isWageAndBusiness ? "클릭하여 업체명 입력" : "업체명을 입력하세요"}
-                        className={`w-full px-2 py-1 border text-base focus:outline-none ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''
-                            } ${!isCompanyNameValid ? 'border-red-500 focus:border-red-500 bg-red-50' : 'border-gray-400 focus:border-gray-600'
-                            }`}
-                    />
-                    {!isCompanyNameValid && (
-                        <p className="text-red-500 text-xs mt-1">
-                            * 상세 입력이 필요합니다. 입력창을 클릭하세요.
-                        </p>
-                    )}
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">청산가치</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.liquidationValue || 0)} onChange={(e) => onChange({ ...repaymentPlan, liquidationValue: parseCurrency(e.target.value) })} placeholder="청산가치를 입력하세요" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">압류적립금</label>
-                    <select
-                        value={repaymentPlan.seizedReservesStatus || 'no'}
-                        onChange={(e) => onChange({
-                            ...repaymentPlan,
-                            seizedReservesStatus: e.target.value as 'yes' | 'no',
-                            seizedReservesAmount: e.target.value === 'no' ? 0 : repaymentPlan.seizedReservesAmount
-                        })}
-                        className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none h-[34px]"
+            <Section title="기본 설정">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field label="변제시작일">
+                        <input
+                            type="date"
+                            max="9999-12-31"
+                            value={repaymentPlan.repaymentPeriod.startDate}
+                            onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, startDate: e.target.value } })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="변제종료일">
+                        <input
+                            type="date"
+                            max="9999-12-31"
+                            value={repaymentPlan.repaymentPeriod.endDate}
+                            onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, endDate: e.target.value } })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="변제기간(개월) ⑧">
+                        <input
+                            type="number"
+                            value={repaymentPlan.repaymentPeriod.months}
+                            onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, months: parseInt(e.target.value) || 0 } })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="수입형태">
+                        <select
+                            value={repaymentPlan.incomeType}
+                            onChange={(e) => onChange({ ...repaymentPlan, incomeType: e.target.value as 'wage' | 'business' | 'wageAndBusiness' })}
+                            className={inputClass}
+                        >
+                            <option value="wage">급여소득자</option>
+                            <option value="business">영업소득자</option>
+                            <option value="wageAndBusiness">급여및운영</option>
+                        </select>
+                    </Field>
+                    <Field
+                        label="근무(운영)업체명"
+                        className="md:col-span-2"
                     >
-                        <option value="no">없음</option>
-                        <option value="yes">있음</option>
-                    </select>
+                        <input
+                            type="text"
+                            value={repaymentPlan.companyName || ''}
+                            onChange={(e) => !isWageAndBusiness && onChange({ ...repaymentPlan, companyName: e.target.value })}
+                            onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
+                            readOnly={isWageAndBusiness}
+                            placeholder={isWageAndBusiness ? '클릭하여 업체명 입력' : '업체명을 입력하세요'}
+                            className={`${inputClass} ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''} ${!isCompanyNameValid ? 'border-red-500 bg-red-50 focus:border-red-500 focus:ring-red-100' : ''}`}
+                        />
+                        {!isCompanyNameValid && (
+                            <p className="mt-1.5 text-xs text-red-500">상세 입력이 필요합니다. 입력창을 클릭하세요.</p>
+                        )}
+                    </Field>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">압류적립액</label>
-                    <input
-                        type="text"
-                        value={formatCurrency(repaymentPlan.seizedReservesAmount || 0)}
-                        onChange={(e) => onChange({ ...repaymentPlan, seizedReservesAmount: parseCurrency(e.target.value) })}
-                        placeholder="압류적립액을 입력하세요"
-                        disabled={(repaymentPlan.seizedReservesStatus || 'no') !== 'yes'}
-                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none ${(repaymentPlan.seizedReservesStatus || 'no') !== 'yes' ? 'bg-gray-100 cursor-not-allowed' : ''
-                            }`}
-                    />
-                </div>
+            </Section>
 
-                {/* Row 3 - 4 items */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">피부양자수</label>
-                    <input type="number" value={repaymentPlan.dependentsCount} onChange={(e) => onChange({ ...repaymentPlan, dependentsCount: parseInt(e.target.value) || 0 })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">기준중위소득</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.standardMedianIncome)} onChange={(e) => onChange({ ...repaymentPlan, standardMedianIncome: parseCurrency(e.target.value) })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">회생위원보수(인가전)</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.trusteeFee.preConfirmation)} onChange={(e) => onChange({ ...repaymentPlan, trusteeFee: { ...repaymentPlan.trusteeFee, preConfirmation: parseCurrency(e.target.value) } })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">회생위원보수(인가후) ④</label>
-                    <div className="relative">
-                        <input type="number" step="0.1" value={repaymentPlan.trusteeFee.postConfirmationRate} onChange={(e) => onChange({ ...repaymentPlan, trusteeFee: { ...repaymentPlan.trusteeFee, postConfirmationRate: parseFloat(e.target.value) } })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none pr-6" />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-base text-gray-500">%</span>
+            <Section title="재산 및 특수 항목">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field label="청산가치">
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.liquidationValue || 0)}
+                            onChange={(e) => onChange({ ...repaymentPlan, liquidationValue: parseCurrency(e.target.value) })}
+                            placeholder="청산가치를 입력하세요"
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="피부양자수">
+                        <input
+                            type="number"
+                            value={repaymentPlan.dependentsCount}
+                            onChange={(e) => onChange({ ...repaymentPlan, dependentsCount: parseInt(e.target.value) || 0 })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="기준중위소득" className="md:col-span-2 xl:col-span-1">
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.standardMedianIncome)}
+                            onChange={(e) => onChange({ ...repaymentPlan, standardMedianIncome: parseCurrency(e.target.value) })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 md:col-span-2 xl:col-span-4">
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <Field label="압류적립금">
+                                <select
+                                    value={repaymentPlan.seizedReservesStatus || 'no'}
+                                    onChange={(e) => onChange({
+                                        ...repaymentPlan,
+                                        seizedReservesStatus: e.target.value as 'yes' | 'no',
+                                        seizedReservesAmount: e.target.value === 'no' ? 0 : repaymentPlan.seizedReservesAmount
+                                    })}
+                                    className={inputClass}
+                                >
+                                    <option value="no">없음</option>
+                                    <option value="yes">있음</option>
+                                </select>
+                            </Field>
+                            <Field label="압류적립액">
+                                <input
+                                    type="text"
+                                    value={formatCurrency(repaymentPlan.seizedReservesAmount || 0)}
+                                    onChange={(e) => onChange({ ...repaymentPlan, seizedReservesAmount: parseCurrency(e.target.value) })}
+                                    placeholder="압류적립액을 입력하세요"
+                                    disabled={(repaymentPlan.seizedReservesStatus || 'no') !== 'yes'}
+                                    className={`${inputClass} ${(repaymentPlan.seizedReservesStatus || 'no') !== 'yes' ? 'cursor-not-allowed bg-gray-100 text-gray-500' : ''}`}
+                                />
+                            </Field>
+                        </div>
                     </div>
                 </div>
+            </Section>
 
-                {/* Row 3 - 4 items */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                        월평균수입 ①
-                    </label>
-                    <input
-                        type="text"
-                        value={formatCurrency(repaymentPlan.monthlyAverageIncome)}
-                        onChange={(e) => {
-                            if (!isWageAndBusiness) {
-                                onChange({
-                                    ...repaymentPlan,
-                                    monthlyAverageIncome: parseCurrency(e.target.value),
-                                    monthlyIncomeDetails: undefined
-                                });
-                            }
-                        }}
-                        onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
-                        readOnly={isWageAndBusiness}
-                        placeholder={isWageAndBusiness ? "클릭하여 소득 입력" : "0"}
-                        className={`w-full px-2 py-1 border border-gray-400 text-base focus:outline-none ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''
-                            }`}
-                    />
-                    {isWageAndBusiness && (
-                        <p className="text-xs text-blue-600 mt-1 cursor-pointer hover:underline" onClick={() => setIsWageModalOpen(true)}>
-                            * 클릭하여 상세 소득을 입력/수정하세요
-                        </p>
-                    )}
+            <Section title="소득 및 공제 입력">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <Field
+                        label="월평균수입 ①"
+                        note={isWageAndBusiness ? '클릭하여 상세 소득을 입력/수정하세요.' : undefined}
+                    >
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.monthlyAverageIncome)}
+                            onChange={(e) => {
+                                if (!isWageAndBusiness) {
+                                    onChange({
+                                        ...repaymentPlan,
+                                        monthlyAverageIncome: parseCurrency(e.target.value),
+                                        monthlyIncomeDetails: undefined
+                                    });
+                                }
+                            }}
+                            onClick={() => isWageAndBusiness && setIsWageModalOpen(true)}
+                            readOnly={isWageAndBusiness}
+                            placeholder={isWageAndBusiness ? '클릭하여 소득 입력' : '0'}
+                            className={`${inputClass} ${isWageAndBusiness ? 'cursor-pointer bg-gray-50' : ''}`}
+                        />
+                    </Field>
+                    <Field label="월평균생계비 ②">
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.monthlyAverageLivingCost)}
+                            onChange={(e) => onChange({ ...repaymentPlan, monthlyAverageLivingCost: parseCurrency(e.target.value) })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="회생위원보수(인가전)">
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.trusteeFee.preConfirmation)}
+                            onChange={(e) => onChange({ ...repaymentPlan, trusteeFee: { ...repaymentPlan.trusteeFee, preConfirmation: parseCurrency(e.target.value) } })}
+                            className={inputClass}
+                        />
+                    </Field>
+                    <Field label="회생위원보수(인가후) ④">
+                        <div className="relative">
+                            <input
+                                type="number"
+                                step="0.1"
+                                value={repaymentPlan.trusteeFee.postConfirmationRate}
+                                onChange={(e) => onChange({ ...repaymentPlan, trusteeFee: { ...repaymentPlan.trusteeFee, postConfirmationRate: parseFloat(e.target.value) || 0 } })}
+                                className={`${inputClass} pr-8`}
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">%</span>
+                        </div>
+                    </Field>
+                    <Field label="기타재단채권 ⑥" className="md:col-span-2 xl:col-span-1">
+                        <input
+                            type="text"
+                            value={formatCurrency(repaymentPlan.otherEstateClaims)}
+                            onChange={(e) => onChange({ ...repaymentPlan, otherEstateClaims: parseCurrency(e.target.value) })}
+                            className={inputClass}
+                        />
+                    </Field>
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">월평균생계비 ②</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.monthlyAverageLivingCost)} onChange={(e) => onChange({ ...repaymentPlan, monthlyAverageLivingCost: parseCurrency(e.target.value) })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">월평균가용소득 ③ (①-②)</label>
-                    <input type="text" readOnly value={formatCurrency(repaymentPlan.monthlyAverageAvailableIncome)} className="w-full px-2 py-1 border border-gray-400 text-base bg-gray-100 cursor-default focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">월회생위원보수 ⑤ (③×④)</label>
-                    <input type="text" readOnly value={formatCurrency(repaymentPlan.monthlyTrusteeFee)} className="w-full px-2 py-1 border border-gray-400 text-base bg-gray-100 cursor-default focus:outline-none" />
-                </div>
+            </Section>
 
-                {/* Row 4 - 4 items */}
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">기타재단채권 ⑥</label>
-                    <input type="text" value={formatCurrency(repaymentPlan.otherEstateClaims)} onChange={(e) => onChange({ ...repaymentPlan, otherEstateClaims: parseCurrency(e.target.value) })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+            <section className="rounded-lg border border-blue-200 bg-white p-4">
+                <h3 className="mb-4 text-base font-bold text-gray-900">계산 결과</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <ResultBox label="월평균가용소득 ③ (①-②)" value={repaymentPlan.monthlyAverageAvailableIncome} />
+                    <ResultBox label="월회생위원보수 ⑤ (③×④)" value={repaymentPlan.monthlyTrusteeFee} />
+                    <ResultBox label="월실제가용소득 ⑦ (③-⑤-⑥)" value={repaymentPlan.monthlyActualAvailableIncome} />
+                    <ResultBox label="총실제가용소득 ⑨ (⑦×⑧)" value={repaymentPlan.totalActualAvailableIncome} />
                 </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">월실제가용소득 ⑦ (③-⑤-⑥)</label>
-                    <input type="text" readOnly value={formatCurrency(repaymentPlan.monthlyActualAvailableIncome)} className="w-full px-2 py-1 border border-gray-400 text-base bg-gray-100 cursor-default focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">총실제가용소득 ⑨ (⑦×⑧)</label>
-                    <input type="text" readOnly value={formatCurrency(repaymentPlan.totalActualAvailableIncome)} className="w-full px-2 py-1 border border-gray-400 text-base bg-gray-100 cursor-default focus:outline-none" />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">작성일</label>
-                    <input type="date" value={repaymentPlan.createDate} onChange={(e) => onChange({ ...repaymentPlan, createDate: e.target.value })} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
-                </div>
-            </div>
+            </section>
 
-            {/* 문서 생성 버튼 */}
-            <div className="mt-8 pt-6 border-t-2 border-gray-300 flex flex-col items-center">
+            <div className="flex flex-col gap-3 rounded-lg border border-gray-300 bg-white p-4 md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-gray-600">저장된 데이터를 기반으로 법원 제출용 문서를 생성합니다.</p>
                 <button
                     onClick={handleGenerate}
                     disabled={isGenerating || !isCompanyNameValid}
-                    className={`px-8 py-4 text-lg font-bold rounded-lg transition-all flex items-center justify-center gap-3 ${(isGenerating || !isCompanyNameValid)
-                        ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl active:scale-[0.98]'
+                    className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-bold transition md:w-auto ${(isGenerating || !isCompanyNameValid)
+                        ? 'cursor-not-allowed bg-gray-200 text-gray-400'
+                        : 'bg-blue-700 text-white hover:bg-blue-800'
                         }`}
                 >
                     {isGenerating ? (
                         <>
-                            <svg className="animate-spin h-6 w-6" fill="none" viewBox="0 0 24 24">
+                            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
@@ -245,18 +327,15 @@ export function PlanInfoForm({
                         </>
                     ) : (
                         <>
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            채권자목록 및 변제계획안 생성
+                            문서 생성
                         </>
                     )}
                 </button>
-                <p className="text-sm text-gray-500 text-center mt-3">
-                    💡 저장된 데이터를 기반으로 법원 제출용 문서를 생성합니다
-                </p>
             </div>
-            {/* Wage Modal */}
+
             <WageBusinessModal
                 isOpen={isWageModalOpen}
                 onClose={() => setIsWageModalOpen(false)}

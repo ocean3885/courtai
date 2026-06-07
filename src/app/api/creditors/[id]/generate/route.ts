@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import jwt from 'jsonwebtoken';
+import jwt, { JwtPayload } from 'jsonwebtoken';
 import { enrichDocumentData } from '@/lib/document-service';
 import { generateChangeLog } from '@/lib/snapshot-diff';
 
@@ -11,11 +11,21 @@ function getUserFromToken(req: NextRequest): { id: number; role: string } | null
   if (!token) return null;
 
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return { id: decoded.id, role: decoded.role };
+    const decoded = jwt.verify(token, JWT_SECRET);
+    if (typeof decoded === 'string') return null;
+
+    const payload = decoded as JwtPayload & { id?: unknown; role?: unknown };
+    if (typeof payload.id !== 'number' || typeof payload.role !== 'string') return null;
+
+    return { id: payload.id, role: payload.role };
   } catch {
     return null;
   }
+}
+
+interface PreviousDocumentRow {
+  source_snapshot: string | null;
+  changes: string | null;
 }
 
 export async function POST(
@@ -32,6 +42,16 @@ export async function POST(
     const body = await req.json();
     const { title, data } = body;
 
+    const creditor = db.prepare(`
+      SELECT id
+      FROM creditor
+      WHERE id = ? AND user_id = ?
+    `).get(creditorId, user.id);
+
+    if (!creditor) {
+      return NextResponse.json({ error: '데이터를 찾을 수 없습니다.' }, { status: 404 });
+    }
+
     // 1. 데이터 강화 (계산 로직 적용 등)
     // 이 단계에서 변제계획표 등 '확정'되어야 할 데이터를 계산하여 JSON에 포함시킵니다.
     const enrichedData = enrichDocumentData(data);
@@ -39,10 +59,10 @@ export async function POST(
     // creditor 테이블에 저장/업데이트 (원본 데이터 유지)
     const updateCreditor = db.prepare(`
       UPDATE creditor 
-      SET data = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
+      SET title = ?, data = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = ? AND user_id = ?
     `);
-    updateCreditor.run(JSON.stringify(data), creditorId);
+    updateCreditor.run(title, JSON.stringify(data), creditorId, user.id);
 
     // 현재 날짜를 한국식 방식(KST)으로 변환 (2026. 1. 4.자)
     const now = new Date();
@@ -66,7 +86,7 @@ export async function POST(
       ORDER BY created_at DESC
       LIMIT 1
     `);
-    const previousDocument: any = getPreviousDocument.get(creditorId);
+    const previousDocument = getPreviousDocument.get(creditorId) as PreviousDocumentRow | undefined;
 
     // 변경사항 계산 (직전 문서와의 차이만 저장)
     let changeLog = '';

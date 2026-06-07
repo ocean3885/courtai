@@ -10,8 +10,6 @@ export function generateRepaymentScheduleWithSeizedReserves(
   seizedReservesAmount: number
 ): { schedule: RepaymentScheduleRow[]; creditorTotals: CreditorTotal[] } {
   
-  console.log(`[RepaymentPlanSeized] Generating schedule with seized reserves: ${seizedReservesAmount}`);
-
   const schedule: RepaymentScheduleRow[] = [];
   const creditorTotals: { [id: string]: CreditorTotal } = {};
   
@@ -36,8 +34,6 @@ export function generateRepaymentScheduleWithSeizedReserves(
   }
   
   if (adjustedMonthlyIncome < 0) adjustedMonthlyIncome = 0;
-
-  console.log(`[RepaymentPlanSeized] Total=${totalActualAvailableIncome}, Seized=${seizedAmount}, AdjustedTotal=${adjustedTotalIncome}, AdjustedMonthly=${adjustedMonthlyIncome}`);
 
   // 채권자별 총 채권액 및 잔액 초기화
   const creditorBalances: { [id: string]: number } = {};

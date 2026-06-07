@@ -617,8 +617,6 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const hasOtherClaims = otherEstateClaims > 0;
   const hasEstateClaims = hasTrusteeFee || hasOtherClaims;
 
-  console.log(`[RepaymentPlan] Checking Seized Reserves: Status=${seizedReservesStatus}, Amount=${seizedReservesAmount}, HasSeized=${hasSeizedReserves}`);
-
   // 압류적립금 계산 (화면 표시용)
   let seizedCalculationHtml = '';
   if (hasSeizedReserves) {
