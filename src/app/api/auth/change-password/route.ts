@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 사용자 조회
-        const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId) as any;
+        const user = (await query('SELECT * FROM users WHERE id = $1', [userId])).rows[0];
 
         if (!user) {
             return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 });
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-        db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId);
+        await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, userId]);
 
         return NextResponse.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
     } catch (error) {

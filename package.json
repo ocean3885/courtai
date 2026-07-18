@@ -9,16 +9,16 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@types/pg": "^8.20.0",
     "bcryptjs": "^3.0.3",
-    "better-sqlite3": "^12.5.0",
     "jsonwebtoken": "^9.0.3",
     "next": "^16.1.1",
+    "pg": "^8.22.0",
     "react": "19.2.1",
     "react-dom": "19.2.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -32,7 +32,6 @@
     "postcss": "^8.5.15"
   },
   "allowScripts": {
-    "better-sqlite3@12.5.0": true,
     "sharp@0.34.5": true,
     "unrs-resolver@1.11.1": true
   }

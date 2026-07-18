@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
@@ -10,15 +10,13 @@ export async function GET(req: NextRequest) {
         }
 
         // 본인의 문서 목록 조회
-        const getDocuments = db.prepare(`
+        const documents = (await query(`
       SELECT cd.id, cd.creditor_id, cd.title, cd.created_at
       FROM case_documents cd
       JOIN creditor c ON cd.creditor_id = c.id
-      WHERE c.user_id = ?
+      WHERE c.user_id = $1
       ORDER BY cd.created_at DESC
-    `);
-
-        const documents = getDocuments.all(user.id);
+    `, [user.id])).rows;
 
         return NextResponse.json(documents);
     } catch (error) {

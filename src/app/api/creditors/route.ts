@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -7,28 +7,28 @@ export async function GET(request: NextRequest) {
         const userId = getUserIdFromRequest(request);
         if (!userId) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
 
-        const lists = db.prepare(`
+        const lists = (await query(`
             SELECT id, title, data, created_at, updated_at
             FROM creditor
-            WHERE user_id = ?
+            WHERE user_id = $1
             ORDER BY updated_at DESC
-        `).all(userId);
+        `, [userId])).rows;
 
-        const formattedLists = lists.map((l: any) => {
+        const formattedLists = await Promise.all(lists.map(async (l: any) => {
             // 각 creditor에 연결된 documents 조회
-            const documents = db.prepare(`
+            const documents = (await query(`
                 SELECT id, title, created_at
                 FROM case_documents
-                WHERE creditor_id = ?
+                WHERE creditor_id = $1
                 ORDER BY created_at DESC
-            `).all(l.id);
+            `, [l.id])).rows;
 
             return {
                 ...l,
                 data: JSON.parse(l.data),
                 documents: documents || [],
             };
-        });
+        }));
 
         return NextResponse.json(formattedLists);
     } catch (error) {
@@ -45,16 +45,15 @@ export async function POST(request: NextRequest) {
         const { title, data } = await request.json();
         if (!title || !data) return NextResponse.json({ error: '필수 정보가 누락되었습니다.' }, { status: 400 });
 
-        const insert = db.prepare(`
+        const result = await query<{ id: number }>(`
             INSERT INTO creditor (user_id, title, data)
-            VALUES (?, ?, ?)
-        `);
-
-        const result = insert.run(userId, title, JSON.stringify(data));
+            VALUES ($1, $2, $3)
+            RETURNING id
+        `, [userId, title, JSON.stringify(data)]);
 
         return NextResponse.json({
             success: true,
-            id: result.lastInsertRowid,
+            id: result.rows[0].id,
             message: '저장되었습니다.',
         });
     } catch (error) {

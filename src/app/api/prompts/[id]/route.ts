@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
 
 // GET: 특정 프롬프트 조회
@@ -18,9 +18,10 @@ export async function GET(
     }
 
     const promptId = parseInt(id);
-    const prompt = db
-      .prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?')
-      .get(promptId, userId);
+    const prompt = (await query(
+      'SELECT * FROM prompts WHERE id = $1 AND user_id = $2',
+      [promptId, userId]
+    )).rows[0];
 
     if (!prompt) {
       return NextResponse.json(
@@ -58,9 +59,10 @@ export async function PUT(
     const { name, prompt, model, category, is_favorite } = await request.json();
 
     // 권한 확인
-    const existing = db
-      .prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?')
-      .get(promptId, userId);
+    const existing = (await query(
+      'SELECT * FROM prompts WHERE id = $1 AND user_id = $2',
+      [promptId, userId]
+    )).rows[0];
 
     if (!existing) {
       return NextResponse.json(
@@ -69,18 +71,16 @@ export async function PUT(
       );
     }
 
-    const stmt = db.prepare(`
+    await query(`
       UPDATE prompts
-      SET name = COALESCE(?, name),
-          prompt = COALESCE(?, prompt),
-          model = COALESCE(?, model),
-          category = COALESCE(?, category),
-          is_favorite = COALESCE(?, is_favorite),
+      SET name = COALESCE($1, name),
+          prompt = COALESCE($2, prompt),
+          model = COALESCE($3, model),
+          category = COALESCE($4, category),
+          is_favorite = COALESCE($5, is_favorite),
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND user_id = ?
-    `);
-
-    stmt.run(name, prompt, model, category, is_favorite !== undefined ? is_favorite : null, promptId, userId);
+      WHERE id = $6 AND user_id = $7
+    `, [name, prompt, model, category, is_favorite !== undefined ? is_favorite : null, promptId, userId]);
 
     return NextResponse.json({ id: promptId, name, prompt, model, category, is_favorite });
   } catch (error: any) {
@@ -110,9 +110,10 @@ export async function DELETE(
     const promptId = parseInt(id);
 
     // 권한 확인
-    const existing = db
-      .prepare('SELECT * FROM prompts WHERE id = ? AND user_id = ?')
-      .get(promptId, userId);
+    const existing = (await query(
+      'SELECT * FROM prompts WHERE id = $1 AND user_id = $2',
+      [promptId, userId]
+    )).rows[0];
 
     if (!existing) {
       return NextResponse.json(
@@ -121,8 +122,7 @@ export async function DELETE(
       );
     }
 
-    const stmt = db.prepare('DELETE FROM prompts WHERE id = ? AND user_id = ?');
-    stmt.run(promptId, userId);
+    await query('DELETE FROM prompts WHERE id = $1 AND user_id = $2', [promptId, userId]);
 
     return NextResponse.json({ message: '프롬프트가 삭제되었습니다.' });
   } catch (error: any) {

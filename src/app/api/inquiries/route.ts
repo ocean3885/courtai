@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
@@ -22,8 +22,7 @@ export async function POST(request: NextRequest) {
             }
         }
 
-        const stmt = db.prepare('INSERT INTO inquiries (user_id, title, content) VALUES (?, ?, ?)');
-        stmt.run(userId, title, content);
+        await query('INSERT INTO inquiries (user_id, title, content) VALUES ($1, $2, $3)', [userId, title, content]);
 
         return NextResponse.json({ message: '문의가 성공적으로 접수되었습니다.' }, { status: 201 });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
 
 export async function DELETE(
@@ -14,14 +14,12 @@ export async function DELETE(
 
         const { id } = await params;
 
-        const deleteStmt = db.prepare(`
+        const result = await query(`
       DELETE FROM repayment_plan_templates
-      WHERE id = ? AND user_id = ?
-    `);
+      WHERE id = $1 AND user_id = $2
+    `, [id, userId]);
 
-        const result = deleteStmt.run(id, userId);
-
-        if (result.changes === 0) {
+        if (result.rowCount === 0) {
             return NextResponse.json({ error: '삭제할 템플릿을 찾을 수 없거나 권한이 없습니다.' }, { status: 404 });
         }
 
@@ -45,21 +43,19 @@ export async function PATCH(
         const { id } = await params;
         const { creditors, monthlyAvailable, months } = await request.json();
 
-        const updateStmt = db.prepare(`
+        const result = await query(`
       UPDATE repayment_plan_templates
-      SET creditors = ?, monthly_available = ?, months = ?
-      WHERE id = ? AND user_id = ?
-    `);
-
-        const result = updateStmt.run(
+      SET creditors = $1, monthly_available = $2, months = $3
+      WHERE id = $4 AND user_id = $5
+    `, [
             JSON.stringify(creditors),
             monthlyAvailable,
             months,
             id,
             userId
-        );
+        ]);
 
-        if (result.changes === 0) {
+        if (result.rowCount === 0) {
             return NextResponse.json({ error: '수정할 템플릿을 찾을 수 없거나 권한이 없습니다.' }, { status: 404 });
         }
 

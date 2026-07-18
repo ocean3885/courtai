@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { generateDocumentHTML } from '@/lib/document-service';
 import { getUserFromRequest } from '@/lib/auth';
 
@@ -15,14 +15,12 @@ export async function GET(
 
         const { id: documentId } = await params;
 
-        const getDocument = db.prepare(`
+        const document: any = (await query(`
       SELECT cd.*, c.user_id
       FROM case_documents cd
       JOIN creditor c ON cd.creditor_id = c.id
-      WHERE cd.id = ?
-    `);
-
-        const document: any = getDocument.get(documentId);
+      WHERE cd.id = $1
+    `, [documentId])).rows[0];
 
         if (!document) {
             return NextResponse.json({ error: 'Document not found' }, { status: 404 });
@@ -71,14 +69,12 @@ export async function DELETE(
         const { id: documentId } = await params;
 
         // 문서 소유자 확인
-        const getDocument = db.prepare(`
+        const document: any = (await query(`
       SELECT cd.*, c.user_id
       FROM case_documents cd
       JOIN creditor c ON cd.creditor_id = c.id
-      WHERE cd.id = ?
-    `);
-
-        const document: any = getDocument.get(documentId);
+      WHERE cd.id = $1
+    `, [documentId])).rows[0];
 
         if (!document) {
             return NextResponse.json({ error: 'Document not found' }, { status: 404 });
@@ -90,11 +86,9 @@ export async function DELETE(
         }
 
         // 문서 삭제
-        const deleteDocument = db.prepare(`
-      DELETE FROM case_documents WHERE id = ?
-    `);
-
-        deleteDocument.run(documentId);
+        await query(`
+      DELETE FROM case_documents WHERE id = $1
+    `, [documentId]);
 
         return NextResponse.json({ success: true, message: 'Document deleted successfully' });
     } catch (error) {

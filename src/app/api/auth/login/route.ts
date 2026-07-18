@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { getJwtSecret } from '@/lib/env';
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: '아이디와 비밀번호를 입력해주세요.' }, { status: 400 });
     }
 
-    const user: any = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    const user = (await query('SELECT * FROM users WHERE username = $1', [username])).rows[0];
 
     if (!user) {
       return NextResponse.json({ error: '존재하지 않는 사용자입니다.' }, { status: 401 });

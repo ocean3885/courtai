@@ -1,5 +1,22 @@
 # Deployment Guide (Next.js + Python)
 
+## Vercel compatibility
+
+This project can run on Vercel when it is connected to a durable PostgreSQL
+database. The app uses the `DATABASE_SCHEMA` environment variable, defaulting to
+`courtai`, so it can share a Supabase project with another application while
+keeping CourtAI tables separate.
+
+Before deploying the app, run the SQL migration in
+`supabase/migrations/202607180001_create_courtai_schema.sql` from the Supabase
+SQL Editor or your migration tool. Runtime schema creation is disabled by
+default; set `AUTO_CREATE_DB_SCHEMA=true` only for local development or a
+temporary bootstrap.
+
+If admin login fails after changing `ADMIN_PASSWORD`, restart/redeploy the app
+so the initial admin account is synchronized from the latest environment
+variables.
+
 This project uses **Next.js** for the web interface and **Python (pdfplumber)** for PDF data extraction. Follow these steps to deploy correctly on a Linux server.
 
 ## 1. Prerequisites
@@ -46,6 +63,10 @@ npm run build
 Create a `.env.local` file (or set environment variables in your deployment platform):
 
 ```env
+DATABASE_URL=postgresql://postgres:[password]@[host]:5432/postgres
+DATABASE_SCHEMA=courtai
+DATABASE_SSL=true
+AUTO_CREATE_DB_SCHEMA=false
 JWT_SECRET=replace_with_a_long_random_secret
 ADMIN_USERNAME=replace_with_admin_username
 ADMIN_PASSWORD=replace_with_strong_admin_password
@@ -55,7 +76,12 @@ GEMINI_API_KEY=your_gemini_api_key_here
 # UPSTAGE_API_KEY is no longer required for PDF parsing, but kept if used elsewhere
 ```
 
-`JWT_SECRET`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` are required. The server will fail instead of creating a default admin account or using a fallback JWT secret when they are missing.
+`DATABASE_URL`, `JWT_SECRET`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` are
+required. The server will fail instead of creating a default admin account or
+using a fallback JWT secret when they are missing.
+
+For Supabase, use a server-side PostgreSQL connection string only. Do not expose
+the database password or service role key in client-side variables.
 
 ## 5. Running the Application
 

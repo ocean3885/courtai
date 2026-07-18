@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
 
 // GET: 최근 프롬프트 조회 (단일)
@@ -13,14 +13,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const recentPrompt = db
-      .prepare(`
+    const recentPrompt = (await query(`
         SELECT * FROM prompts 
-        WHERE user_id = ? 
+        WHERE user_id = $1 
         ORDER BY updated_at DESC 
         LIMIT 1
-      `)
-      .get(userId);
+      `, [userId])).rows[0];
 
     if (!recentPrompt) {
       return NextResponse.json({ prompt: null });

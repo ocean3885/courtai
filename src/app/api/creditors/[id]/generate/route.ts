@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { enrichDocumentData } from '@/lib/document-service';
 import { generateChangeLog } from '@/lib/snapshot-diff';
 import { getUserFromRequest } from '@/lib/auth';
@@ -23,11 +23,11 @@ export async function POST(
     const body = await req.json();
     const { title, data } = body;
 
-    const creditor = db.prepare(`
+    const creditor = (await query(`
       SELECT id
       FROM creditor
-      WHERE id = ? AND user_id = ?
-    `).get(creditorId, user.id);
+      WHERE id = $1 AND user_id = $2
+    `, [creditorId, user.id])).rows[0];
 
     if (!creditor) {
       return NextResponse.json({ error: '데이터를 찾을 수 없습니다.' }, { status: 404 });
@@ -38,12 +38,11 @@ export async function POST(
     const enrichedData = enrichDocumentData(data);
 
     // creditor 테이블에 저장/업데이트 (원본 데이터 유지)
-    const updateCreditor = db.prepare(`
+    await query(`
       UPDATE creditor 
-      SET title = ?, data = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ? AND user_id = ?
-    `);
-    updateCreditor.run(title, JSON.stringify(data), creditorId, user.id);
+      SET title = $1, data = $2, updated_at = CURRENT_TIMESTAMP 
+      WHERE id = $3 AND user_id = $4
+    `, [title, JSON.stringify(data), creditorId, user.id]);
 
     // 현재 날짜를 한국식 방식(KST)으로 변환 (2026. 1. 4.자)
     const now = new Date();
@@ -60,14 +59,13 @@ export async function POST(
     const koreanDate = kstDatePart.endsWith('.') ? `${kstDatePart}자` : `${kstDatePart}.자`;
 
     // 이전 문서 조회 (가장 최근 문서)
-    const getPreviousDocument = db.prepare(`
+    const previousDocument = (await query<PreviousDocumentRow>(`
       SELECT source_snapshot, changes
       FROM case_documents
-      WHERE creditor_id = ?
+      WHERE creditor_id = $1
       ORDER BY created_at DESC
       LIMIT 1
-    `);
-    const previousDocument = getPreviousDocument.get(creditorId) as PreviousDocumentRow | undefined;
+    `, [creditorId])).rows[0];
 
     // 변경사항 계산 (직전 문서와의 차이만 저장)
     let changeLog = '';
@@ -81,22 +79,21 @@ export async function POST(
 
     // case_documents 테이블에 저장
     // HTML은 저장하지 않고(빈 문자열), enrichedData(JSON)만 스냅샷으로 저장합니다.
-    const insertDocument = db.prepare(`
+    const result = await query<{ id: number }>(`
       INSERT INTO case_documents (creditor_id, title, source_snapshot, changes, html_preview)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    const result = insertDocument.run(
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `, [
       creditorId,
       `${koreanDate} 채권자목록 및 변제계획안`,
       JSON.stringify(enrichedData),
       changeLog, // 변경사항 저장
       ''  // html_preview (On-the-fly 생성으로 변경되어 빈 값 저장)
-    );
+    ]);
 
     return NextResponse.json({
       success: true,
-      documentId: result.lastInsertRowid,
+      documentId: result.rows[0].id,
     });
   } catch (error) {
     console.error('Document generation error:', error);

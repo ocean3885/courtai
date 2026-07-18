@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { isAdminRequest } from '@/lib/auth';
 import { getInitialAdminUsername } from '@/lib/env';
 
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const initialAdminUsername = getInitialAdminUsername();
-    const users = db.prepare('SELECT id, username, role, created_at FROM users').all() as UserRow[];
+    const users = (await query<UserRow>('SELECT id, username, role, created_at FROM users')).rows;
     return NextResponse.json({
       users: users.map((user) => ({
         ...user,
@@ -41,12 +41,12 @@ export async function PATCH(request: NextRequest) {
   try {
     const { id, role } = await request.json();
     const initialAdminUsername = getInitialAdminUsername();
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(id) as Pick<UserRow, 'username'> | undefined;
+    const user = (await query<Pick<UserRow, 'username'>>('SELECT username FROM users WHERE id = $1', [id])).rows[0];
     if (user?.username === initialAdminUsername) {
       return NextResponse.json({ error: '초기 관리자 계정의 권한은 변경할 수 없습니다.' }, { status: 400 });
     }
 
-    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+    await query('UPDATE users SET role = $1 WHERE id = $2', [role, id]);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
@@ -61,12 +61,12 @@ export async function DELETE(request: NextRequest) {
   try {
     const { id } = await request.json();
     const initialAdminUsername = getInitialAdminUsername();
-    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(id) as Pick<UserRow, 'username'> | undefined;
+    const user = (await query<Pick<UserRow, 'username'>>('SELECT username FROM users WHERE id = $1', [id])).rows[0];
     if (user?.username === initialAdminUsername) {
       return NextResponse.json({ error: '초기 관리자 계정은 삭제할 수 없습니다.' }, { status: 400 });
     }
 
-    db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    await query('DELETE FROM users WHERE id = $1', [id]);
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });

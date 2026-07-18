@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
@@ -16,12 +16,12 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
         }
 
-        const inquiries = db.prepare(`
+        const inquiries = (await query(`
       SELECT i.*, u.username as user_name 
       FROM inquiries i 
       LEFT JOIN users u ON i.user_id = u.id 
       ORDER BY i.created_at DESC
-    `).all();
+    `)).rows;
 
         return NextResponse.json(inquiries);
     } catch (error) {

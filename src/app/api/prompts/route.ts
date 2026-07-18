@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import db from '@/lib/db';
+import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
 
 // GET: 모든 프롬프트 조회
@@ -13,9 +13,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const prompts = db
-      .prepare('SELECT * FROM prompts WHERE user_id = ? ORDER BY updated_at DESC')
-      .all(userId);
+    const prompts = (await query(
+      'SELECT * FROM prompts WHERE user_id = $1 ORDER BY updated_at DESC',
+      [userId]
+    )).rows;
 
     return NextResponse.json({ prompts });
   } catch (error: any) {
@@ -47,15 +48,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const stmt = db.prepare(`
+    const result = await query<{ id: number }>(`
       INSERT INTO prompts (user_id, name, prompt, model, category)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-
-    const result = stmt.run(userId, name, prompt, model, category || null);
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `, [userId, name, prompt, model, category || null]);
 
     return NextResponse.json({
-      id: result.lastInsertRowid,
+      id: result.rows[0].id,
       name,
       prompt,
       model,
