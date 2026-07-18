@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import db from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     try {
@@ -18,8 +16,7 @@ export async function POST(request: NextRequest) {
 
         if (token) {
             try {
-                const decoded: any = jwt.verify(token, JWT_SECRET);
-                userId = decoded.id;
+                userId = getUserFromRequest(request)?.id ?? null;
             } catch (e) {
                 // 토큰이 유효하지 않은 경우 무시하고 비회원으로 처리
             }

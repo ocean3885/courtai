@@ -1,27 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import jwt, { JwtPayload } from 'jsonwebtoken';
 import { enrichDocumentData } from '@/lib/document-service';
 import { generateChangeLog } from '@/lib/snapshot-diff';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-
-function getUserFromToken(req: NextRequest): { id: number; role: string } | null {
-  const token = req.cookies.get('auth_token')?.value;
-  if (!token) return null;
-
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    if (typeof decoded === 'string') return null;
-
-    const payload = decoded as JwtPayload & { id?: unknown; role?: unknown };
-    if (typeof payload.id !== 'number' || typeof payload.role !== 'string') return null;
-
-    return { id: payload.id, role: payload.role };
-  } catch {
-    return null;
-  }
-}
+import { getUserFromRequest } from '@/lib/auth';
 
 interface PreviousDocumentRow {
   source_snapshot: string | null;
@@ -33,7 +14,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = getUserFromToken(req);
+    const user = getUserFromRequest(req);
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

@@ -46,9 +46,16 @@ npm run build
 Create a `.env.local` file (or set environment variables in your deployment platform):
 
 ```env
+JWT_SECRET=replace_with_a_long_random_secret
+ADMIN_USERNAME=replace_with_admin_username
+ADMIN_PASSWORD=replace_with_strong_admin_password
+ADMIN_NAME=운영자
 OPENAI_API_KEY=your_openai_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
 # UPSTAGE_API_KEY is no longer required for PDF parsing, but kept if used elsewhere
 ```
+
+`JWT_SECRET`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` are required. The server will fail instead of creating a default admin account or using a fallback JWT secret when they are missing.
 
 ## 5. Running the Application
 

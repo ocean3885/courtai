@@ -1,29 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-
-// 사용자 인증 확인 및 ID 반환
-function getUserId(request: NextRequest): number | null {
-    const token = request.cookies.get('auth_token')?.value;
-
-    if (!token) {
-        return null;
-    }
-
-    try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        return decoded.id;
-    } catch (error) {
-        return null;
-    }
-}
+import { getUserIdFromRequest } from '@/lib/auth';
 
 // 템플릿 목록 조회
 export async function GET(request: NextRequest) {
     try {
-        const userId = getUserId(request);
+        const userId = getUserIdFromRequest(request);
         if (!userId) {
             return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
         }
@@ -52,7 +34,7 @@ export async function GET(request: NextRequest) {
 // 템플릿 저장
 export async function POST(request: NextRequest) {
     try {
-        const userId = getUserId(request);
+        const userId = getUserIdFromRequest(request);
         if (!userId) {
             return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
         }

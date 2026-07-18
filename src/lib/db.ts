@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import bcrypt from 'bcryptjs';
+import { getInitialAdminConfig } from './env';
 
 const dbPath = path.resolve(process.cwd(), 'courteasy.db');
 
@@ -100,19 +101,18 @@ export const getDb = (): Database.Database => {
     console.error('Migration error:', error);
   }
 
-  // 초기 운영자 계정 생성 (환경변수 또는 기본값 사용)
-  const adminUsername = process.env.ADMIN_USERNAME || 'courteasy';
-  const adminPassword = process.env.ADMIN_PASSWORD || 'qwer1234';
+  // 초기 운영자 계정 생성. 운영 배포에서 기본 계정이 생기지 않도록 환경변수를 필수로 요구합니다.
+  const admin = getInitialAdminConfig();
 
   const salt = bcrypt.genSaltSync(10);
-  const hashedPassword = bcrypt.hashSync(adminPassword, salt);
+  const hashedPassword = bcrypt.hashSync(admin.password, salt);
 
   const insertUser = _db.prepare(`
     INSERT OR IGNORE INTO users (username, password, name, role)
     VALUES (?, ?, ?, ?)
   `);
 
-  insertUser.run(adminUsername, hashedPassword, '운영자', 'ADMIN');
+  insertUser.run(admin.username, hashedPassword, admin.name, 'ADMIN');
 
   return _db;
 };
@@ -127,4 +127,3 @@ const dbProxy = new Proxy({} as Database.Database, {
 });
 
 export default dbProxy;
-

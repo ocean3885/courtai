@@ -1,23 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-
-function getUserId(request: NextRequest): number | null {
-    const token = request.cookies.get('auth_token')?.value;
-    if (!token) return null;
-    try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        return decoded.id;
-    } catch (error) {
-        return null;
-    }
-}
+import { getUserIdFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
     try {
-        const userId = getUserId(request);
+        const userId = getUserIdFromRequest(request);
         if (!userId) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
 
         const lists = db.prepare(`
@@ -52,7 +39,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
     try {
-        const userId = getUserId(request);
+        const userId = getUserIdFromRequest(request);
         if (!userId) return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
 
         const { title, data } = await request.json();

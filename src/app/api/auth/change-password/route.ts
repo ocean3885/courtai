@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import db from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     const token = request.cookies.get('auth_token')?.value;
@@ -13,8 +11,11 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        const userId = decoded.id;
+        const authUser = getUserFromRequest(request);
+        if (!authUser) {
+            return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
+        }
+        const userId = authUser.id;
 
         const { currentPassword, newPassword } = await request.json();
 

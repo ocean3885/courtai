@@ -1,24 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import db from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-
-// JWT에서 user_id 추출
-function getUserIdFromToken(request: NextRequest): number | null {
-  const token = request.cookies.get('auth_token')?.value;
-
-  if (!token) {
-    return null;
-  }
-
-  try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
-    return decoded.id;
-  } catch (error) {
-    return null;
-  }
-}
+import { getUserIdFromRequest } from '@/lib/auth';
 
 // GET: 특정 프롬프트 조회
 export async function GET(
@@ -27,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromToken(request);
+    const userId = getUserIdFromRequest(request);
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -64,7 +46,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromToken(request);
+    const userId = getUserIdFromRequest(request);
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -117,7 +99,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromToken(request);
+    const userId = getUserIdFromRequest(request);
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },

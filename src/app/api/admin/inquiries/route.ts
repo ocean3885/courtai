@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
 import db from '@/lib/db';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
     const token = request.cookies.get('auth_token')?.value;
@@ -12,9 +10,9 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
+        const user = getUserFromRequest(request);
 
-        if (decoded.role !== 'ADMIN') {
+        if (user?.role !== 'ADMIN') {
             return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });
         }
 

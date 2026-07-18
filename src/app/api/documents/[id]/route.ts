@@ -1,28 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import db from '@/lib/db';
-import jwt from 'jsonwebtoken';
 import { generateDocumentHTML } from '@/lib/document-service';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret';
-
-function getUserFromToken(req: NextRequest): { id: number; role: string } | null {
-    const token = req.cookies.get('auth_token')?.value;
-    if (!token) return null;
-
-    try {
-        const decoded: any = jwt.verify(token, JWT_SECRET);
-        return { id: decoded.id, role: decoded.role };
-    } catch {
-        return null;
-    }
-}
+import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(
     req: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const user = getUserFromToken(req);
+        const user = getUserFromRequest(req);
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -77,7 +63,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const user = getUserFromToken(req);
+        const user = getUserFromRequest(req);
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }

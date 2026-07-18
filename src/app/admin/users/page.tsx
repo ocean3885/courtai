@@ -10,6 +10,7 @@ type AdminUser = {
   username: string;
   role: Role;
   created_at: string;
+  isInitialAdmin?: boolean;
 };
 
 const roleLabels: Record<Role, string> = {
@@ -38,8 +39,8 @@ export default function AdminUsersPage() {
         throw new Error(data?.error || '사용자 목록을 불러오지 못했습니다.');
       }
       setUsers(data.users || []);
-    } catch (err: any) {
-      setError(err.message || '사용자 목록을 불러오지 못했습니다.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '사용자 목록을 불러오지 못했습니다.'));
     } finally {
       setLoading(false);
     }
@@ -71,8 +72,8 @@ export default function AdminUsersPage() {
       }
       setSuccess('권한이 업데이트되었습니다.');
       await fetchUsers();
-    } catch (err: any) {
-      setError(err.message || '업데이트에 실패했습니다.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '업데이트에 실패했습니다.'));
     }
   };
 
@@ -93,8 +94,8 @@ export default function AdminUsersPage() {
       }
       setSuccess('사용자가 삭제되었습니다.');
       await fetchUsers();
-    } catch (err: any) {
-      setError(err.message || '삭제에 실패했습니다.');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, '삭제에 실패했습니다.'));
     }
   };
 
@@ -175,7 +176,7 @@ export default function AdminUsersPage() {
                         className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                         value={user.role}
                         onChange={(e) => handleUpdateRole(user.id, e.target.value as Role)}
-                        disabled={user.username === 'courteasy'}
+                        disabled={user.isInitialAdmin}
                       >
                         <option value="USER">사용자</option>
                         <option value="ADMIN">관리자</option>
@@ -188,7 +189,7 @@ export default function AdminUsersPage() {
                       <button
                         className="text-red-600 hover:text-red-900 font-medium disabled:opacity-30"
                         onClick={() => handleDeleteUser(user.id)}
-                        disabled={user.username === 'courteasy'}
+                        disabled={user.isInitialAdmin}
                       >
                         삭제
                       </button>
@@ -202,6 +203,10 @@ export default function AdminUsersPage() {
       </div>
     </MainLayout>
   );
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function HeaderCell({ label }: { label: string }) {
