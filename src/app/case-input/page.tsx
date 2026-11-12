@@ -67,6 +67,8 @@ function CreditorListContent() {
     const loadTemp = searchParams.get('load_temp');
 
     const [user, setUser] = useState<{ id: number; role: string } | null>(null);
+    const [authStatus, setAuthStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [authAttempt, setAuthAttempt] = useState(0);
     const [activeTab, setActiveTab] = useState<'debtor' | 'creditor' | 'plan'>('debtor');
     const [debtorInfo, setDebtorInfo] = useState<DebtorInfo>(createInitialDebtorInfo);
     const [creditors, setCreditors] = useState<Creditor[]>([]);
@@ -88,10 +90,22 @@ function CreditorListContent() {
     }, [generationError]);
 
     useEffect(() => {
-        fetch('/api/auth/me')
-            .then(res => res.ok ? res.json() : null)
-            .then(data => data && setUser(data.user));
-    }, []);
+        const controller = new AbortController();
+        fetch('/api/auth/me', { signal: controller.signal })
+            .then(async response => {
+                if (!response.ok) throw new Error('로그인 상태 확인 실패');
+                const data = await response.json();
+                if (!data || !Object.hasOwn(data, 'user')) throw new Error('로그인 상태 응답 오류');
+                if (!controller.signal.aborted) {
+                    setUser(data.user);
+                    setAuthStatus('ready');
+                }
+            })
+            .catch(() => {
+                if (!controller.signal.aborted) setAuthStatus('error');
+            });
+        return () => controller.abort();
+    }, [authAttempt]);
 
     const handleLoad = useCallback((list: SavedList) => {
         setTitle(list.title);
@@ -520,6 +534,10 @@ function CreditorListContent() {
     };
 
     const handleGenerate = async () => {
+        if (authStatus !== 'ready') {
+            setGenerationError('로그인 상태를 확인한 후 다시 시도해주세요.');
+            return;
+        }
         setGenerationError('');
         setIsGenerating(true);
         try {
@@ -647,7 +665,12 @@ function CreditorListContent() {
                             />
                         </div>
                     </div>
-                    {!isLoggedIn && (
+                    {authStatus === 'loading' && <p role="status" className="flex min-h-11 items-center text-sm text-slate-500">로그인 상태 확인 중...</p>}
+                    {authStatus === 'error' && <div role="alert" className="flex flex-wrap items-center gap-2 text-sm text-red-700">
+                        <span>로그인 상태를 확인하지 못했습니다.</span>
+                        <button type="button" className="border border-red-200 px-3" onClick={() => { setAuthStatus('loading'); setAuthAttempt(attempt => attempt + 1); }}>다시 확인</button>
+                    </div>}
+                    {authStatus === 'ready' && !isLoggedIn && (
                         <button
                             onClick={handleLoadSampleData}
                             className="px-3 py-1 bg-green-600 text-white border border-green-700 hover:bg-green-700 text-base rounded shadow-sm flex items-center gap-1"
@@ -733,6 +756,7 @@ function CreditorListContent() {
                             onChange={setRepaymentPlan}
                             onGenerate={handleGenerate}
                             isGenerating={isGenerating}
+                            canGenerate={authStatus === 'ready'}
                         />
                     )
                 }

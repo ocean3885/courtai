@@ -8,6 +8,7 @@ interface PlanInfoFormProps {
     onChange: (plan: RepaymentPlan) => void;
     onGenerate: () => void;
     isGenerating: boolean;
+    canGenerate?: boolean;
 }
 
 interface FieldProps {
@@ -65,7 +66,8 @@ export function PlanInfoForm({
     repaymentPlan,
     onChange,
     onGenerate,
-    isGenerating
+    isGenerating,
+    canGenerate = true
 }: PlanInfoFormProps) {
     const isWageAndBusiness = repaymentPlan.incomeType === 'wageAndBusiness';
     const isCompanyNameValid = !isWageAndBusiness || (repaymentPlan.companyName && repaymentPlan.companyName.includes(','));
@@ -102,7 +104,7 @@ export function PlanInfoForm({
     };
 
     const handleGenerate = () => {
-        if (!isCompanyNameValid) return;
+        if (!isCompanyNameValid || !canGenerate) return;
         onGenerate();
     };
 
@@ -316,11 +318,11 @@ export function PlanInfoForm({
             </section>
 
             <div className="sticky bottom-0 z-20 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
-                <p className="text-sm text-gray-600">* 작성일, 변제 시작·종료일과 채권자명을 입력해주세요.</p>
+                <p className="text-sm text-gray-600">{canGenerate ? '* 작성일, 변제 시작·종료일과 채권자명을 입력해주세요.' : '로그인 상태 확인 후 문서를 생성할 수 있습니다.'}</p>
                 <button
                     onClick={handleGenerate}
-                    disabled={isGenerating || !isCompanyNameValid}
-                    className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-bold transition md:w-auto ${(isGenerating || !isCompanyNameValid)
+                    disabled={isGenerating || !isCompanyNameValid || !canGenerate}
+                    className={`inline-flex h-11 w-full items-center justify-center gap-2 rounded-md px-5 text-sm font-bold transition md:w-auto ${(isGenerating || !isCompanyNameValid || !canGenerate)
                         ? 'cursor-not-allowed bg-gray-200 text-gray-400'
                         : 'bg-blue-700 text-white hover:bg-blue-800'
                         }`}
