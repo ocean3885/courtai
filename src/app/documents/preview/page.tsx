@@ -3,12 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { DocumentViewer } from '@/components/ui/DocumentViewer';
 import { MainLayout } from '@/components/layout';
 import { enrichDocumentData, generateDocumentHTML } from '@/lib/document-service';
 import { generateRepaymentPlanHTML } from '@/lib/repayment-plan-service';
 
 export default function DocumentPreviewPage() {
     const router = useRouter();
+    const [title, setTitle] = useState('문서 미리보기');
     const [isLoading, setIsLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'creditor-list' | 'repayment-plan'>('creditor-list');
     const [creditorListHtml, setCreditorListHtml] = useState('');
@@ -26,6 +28,7 @@ export default function DocumentPreviewPage() {
 
                 const rawData = JSON.parse(storedData);
                 const { title, data } = rawData;
+                setTitle(title || '문서 미리보기');
 
                 // 1. 데이터 강화
                 const enrichedData = enrichDocumentData(data);
@@ -75,16 +78,16 @@ export default function DocumentPreviewPage() {
         <MainLayout>
             <div className="max-w-7xl mx-auto px-4 py-8">
                 {/* 회원가입 유도 배너 */}
-                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-blue-100 rounded-xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm print:hidden">
+                <div className="bg-gradient-to-r from-indigo-50 to-blue-50 border border-blue-100 rounded-xl p-4 sm:p-6 mb-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 shadow-sm print:hidden">
                     <div className="flex items-center gap-4">
-                        <div className="bg-white p-3 rounded-full shadow-sm text-blue-600">
+                        <div className="hidden sm:block bg-white p-3 rounded-full shadow-sm text-blue-600">
                             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                             </svg>
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-gray-900">회원가입을 통해 체계적으로 나만의 사건들을 관리하세요</h3>
-                            <p className="text-gray-600 text-sm mt-1">저장된 데이터를 언제든지 다시 불러오고 수정할 수 있습니다.</p>
+                            <h3 className="text-lg font-bold text-gray-900">사건을 저장하고 이어서 작성하세요</h3>
+                            <p className="hidden sm:block text-gray-600 text-sm mt-1">저장된 데이터를 언제든지 다시 불러오고 수정할 수 있습니다.</p>
                         </div>
                     </div>
                     <Link
@@ -94,26 +97,26 @@ export default function DocumentPreviewPage() {
                         회원가입하러 가기 &rarr;
                     </Link>
                 </div>
-                <div className="flex justify-between items-center mb-6">
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        {localStorage.getItem('temp_case_data') ? JSON.parse(localStorage.getItem('temp_case_data')!).title : '문서 미리보기'}
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <h1 className="min-w-0 break-words text-xl font-bold text-gray-900 sm:text-2xl">
+                        {title}
                         <span className="text-sm font-normal text-gray-500 ml-2">(임시 미리보기 모드)</span>
                     </h1>
-                    <div className="flex gap-2">
+                    <div className="grid w-full shrink-0 grid-cols-2 gap-2 sm:flex sm:w-auto">
                         <button
                             onClick={() => router.push('/case-input?load_temp=true')}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 min-h-11 justify-center whitespace-nowrap px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             수정하기
                         </button>
                         <button
                             onClick={() => window.print()}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
+                            className="bg-blue-600 hover:bg-blue-700 text-white min-h-11 justify-center whitespace-nowrap px-4 py-2 rounded-lg transition-colors flex items-center gap-2"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                             </svg>
                             인쇄하기
@@ -125,7 +128,7 @@ export default function DocumentPreviewPage() {
                 <div className="flex border-b border-gray-200 mb-6">
                     <button
                         onClick={() => setActiveTab('creditor-list')}
-                        className={`px-6 py-3 font-medium text-base transition-colors relative ${activeTab === 'creditor-list'
+                        className={`flex-1 whitespace-nowrap px-3 py-3 font-medium text-sm sm:text-base transition-colors relative ${activeTab === 'creditor-list'
                             ? 'text-blue-600'
                             : 'text-gray-500 hover:text-gray-700'
                             }`}
@@ -137,7 +140,7 @@ export default function DocumentPreviewPage() {
                     </button>
                     <button
                         onClick={() => setActiveTab('repayment-plan')}
-                        className={`px-6 py-3 font-medium text-base transition-colors relative ${activeTab === 'repayment-plan'
+                        className={`flex-1 whitespace-nowrap px-3 py-3 font-medium text-sm sm:text-base transition-colors relative ${activeTab === 'repayment-plan'
                             ? 'text-blue-600'
                             : 'text-gray-500 hover:text-gray-700'
                             }`}
@@ -149,17 +152,11 @@ export default function DocumentPreviewPage() {
                     </button>
                 </div>
 
-                {/* 문서 뷰어 */}
-                <div className="bg-white shadow-lg rounded-xl overflow-hidden min-h-[800px] border border-gray-200">
-                    <div className="p-8 md:p-12 overflow-x-auto print:p-0">
-                        <div
-                            className="document-preview prose max-w-none"
-                            dangerouslySetInnerHTML={{
-                                __html: activeTab === 'creditor-list' ? creditorListHtml : repaymentPlanHtml
-                            }}
-                        />
-                    </div>
-                </div>
+                <DocumentViewer>
+                    <div className="document-preview prose max-w-none" dangerouslySetInnerHTML={{
+                        __html: activeTab === 'creditor-list' ? creditorListHtml : repaymentPlanHtml
+                    }} />
+                </DocumentViewer>
 
                 <style jsx global>{`
                     /* 문서 스타일 */

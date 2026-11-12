@@ -1,16 +1,15 @@
+import type { DebtorInfo, Creditor, RepaymentPlan, SecuredCreditorData } from '@/app/case-input/types';
+import { calculateRepayment } from './repayment-calculator';
+import { escapeDocumentData } from './html';
 import { formatCurrency } from '@/app/case-input/utils';
 
-// Types (You might want to import these from a shared types file if possible, 
-// but for now defining simplified versions or using any is acceptable strictly for this utility to avoid circular deps if types are in frontend folders)
-// Ideally, types should be in a shared `src/types` or `src/lib/types` folder.
-// For now, we'll assume the input 'data' follows the structure we know.
-
 export interface DocumentData {
-  debtorInfo: any;
-  creditors: any[];
-  repaymentPlan: any;
+  debtorInfo: DebtorInfo;
+  creditors: Creditor[];
+  repaymentPlan: RepaymentPlan;
   // Extensible: Add calculated fields here
-  repaymentSchedule?: any[];
+  repaymentSchedule?: import("./repayment-plan-service").RepaymentScheduleRow[];
+  calculationVersion?: number;
 }
 
 /**
@@ -21,10 +20,9 @@ export function enrichDocumentData(data: DocumentData): DocumentData {
   // Deep clone to avoid mutating original
   const enrichedData = JSON.parse(JSON.stringify(data));
 
-  // 1. Calculate Repayment Schedule
-  // This is where you will implement the complex logic for priority creditors, variations in monthly payments, etc.
-  // For now, we will add a placeholder structure.
-  enrichedData.repaymentSchedule = calculateRepaymentSchedule(enrichedData);
+  // Freeze the same schedule used to render the repayment plan.
+  enrichedData.repaymentSchedule = calculateRepayment(enrichedData.creditors, enrichedData.repaymentPlan).schedule;
+  enrichedData.calculationVersion = 1;
 
   return enrichedData;
 }
@@ -33,7 +31,8 @@ export function enrichDocumentData(data: DocumentData): DocumentData {
  * Generates the HTML representation of the document based on the (enriched) snapshot data.
  * Run this ON-THE-FLY when the user views the document.
  */
-export function generateDocumentHTML(title: string, data: DocumentData): string {
+export function generateDocumentHTML(title: string, input: DocumentData): string {
+  const data = escapeDocumentData(input);
   const { debtorInfo, creditors, repaymentPlan } = data;
 
   // 1. Calculate Totals
@@ -42,7 +41,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   let totalSecuredPromise = 0; // 담보부 회생채권액 합계 (별제권부 채권의 원리금 합계)
   let totalUnsecuredPromise = 0; // 무담보 회생채권액 합계 (별제권부 제외)
 
-  creditors.forEach((c: any) => {
+  creditors.forEach((c) => {
     // 1. Main Creditor
     const p = Number(c.principal) || 0;
     const i = Number(c.interest) || 0;
@@ -67,7 +66,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
       : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
 
     if (subList.length > 0) {
-      subList.forEach((sub: any) => {
+      subList.forEach((sub) => {
         const sp = Number(sub.principal) || 0;
         const si = Number(sub.interest) || 0;
         const stotal = sp + si;
@@ -84,7 +83,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   const grandTotal = totalPrincipal + totalInterest;
 
   // 2. Build Detail Rows (Section 2 - New Detailed Format)
-  const detailRows = creditors.map((c: any) => {
+  const detailRows = creditors.map((c) => {
     const baseDate = c.baseDate || '-';
 
     // Description text for the debt
@@ -152,7 +151,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
       : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
 
     if (subList.length > 0) {
-      subList.forEach((sc: any) => {
+      subList.forEach((sc) => {
         const scBaseDate = sc.baseDate || baseDate;
 
         const scPrincipal = Number(sc.principal) || 0;
@@ -209,7 +208,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   }).join('');
 
   // 3. Build Secured Rows (Section 3) - 별제권부채권 및 이에 준하는 채권의 내역
-  const securedCreditors = creditors.filter((c: any) => c.isSecured);
+  const securedCreditors = creditors.filter((c) => c.isSecured);
 
   let securedRows = '';
   let securedTotalPrincipal = 0;
@@ -219,10 +218,10 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
   let securedTotalRehabilitationAmount = 0;
 
   if (securedCreditors.length > 0) {
-    securedRows = securedCreditors.map((c: any) => {
+    securedRows = securedCreditors.map((c) => {
       const principal = Number(c.principal) || 0;
       const interest = Number(c.interest) || 0;
-      const securedData = c.securedData || {};
+      const securedData: Partial<SecuredCreditorData> = c.securedData || {};
       const expectedRepaymentAmount = Number(securedData.expectedRepaymentAmount) || 0;
       const unrepayableAmount = Number(securedData.unrepayableAmount) || 0;
       const securedRehabilitationAmount = Number(securedData.securedRehabilitationAmount) || 0;
@@ -409,7 +408,7 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
 
       <div class="debt-table-container">
         <div class="header-info">
-          <span>목록작성일: ${new Date().toISOString().split('T')[0]}</span>
+          <span>목록작성일: ${repaymentPlan?.createDate || ''}</span>
         </div>
 
         <table>
@@ -501,22 +500,4 @@ export function generateDocumentHTML(title: string, data: DocumentData): string 
         <!-- Footer info if needed -->
       </div>
     </div>`;
-}
-
-/**
- * Internal helper to calculate repayment schedule.
- * This should return the array of monthly payments that will be frozen in the snapshot.
- */
-function calculateRepaymentSchedule(data: DocumentData): any[] {
-  // Placeholder logic
-  // In the future, implement the actual calculation here based on data.repaymentPlan and data.creditors
-  const months = data.repaymentPlan?.repaymentPeriod?.months || 36;
-  const schedule = [];
-  for (let i = 1; i <= months; i++) {
-    schedule.push({
-      month: i,
-      payment: data.repaymentPlan?.monthlyActualAvailableIncome || 0
-    });
-  }
-  return schedule;
 }

@@ -6,7 +6,7 @@ export async function POST(request: NextRequest) {
     try {
         const { title, content } = await request.json();
 
-        if (!title || !content) {
+        if (typeof title !== 'string' || !title.trim() || title.length > 200 || typeof content !== 'string' || !content.trim() || content.length > 10000) {
             return NextResponse.json({ error: '제목과 내용을 모두 입력해주세요.' }, { status: 400 });
         }
 
@@ -16,8 +16,8 @@ export async function POST(request: NextRequest) {
 
         if (token) {
             try {
-                userId = getUserFromRequest(request)?.id ?? null;
-            } catch (e) {
+                userId = (await getUserFromRequest(request))?.id ?? null;
+            } catch {
                 // 토큰이 유효하지 않은 경우 무시하고 비회원으로 처리
             }
         }

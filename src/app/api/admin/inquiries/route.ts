@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     }
 
     try {
-        const user = getUserFromRequest(request);
+        const user = (await getUserFromRequest(request));
 
         if (user?.role !== 'ADMIN') {
             return NextResponse.json({ error: '관리자 권한이 필요합니다.' }, { status: 403 });

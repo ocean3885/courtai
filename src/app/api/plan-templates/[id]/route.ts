@@ -1,3 +1,4 @@
+import { validateTemplate, InputError } from '@/lib/case-validation';
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { getUserIdFromRequest } from '@/lib/auth';
@@ -7,7 +8,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const userId = getUserIdFromRequest(request);
+        const userId = (await getUserIdFromRequest(request));
         if (!userId) {
             return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
         }
@@ -25,6 +26,7 @@ export async function DELETE(
 
         return NextResponse.json({ success: true, message: '설정이 삭제되었습니다.' });
     } catch (error) {
+        if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
         console.error('Template delete error:', error);
         return NextResponse.json({ error: '설정 삭제 중 오류가 발생했습니다.' }, { status: 500 });
     }
@@ -35,13 +37,14 @@ export async function PATCH(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const userId = getUserIdFromRequest(request);
+        const userId = (await getUserIdFromRequest(request));
         if (!userId) {
             return NextResponse.json({ error: '인증이 필요합니다.' }, { status: 401 });
         }
 
         const { id } = await params;
         const { creditors, monthlyAvailable, months } = await request.json();
+        validateTemplate(creditors, monthlyAvailable, months);
 
         const result = await query(`
       UPDATE repayment_plan_templates
@@ -61,6 +64,7 @@ export async function PATCH(
 
         return NextResponse.json({ success: true, message: '설정이 덮어씌워졌습니다.' });
     } catch (error) {
+        if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
         console.error('Template update error:', error);
         return NextResponse.json({ error: '설정 저장 중 오류가 발생했습니다.' }, { status: 500 });
     }

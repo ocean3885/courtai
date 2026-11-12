@@ -24,3 +24,56 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+.case-workspace [data-creditor-card] { scroll-margin-top: 14rem; }
+
+/* Consistent touch targets and keyboard focus for case entry. */
+.case-workspace :is(input:not([type='checkbox']), select, textarea) {
+  min-height: 44px;
+  border-radius: 0.5rem;
+  border-color: #cbd5e1;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+}
+.case-workspace :is(input, select, textarea):focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+.case-workspace button, .viewer-button {
+  min-height: 44px;
+  flex-shrink: 0;
+  border-radius: 0.5rem;
+}
+.case-workspace input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  accent-color: #2563eb;
+}
+.case-workspace label:has(input[type='checkbox']) { min-height: 44px; }
+.case-workspace button:focus-visible, .viewer-button:focus-visible, summary:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 3px;
+}
+.viewer-button {
+  min-width: 44px;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: white;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+.viewer-button:hover { background: #eff6ff; }
+.viewer-button:disabled { opacity: 0.4; cursor: not-allowed; }
+@media print {
+  .document-viewer, .document-viewport, .document-scaled-space, .document-scaled-content {
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    transform: none !important;
+    position: static !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: white !important;
+  }
+}

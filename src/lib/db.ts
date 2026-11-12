@@ -57,11 +57,7 @@ async function initializeDb(): Promise<void> {
     `
       INSERT INTO ${quotedSchema}.users (username, password, name, role, is_active)
       VALUES ($1, $2, $3, 'ADMIN', 1)
-      ON CONFLICT(username) DO UPDATE SET
-        password = excluded.password,
-        name = excluded.name,
-        role = 'ADMIN',
-        is_active = 1
+      ON CONFLICT(username) DO NOTHING
     `,
     [admin.username, hashedPassword, admin.name]
   );
@@ -69,25 +65,27 @@ async function initializeDb(): Promise<void> {
 
 export async function ensureDbInitialized(): Promise<void> {
   if (!initPromise) {
-    initPromise = initializeDb();
+    initPromise = initializeDb().catch(error => {
+      initPromise = null;
+      throw error;
+    });
   }
 
   return initPromise;
 }
 
-export async function query<T extends QueryResultRow = QueryResultRow>(
-  sql: string,
-  params: unknown[] = []
-): Promise<QueryResult<T>> {
-  await ensureDbInitialized();
+export type DbQuery = <T extends QueryResultRow = QueryResultRow>(
+  sql: string, params?: unknown[]
+) => Promise<QueryResult<T>>;
 
+export async function transaction<T>(work: (run: DbQuery) => Promise<T>): Promise<T> {
+  await ensureDbInitialized();
   const client = await getPool().connect();
   const quotedSchema = quoteIdentifier(getSchemaName());
-
   try {
     await client.query('BEGIN');
     await client.query(`SET LOCAL search_path TO ${quotedSchema}`);
-    const result = await client.query<T>(sql, params);
+    const result = await work(<R extends QueryResultRow>(sql: string, params: unknown[] = []) => client.query<R>(sql, params));
     await client.query('COMMIT');
     return result;
   } catch (error) {
@@ -96,4 +94,8 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   } finally {
     client.release();
   }
+}
+
+export async function query<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
+  return transaction(run => run<T>(sql, params));
 }

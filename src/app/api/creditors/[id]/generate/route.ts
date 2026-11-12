@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { query } from '@/lib/db';
-import { enrichDocumentData } from '@/lib/document-service';
+import { transaction } from '@/lib/db';
+import { createDocumentSnapshot } from '@/lib/document-snapshot';
+import { validateCase, InputError } from '@/lib/case-validation';
 import { generateChangeLog } from '@/lib/snapshot-diff';
 import { getUserFromRequest } from '@/lib/auth';
 
@@ -14,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = getUserFromRequest(req);
+    const user = (await getUserFromRequest(req));
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -23,10 +24,13 @@ export async function POST(
     const body = await req.json();
     const { title, data } = body;
 
+    validateCase(title, data, true);
+    return await transaction(async query => {
     const creditor = (await query(`
       SELECT id
       FROM creditor
       WHERE id = $1 AND user_id = $2
+      FOR UPDATE
     `, [creditorId, user.id])).rows[0];
 
     if (!creditor) {
@@ -35,7 +39,7 @@ export async function POST(
 
     // 1. 데이터 강화 (계산 로직 적용 등)
     // 이 단계에서 변제계획표 등 '확정'되어야 할 데이터를 계산하여 JSON에 포함시킵니다.
-    const enrichedData = enrichDocumentData(data);
+    const { snapshot: enrichedData, rendered } = createDocumentSnapshot(title, data);
 
     // creditor 테이블에 저장/업데이트 (원본 데이터 유지)
     await query(`
@@ -63,7 +67,7 @@ export async function POST(
       SELECT source_snapshot, changes
       FROM case_documents
       WHERE creditor_id = $1
-      ORDER BY created_at DESC
+      ORDER BY created_at DESC, id DESC
       LIMIT 1
     `, [creditorId])).rows[0];
 
@@ -78,7 +82,7 @@ export async function POST(
     }
 
     // case_documents 테이블에 저장
-    // HTML은 저장하지 않고(빈 문자열), enrichedData(JSON)만 스냅샷으로 저장합니다.
+    // 계산 결과와 두 문서의 HTML을 생성 시점 그대로 저장합니다.
     const result = await query<{ id: number }>(`
       INSERT INTO case_documents (creditor_id, title, source_snapshot, changes, html_preview)
       VALUES ($1, $2, $3, $4, $5)
@@ -88,14 +92,16 @@ export async function POST(
       `${koreanDate} 채권자목록 및 변제계획안`,
       JSON.stringify(enrichedData),
       changeLog, // 변경사항 저장
-      ''  // html_preview (On-the-fly 생성으로 변경되어 빈 값 저장)
+      JSON.stringify(rendered)
     ]);
 
     return NextResponse.json({
       success: true,
       documentId: result.rows[0].id,
     });
+    });
   } catch (error) {
+    if (error instanceof InputError) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error('Document generation error:', error);
     return NextResponse.json(
       { error: 'Failed to generate document' },

@@ -11,20 +11,20 @@ interface Creditor {
 }
 
 interface RepaymentPlanResultsProps {
-    plan: any[];
+    plan: Record<string, number>[];
     creditors: Creditor[]; // Flattened list expected
     monthlyAvailable: number;
     months: number;
 }
 
-export function RepaymentPlanResults({ plan, creditors, monthlyAvailable, months }: RepaymentPlanResultsProps) {
+export function RepaymentPlanResults({ plan, creditors }: RepaymentPlanResultsProps) {
     // 1. 유효 채권자 필터링 (금액 > 0)
     const activeCreditors = creditors.filter(c => c.amount > 0);
     const priorityCreditors = activeCreditors.filter(c => c.priority);
     const hasPriority = priorityCreditors.length > 0;
 
     // 테이블 렌더링 헬퍼
-    const renderTable = (data: any[], title: string, showTotal: boolean = true) => {
+    const renderTable = (data: Record<string, number>[], title: string, showTotal: boolean = true) => {
         if (data.length === 0) return null;
         const startMonth = data[0]['회차'];
         const endMonth = data[data.length - 1]['회차'];
@@ -53,7 +53,7 @@ export function RepaymentPlanResults({ plan, creditors, monthlyAvailable, months
                                 // 해당 구간 내에서는 동일하다고 가정하거나, 첫 달 기준으로 보여줌.
                                 // 요구사항에 '안분 배당'이라고 했으므로 구간 내에서는 일정할 것임.
                                 const monthlyPayment = data[0][c.id] || 0;
-                                const totalPayment = monthlyPayment * periodMonths;
+                                const totalPayment = data.reduce((sum, row) => sum + (row[c.id] || 0), 0);
 
                                 // 만약 이 구간에서 아예 변제액이 없는 일반채권자라면? 0원으로 표시됨.
                                 // 3단계 분리 시 우선변제 기간에는 일반 채권자 0원 맞음.
@@ -203,9 +203,9 @@ export function RepaymentPlanResults({ plan, creditors, monthlyAvailable, months
     // "P == 0 AND G > 0" 인 달이 Phase 3.
 
     // 더 안전한 방법: 각 달의 속성을 분류.
-    const phase1Rows: any[] = [];
-    const phase2Rows: any[] = [];
-    const phase3Rows: any[] = [];
+    const phase1Rows: Record<string, number>[] = [];
+    const phase2Rows: Record<string, number>[] = [];
+    const phase3Rows: Record<string, number>[] = [];
 
     plan.forEach(monthData => {
         // 이 달에 우선변제권자가 단 1원이라도 가져갔는가?

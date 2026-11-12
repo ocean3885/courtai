@@ -6,8 +6,8 @@ export async function POST(request: NextRequest) {
   try {
     const { username, password, name } = await request.json();
 
-    if (!username || !password) {
-      return NextResponse.json({ error: '모든 필드를 입력해주세요.' }, { status: 400 });
+    if (typeof username !== 'string' || !/^[A-Za-z0-9_.-]{3,50}$/.test(username) || typeof password !== 'string' || password.length < 8 || Buffer.byteLength(password) > 72 || (name !== undefined && (typeof name !== 'string' || name.length > 100))) {
+      return NextResponse.json({ error: '아이디는 영문·숫자·_.- 3~50자, 비밀번호는 8자 이상(UTF-8 72바이트 이하)이어야 합니다.' }, { status: 400 });
     }
 
     // 아이디 중복 확인

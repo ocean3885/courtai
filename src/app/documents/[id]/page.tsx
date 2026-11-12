@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { DocumentViewer } from '@/components/ui/DocumentViewer';
 import { MainLayout } from '@/components/layout';
+import { escapeHTML } from '@/lib/html';
 
 interface DocumentDetail {
     id: number;
@@ -10,7 +12,9 @@ interface DocumentDetail {
     title: string;
     html_preview: string;
     created_at: string;
-    snapshot_data?: any;
+    snapshot_data?: import("@/lib/document-service").DocumentData;
+    repayment_plan_html: string;
+    is_legacy?: boolean;
     changes?: string;
 }
 
@@ -73,24 +77,13 @@ export default function DocumentDetailPage() {
     const [activeTab, setActiveTab] = useState<TabType>('creditor-list');
     const [repaymentPlanHtml, setRepaymentPlanHtml] = useState<string>('');
 
-    useEffect(() => {
-        if (documentId) {
-            fetchDocument();
-        }
-    }, [documentId]);
-
-    useEffect(() => {
-        if (document && activeTab === 'repayment-plan' && !repaymentPlanHtml) {
-            generateRepaymentPlan();
-        }
-    }, [activeTab, document]);
-
-    const fetchDocument = async () => {
+    const fetchDocument = useCallback(async () => {
         try {
             const res = await fetch(`/api/documents/${documentId}`);
             if (res.ok) {
                 const data = await res.json();
                 setDocument(data);
+                setRepaymentPlanHtml(data.repayment_plan_html);
             } else {
                 alert('문서를 불러올 수 없습니다.');
                 router.push('/case-list');
@@ -101,37 +94,15 @@ export default function DocumentDetailPage() {
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [documentId, router]);
 
-    const generateRepaymentPlan = async () => {
-        if (!document?.snapshot_data) return;
-
-        try {
-            // 동적 import로 클라이언트에서 서비스 로드
-            const { generateRepaymentPlanHTML } = await import('@/lib/repayment-plan-service');
-
-            // 기준 중위소득 최신 데이터 가져오기 로직 제거 (사용자 입력값 유지)
-            // let snapshotData = { ...document.snapshot_data };
-            const snapshotData = document.snapshot_data;
-
-            const creationDate = document.created_at
-                ? new Date(document.created_at).toLocaleDateString('ko-KR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                })
-                : undefined;
-
-            const html = generateRepaymentPlanHTML({
-                ...snapshotData,
-                creationDate
-            });
-            setRepaymentPlanHtml(html);
-        } catch (error) {
-            console.error('Failed to generate repayment plan:', error);
-            alert('변제계획안 생성 중 오류가 발생했습니다.');
+    useEffect(() => {
+        if (documentId) {
+            setRepaymentPlanHtml('');
+            setIsLoading(true);
+            void fetchDocument();
         }
-    };
+    }, [documentId, fetchDocument]);
 
     const handlePrint = () => {
         // activeTab에 따라 대상 결정
@@ -182,7 +153,7 @@ export default function DocumentDetailPage() {
                 <html lang="ko">
                 <head>
                     <meta charset="UTF-8">
-                    <title>${finalFileName}</title>
+                    <title>${escapeHTML(finalFileName)}</title>
                     ${styles}
                     <style>
                         body { margin: 0; padding: 20px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -254,27 +225,27 @@ export default function DocumentDetailPage() {
         <MainLayout wide>
             <div className="max-w-full mx-auto px-4 py-8">
                 {/* 헤더 */}
-                <div className="mb-6 flex justify-between items-center">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                        <h1 className="text-2xl font-bold text-gray-900">{document.title}</h1>
+                        <h1 className="min-w-0 break-words text-xl font-bold text-gray-900 sm:text-2xl">{document.title}</h1>
                         <p className="text-sm text-gray-500 mt-1">
-                            생성일: {new Date(document.created_at + (document.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                            생성일: {new Date(document.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                         </p>
                     </div>
-                    <div className="flex gap-3 items-start">
+                    <div className="flex w-full flex-wrap items-start gap-3 sm:w-auto sm:shrink-0">
                         <button
                             onClick={() => router.push('/case-list')}
-                            className="h-10 px-4 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 rounded-lg transition-colors"
+                            className="min-h-11 shrink-0 whitespace-nowrap px-4 bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200 rounded-lg transition-colors"
                         >
                             목록으로
                         </button>
                         <div className="flex flex-col items-end">
                             <button
                                 onClick={handlePrint}
-                                className="h-10 px-4 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                                className="min-h-11 shrink-0 whitespace-nowrap px-4 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
                                 title="인쇄 창에서 'PDF로 저장'을 선택할 수 있습니다."
                             >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>
                                 인쇄 / PDF 저장
@@ -284,6 +255,7 @@ export default function DocumentDetailPage() {
                     </div>
                 </div>
 
+                {document.is_legacy && <p className="mb-4 rounded bg-amber-50 p-3 text-sm text-amber-900">이전 형식의 문서입니다. 저장된 입력값에 현재 계산식을 적용해 표시합니다. 확정본이 필요하면 사건에서 새 문서를 생성해주세요.</p>}
                 {/* 탭 메뉴 */}
                 <div className="mb-6">
                     <div className="border-b border-gray-200">
@@ -329,20 +301,13 @@ export default function DocumentDetailPage() {
                 </div>
 
                 {/* 문서 미리보기 */}
-                <div className="bg-gray-100 border border-gray-200 rounded-xl shadow-inner overflow-auto flex justify-center py-12">
-                    {activeTab === 'creditor-list' ? (
-                        <div id="creditor-list-content" dangerouslySetInnerHTML={{ __html: document.html_preview }} />
-                    ) : activeTab === 'repayment-plan' ? (
-                        <>
-                            {repaymentPlanHtml ? (
-                                <div id="repayment-plan-content" dangerouslySetInnerHTML={{ __html: repaymentPlanHtml }} />
-                            ) : (
-                                <div className="flex justify-center items-center py-20">
-                                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                                </div>
-                            )}
-                        </>
-                    ) : (
+                {activeTab !== 'changes' ? (
+                    <DocumentViewer>
+                        <div id={activeTab === 'creditor-list' ? 'creditor-list-content' : 'repayment-plan-content'} dangerouslySetInnerHTML={{
+                            __html: activeTab === 'creditor-list' ? document.html_preview : repaymentPlanHtml
+                        }} />
+                    </DocumentViewer>
+                ) : (
                         <div className="bg-white rounded-lg shadow-sm p-8 max-w-4xl w-full">
                             <h2 className="text-xl font-bold text-gray-900 mb-6 border-b pb-3">📝 변경 이력</h2>
                             {document.changes ? (
@@ -353,8 +318,7 @@ export default function DocumentDetailPage() {
                                 <p className="text-gray-500 text-center py-8">변경 이력이 없습니다.</p>
                             )}
                         </div>
-                    )}
-                </div>
+                )}
             </div>
         </MainLayout>
     );

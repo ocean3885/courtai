@@ -61,8 +61,8 @@ function WageBusinessModalContent({
                         </h4>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">근무업체명</label>
-                                <input
+                                <label htmlFor={`WageBusinessModal--1`} className="block text-xs font-semibold text-gray-600 mb-1">근무업체명</label>
+                                <input id={`WageBusinessModal--1`}
                                     type="text"
                                     value={wageName}
                                     onChange={(e) => setWageName(e.target.value)}
@@ -71,8 +71,8 @@ function WageBusinessModalContent({
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">월평균 수입</label>
-                                <input
+                                <label htmlFor={`WageBusinessModal--2`} className="block text-xs font-semibold text-gray-600 mb-1">월평균 수입</label>
+                                <input id={`WageBusinessModal--2`}
                                     type="text"
                                     value={formatCurrency(wageAmount)}
                                     onChange={(e) => setWageAmount(parseCurrency(e.target.value))}
@@ -93,8 +93,8 @@ function WageBusinessModalContent({
                         </h4>
                         <div className="space-y-3">
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">운영업체명</label>
-                                <input
+                                <label htmlFor={`WageBusinessModal--3`} className="block text-xs font-semibold text-gray-600 mb-1">운영업체명</label>
+                                <input id={`WageBusinessModal--3`}
                                     type="text"
                                     value={businessName}
                                     onChange={(e) => setBusinessName(e.target.value)}
@@ -103,8 +103,8 @@ function WageBusinessModalContent({
                                 />
                             </div>
                             <div>
-                                <label className="block text-xs font-semibold text-gray-600 mb-1">월평균 수입</label>
-                                <input
+                                <label htmlFor={`WageBusinessModal--4`} className="block text-xs font-semibold text-gray-600 mb-1">월평균 수입</label>
+                                <input id={`WageBusinessModal--4`}
                                     type="text"
                                     value={formatCurrency(businessAmount)}
                                     onChange={(e) => setBusinessAmount(parseCurrency(e.target.value))}

@@ -11,12 +11,13 @@ interface MainLayoutProps {
 }
 
 export function MainLayout({ children, wide }: MainLayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (
     <div className="min-h-screen bg-white text-slate-950">
       <div className="flex min-h-screen">
-        <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+        <Sidebar collapsed={collapsed} onToggle={() => setCollapsed(value => !value)} isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
         <div className="flex min-w-0 flex-1 flex-col bg-white">
           <Header onMenuClick={() => setIsSidebarOpen(true)} />
           <main className="flex-1 border-l border-slate-200 bg-white">

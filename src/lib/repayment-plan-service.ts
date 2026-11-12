@@ -1,10 +1,12 @@
+import type { DebtorInfo, Creditor, RepaymentPlan, SecuredCreditorData } from '@/app/case-input/types';
 import { formatCurrency, parseCurrency } from '@/app/case-input/utils';
-import { generateRepaymentScheduleWithSeizedReserves } from './repayment-plan-seized-service';
+import { calculateRepayment, flattenCreditors, getRepaymentCount, type CalculationCreditor } from './repayment-calculator';
+import { escapeDocumentData } from './html';
 
 export interface RepaymentPlanData {
-  debtorInfo: any;
-  creditors: any[];
-  repaymentPlan: any;
+  debtorInfo: DebtorInfo;
+  creditors: Creditor[];
+  repaymentPlan: RepaymentPlan;
   creationDate?: string;
 }
 
@@ -44,13 +46,6 @@ const LEIBNIZ_CUMULATIVE = [
 ];
 
 /**
- * 라이프니츠 계수 계산 (연 5%, 월복리, 소수점 8자리 반올림)
- */
-function getLeibnizCoefficient(month: number): number {
-  return 0; // Unused in new logic, but kept for interface compatibility if needed
-}
-
-/**
  * 누적 라이프니츠 계수 가져오기
  */
 function getCumulativeLeibniz(month: number): number {
@@ -71,192 +66,16 @@ function getCumulativeLeibniz(month: number): number {
  */
 function formatDateForPeriod(dateStr: string): string {
   if (!dateStr) return '[]년 []월 []일';
-  const d = new Date(dateStr);
-  if (isNaN(d.getTime())) return '[]년 []월 []일';
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return '[]년 []월 []일';
+  const [y, m, day] = dateStr.split('-');
   return `[${y}]년 [${m}]월 [${day}]일`;
 }
-
-/**
- * 변제예정액표 생성
- */
-function generateRepaymentSchedule(
-  creditors: any[],
-  monthlyActualAvailableIncome: number,
-  repaymentCount: number,
-  seizureDeposit: number = 0
-): { schedule: RepaymentScheduleRow[]; creditorTotals: CreditorTotal[] } {
-
-  const schedule: RepaymentScheduleRow[] = [];
-  const creditorTotals: { [id: string]: CreditorTotal } = {};
-
-  // 채권자별 총 채권액 및 잔액 초기화
-  // 별제권부 채권의 경우 unrepayableAmount만 변제 대상
-  const creditorBalances: { [id: string]: number } = {};
-  creditors.forEach(c => {
-    let repaymentTargetAmount = 0;
-
-    if (c.isSecured && c.securedData) {
-      // 별제권부 채권: 별제권행사등으로 변제받을 수 없는 채권액만 대상
-      repaymentTargetAmount = Number(c.securedData.unrepayableAmount) || 0;
-    } else {
-      // 일반 채권: 원금만 대상 (이자 제외)
-      const principal = Number(c.principal) || 0;
-      // const interest = Number(c.interest) || 0;
-      repaymentTargetAmount = principal;
-    }
-
-    creditorBalances[c.id] = repaymentTargetAmount;
-    creditorTotals[c.id] = {
-      creditorId: c.id,
-      creditorNumber: c.number,
-      creditorName: c.name,
-      totalDebt: repaymentTargetAmount,
-      totalPayment: 0,
-      repaymentRate: 0
-    };
-  });
-
-  // 우선변제권 채권자와 일반 채권자 구분
-  const preferentialCreditors = creditors.filter(c => c.isPreferential);
-  const regularCreditors = creditors.filter(c => !c.isPreferential);
-
-  const hasPreferential = preferentialCreditors.length > 0;
-
-  // 월실제가용소득 배당 (1회차부터)
-  let preferentialCompleted = false;
-
-  for (let round = 1; round <= repaymentCount; round++) {
-    const roundPayments: { [id: string]: number } = {};
-    let availableAmount = monthlyActualAvailableIncome;
-
-    // 우선변제권 채권자가 남아있는 경우
-    if (hasPreferential && !preferentialCompleted) {
-      const preferentialRemaining = preferentialCreditors.filter(c => creditorBalances[c.id] > 0);
-
-      if (preferentialRemaining.length > 0) {
-        const totalPreferentialDebt = preferentialRemaining.reduce((sum, c) => sum + creditorBalances[c.id], 0);
-
-        if (totalPreferentialDebt <= availableAmount) {
-          // 우선변제권 채권 완납
-          preferentialRemaining.forEach(c => {
-            const payment = creditorBalances[c.id];
-            roundPayments[c.id] = payment;
-            creditorBalances[c.id] = 0;
-            creditorTotals[c.id].totalPayment += payment;
-            availableAmount -= payment;
-          });
-          preferentialCompleted = true;
-
-          // 남은 금액을 일반 채권자에게 안분 (잔액 있는 채권자만)
-          if (availableAmount > 0 && regularCreditors.length > 0) {
-            const activeRegularCreditors = regularCreditors.filter(c => creditorBalances[c.id] > 0);
-            if (activeRegularCreditors.length > 0) {
-              const totalRegularDebt = activeRegularCreditors.reduce((sum, c) => sum + creditorBalances[c.id], 0);
-              let distributedAmount = 0;
-
-              activeRegularCreditors.forEach((c, index) => {
-                if (totalRegularDebt > 0) {
-                  let payment;
-                  if (index === activeRegularCreditors.length - 1) {
-                    // 마지막 채권자: 남은 전체 금액 할당
-                    payment = availableAmount - distributedAmount;
-                  } else {
-                    // 비율에 따라 안분 (초기 채권액 기준)
-                    const originalTotalDebt = activeRegularCreditors.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
-                    const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
-                    payment = Math.floor(availableAmount * ratio);
-                    distributedAmount += payment;
-                  }
-                  roundPayments[c.id] = payment;
-                  creditorBalances[c.id] -= payment;
-                  creditorTotals[c.id].totalPayment += payment;
-                }
-              });
-            }
-          }
-        } else {
-          // 우선변제권 채권에 전액 안분 (마지막 채권자에게 나머지 할당)
-          let distributedAmount = 0;
-          preferentialRemaining.forEach((c, index) => {
-            let payment;
-            if (index === preferentialRemaining.length - 1) {
-              // 마지막 채권자: 남은 전체 금액 할당
-              payment = availableAmount - distributedAmount;
-            } else {
-              // 비율에 따라 안분 (초기 채권액 기준)
-              const originalTotalDebt = preferentialRemaining.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
-              const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
-              payment = Math.floor(availableAmount * ratio);
-              distributedAmount += payment;
-            }
-            roundPayments[c.id] = payment;
-            creditorBalances[c.id] -= payment;
-            creditorTotals[c.id].totalPayment += payment;
-          });
-        }
-      } else {
-        // 우선변제권 채권자 모두 완납됨
-        preferentialCompleted = true;
-      }
-    }
-
-    // 우선변제권이 없거나 완료된 경우 일반 배당
-    if (!hasPreferential || preferentialCompleted) {
-      const activeCreditors = (hasPreferential ? regularCreditors : creditors).filter(c => creditorBalances[c.id] > 0);
-
-      if (activeCreditors.length > 0) {
-        const totalDebt = activeCreditors.reduce((sum, c) => sum + creditorBalances[c.id], 0);
-        let distributedAmount = 0;
-
-        activeCreditors.forEach((c, index) => {
-          if (totalDebt > 0) {
-            let payment;
-            if (index === activeCreditors.length - 1) {
-              // 마지막 채권자: 남은 전체 금액 할당
-              payment = availableAmount - distributedAmount;
-            } else {
-              // 비율에 따라 안분 (초기 채권액 기준)
-              const originalTotalDebt = activeCreditors.reduce((sum, c) => sum + creditorTotals[c.id].totalDebt, 0);
-              const ratio = creditorTotals[c.id].totalDebt / originalTotalDebt;
-              payment = Math.floor(availableAmount * ratio);
-              distributedAmount += payment;
-            }
-            roundPayments[c.id] = payment;
-            creditorBalances[c.id] -= payment;
-            creditorTotals[c.id].totalPayment += payment;
-          }
-        });
-      }
-    }
-
-    schedule.push({
-      round: round,
-      payments: roundPayments,
-      total: monthlyActualAvailableIncome
-    });
-  }
-
-  // 변제율 계산
-  Object.values(creditorTotals).forEach(ct => {
-    ct.repaymentRate = ct.totalDebt > 0 ? (ct.totalPayment / ct.totalDebt) * 100 : 0;
-  });
-
-  return {
-    schedule,
-    creditorTotals: Object.values(creditorTotals)
-  };
-}
-
-
 
 /**
  * 변제예정액표 테이블 생성 (회차별로 그룹화)
  */
 function generateRepaymentPlanTables(
-  creditors: any[],
+  creditors: CalculationCreditor[],
   schedule: RepaymentScheduleRow[],
   monthlyActualAvailableIncome: number,
   repaymentCount: number,
@@ -268,7 +87,7 @@ function generateRepaymentPlanTables(
   const hasPreferential = preferentialCreditors.length > 0;
 
   // 회차를 그룹으로 나누기
-  let groups: { startRound: number; endRound: number; creditors: any[] }[] = [];
+  let groups: { startRound: number; endRound: number; creditors: CalculationCreditor[] }[] = [];
 
   if (hasPreferential) {
     const regularCreditors = creditors.filter(c => !c.isPreferential);
@@ -328,7 +147,7 @@ function generateRepaymentPlanTables(
 
   // 압류적립금이 있는 경우 1회차 분리 로직 적용
   if (seizedReservesAmount > 0 && schedule.length > 1) {
-    const newGroups: { startRound: number; endRound: number; creditors: any[] }[] = [];
+    const newGroups: { startRound: number; endRound: number; creditors: CalculationCreditor[] }[] = [];
 
     groups.forEach(group => {
       // 그룹이 1회차를 포함하고, 1회차보다 더 긴 경우 분리
@@ -389,7 +208,7 @@ function generateRepaymentPlanTables(
 function generateSingleRepaymentTable(
   startRound: number,
   endRound: number,
-  tableCreditors: any[],
+  tableCreditors: CalculationCreditor[],
   schedule: RepaymentScheduleRow[],
   monthlyActualAvailableIncome: number,
   customTitle?: string,
@@ -529,46 +348,18 @@ function generateSingleRepaymentTable(
 /**
  * 변제계획안 HTML 생성
  */
-export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
-  const { debtorInfo, creditors: inputCreditors, repaymentPlan, creationDate } = data;
+export function generateRepaymentPlanHTML(input: RepaymentPlanData): string {
+  const data = escapeDocumentData(input);
+  const { debtorInfo, creditors: inputCreditors, repaymentPlan } = data;
+  const creationDate = repaymentPlan?.createDate || data.creationDate;
 
-  // 대위변제자(구상권자)를 포함한 전체 채권자 목록 생성
-  const creditors: any[] = [];
-  inputCreditors.forEach((c: any) => {
-    // 1. 원채권자 추가 (대위변제 여부와 상관없이 무조건 추가 - 잔존 채권액이 있다면 합산됨)
-    creditors.push(c);
-
-    // 2. 대위변제자 정보 처리 (다수 대위변제자 지원)
-    // Support multiple subrogated creditors (subrogatedList) or single legacy (subrogationData)
-    const subList = c.subrogatedList && c.subrogatedList.length > 0
-      ? c.subrogatedList
-      : (c.isSubrogated && c.subrogationData ? [c.subrogationData] : []);
-
-    if (subList.length > 0) {
-      subList.forEach((sub: any) => {
-        // 손해금(damages) 제외 요청으로 원금만 포함
-        const principal = Number(sub.principal) || 0;
-        // const damages = Number(sub.damages) || 0;
-
-        creditors.push({
-          id: sub.id, // ID must be unique
-          number: sub.number,
-          name: sub.name,
-          principal: principal,
-          interest: Number(sub.interest) || 0,
-          isSecured: false, // 대위변제 채권은 일반적으로 일반회생채권
-          isPreferential: false,
-          securedData: null
-        });
-      });
-    }
-  });
+  const creditors = flattenCreditors(inputCreditors);
 
   // 총 채권액 계산
   // 별제권부 채권인 경우: 별제권행사 등으로 변제받을 수 없는 채권액(unrepayableAmount)만 합산
   // 그 외: 원금(principal) 합산
   let totalDebt = 0;
-  creditors.forEach((c: any) => {
+  creditors.forEach((c) => {
     if (c.isSecured && c.securedData) {
       const unrepayableAmount = Number(c.securedData.unrepayableAmount) || 0;
       totalDebt += unrepayableAmount;
@@ -586,7 +377,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const formattedEnd = formatDateForPeriod(endYMD);
 
   const monthlyPayment = repaymentPlan?.monthlyActualAvailableIncome || 0;
-  const totalRepaymentAmount = monthlyPayment * repaymentPeriodMonths;
+  const totalRepaymentAmount = Math.min(monthlyPayment * repaymentPeriodMonths, totalDebt);
   const repaymentRate = totalDebt > 0 ? ((totalRepaymentAmount / totalDebt) * 100).toFixed(2) : '0.00';
   const liquidationValue = Number(repaymentPlan?.liquidationValue) || 0;
 
@@ -597,8 +388,8 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const monthlyTrusteeFee = repaymentPlan?.monthlyTrusteeFee || 0;
   const otherEstateClaims = repaymentPlan?.otherEstateClaims || 0;
   const monthlyActualAvailableIncome = repaymentPlan?.monthlyActualAvailableIncome || 0;
-  const repaymentCount = repaymentPlan?.repaymentCount || repaymentPeriodMonths;
-  const totalActualAvailableIncome = repaymentPlan?.totalActualAvailableIncome || (monthlyActualAvailableIncome * repaymentCount);
+  const repaymentCount = getRepaymentCount(repaymentPlan);
+  const totalActualAvailableIncome = monthlyActualAvailableIncome * repaymentCount;
 
   // 압류적립금 관련 데이터
   const seizedReservesStatus = repaymentPlan?.seizedReservesStatus || 'no';
@@ -640,122 +431,19 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
         </tr>
       </table>
       <div style="font-size: 12px; color: #666; margin-top: 5px;">
-        * 1회차는 압류적립금을 변제재원으로 사용하고, 2회차부터 수정된 월실제가용소득을 변제재원으로 사용함.
+        * 1회차는 압류적립금으로 변제합니다. 2회차부터 원 단위 잔여액을 앞 회차에 1원씩 배분하며, 채권 잔액을 초과해 지급하지 않습니다. 위 수정 월소득은 최대 회차 금액이며 실제 배당액은 아래 표를 따릅니다.
       </div>
      `;
   }
 
-  // 변제예정액표 생성 (압류적립금 여부에 따라 다른 함수 호출)
-  const { schedule, creditorTotals } = hasSeizedReserves
-    ? generateRepaymentScheduleWithSeizedReserves(
-      creditors,
-      monthlyActualAvailableIncome,
-      repaymentCount,
-      seizedReservesAmount
-    )
-    : generateRepaymentSchedule(
-      creditors,
-      monthlyActualAvailableIncome,
-      repaymentCount,
-      0
-    );
+  const { schedule } = calculateRepayment(inputCreditors, repaymentPlan);
 
-  // 총합계 계산 (섹션 4용) - 스케줄 기반 재계산
-  // creditorTotals의 totalPayment대신 schedule을 순회하며 합산하여 섹션 3의 표와 100% 일치시킴
-  const scheduleBasedTotals: { [id: string]: number } = {};
-  schedule.forEach(row => {
-    creditors.forEach(c => {
-      const payment = row.payments[c.id] || 0;
-      scheduleBasedTotals[c.id] = (scheduleBasedTotals[c.id] || 0) + payment;
-    });
-  });
-
-  let section4SumConfirmedDebt = 0;
-  let section4SumUnconfirmedDebt = 0;
-  let section4SumConfirmedPayment = 0;
-  let section4SumUnconfirmedPayment = 0;
-
-  creditorTotals.forEach(ct => {
-    const creditor = creditors.find(c => c.id === ct.creditorId);
-    const isSecured = creditor?.isSecured || false;
-
-    // ct.totalDebt는 이미 generateRepaymentSchedule에서 계산됨
-    // 별제권부 채권: unrepayableAmount
-    // 일반 채권: principal + interest
-    const debtAmount = ct.totalDebt;
-
-    // 스케줄에서 집계한 총 변제액 사용
-    const finalTotalPayment = scheduleBasedTotals[ct.creditorId] || 0;
-
-    // creditorTotals 객체 업데이트 (화면 표시용)
-    ct.totalPayment = finalTotalPayment;
-
-    if (isSecured) {
-      section4SumUnconfirmedDebt += debtAmount;
-      section4SumUnconfirmedPayment += finalTotalPayment;
-    } else {
-      section4SumConfirmedDebt += debtAmount;
-      section4SumConfirmedPayment += finalTotalPayment;
-    }
-  });
-
-  const section4GrandTotalDebt = section4SumConfirmedDebt + section4SumUnconfirmedDebt;
-  const section4GrandTotalPayment = section4SumConfirmedPayment + section4SumUnconfirmedPayment;
-
-  // Calculate Present Value (Split: Saving Period + Input Period)
-  // Calculate Present Value (Split: Saving Period + Input Period)
-  let savingPeriodMonths = 0;
-  let savingAmountA = 0;
-  let inputPeriodMonths = 0;
-  let inputAmountB = 0;
-
-  if (hasSeizedReserves) {
-    // 압류적립금이 있는 경우: 1회차(압류적립금) + 나머지 회차(수정된 가용소득)
-    savingPeriodMonths = 1;
-    savingAmountA = Number(seizedReservesAmount);
-
-    inputPeriodMonths = repaymentCount - 1;
-
-    if (inputPeriodMonths > 0) {
-      const seizedAmount = Number(seizedReservesAmount);
-      const totalIncome = Number(totalActualAvailableIncome);
-      const adjustedTotalIncome = totalIncome - seizedAmount;
-      // 2회차부터의 월 변제액 (위쪽 계산 로직과 동일하게 Math.ceil 사용)
-      const adjustedMonthlyIncome = Math.ceil(adjustedTotalIncome / inputPeriodMonths);
-
-      // 라이프니츠 계수 적용 (2회차 ~ 마지막 회차)
-      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
-      const leibnizFirst = getCumulativeLeibniz(1);
-      const leibnizFactor = leibnizTotal - leibnizFirst;
-
-      inputAmountB = Math.floor(adjustedMonthlyIncome * leibnizFactor);
-    } else {
-      inputAmountB = 0;
-    }
-  } else {
-    // 일반적인 경우: 3개월 적립기간 후 나머지 기간 라이프니츠 계수 적용
-    const defaultSavingMonths = 3;
-
-    if (repaymentCount <= defaultSavingMonths) {
-      // 변제기간이 3개월 이하인 경우 전액 적립기간으로 처리
-      savingPeriodMonths = repaymentCount;
-      savingAmountA = monthlyActualAvailableIncome * repaymentCount;
-      inputPeriodMonths = 0;
-      inputAmountB = 0;
-    } else {
-      // 3개월 초과 시
-      savingPeriodMonths = defaultSavingMonths;
-      savingAmountA = monthlyActualAvailableIncome * savingPeriodMonths;
-      inputPeriodMonths = repaymentCount - savingPeriodMonths;
-
-      // 누적 라이프니츠 계수 차이를 이용 (4개월차 ~ 마지막개월차 계수의 합)
-      const leibnizTotal = getCumulativeLeibniz(repaymentCount);
-      const leibnizSaving = getCumulativeLeibniz(savingPeriodMonths);
-      const leibnizFactor = leibnizTotal - leibnizSaving;
-
-      inputAmountB = Math.floor(monthlyActualAvailableIncome * leibnizFactor);
-    }
-  }
+  // Preserve the existing saving-period convention, using actual capped payments.
+  const savingPeriodMonths = hasSeizedReserves ? 1 : Math.min(3, repaymentCount);
+  const savingAmountA = schedule.slice(0, savingPeriodMonths).reduce((sum, row) => sum + row.total, 0);
+  const inputPeriodMonths = repaymentCount - savingPeriodMonths;
+  const inputAmountB = Math.floor(schedule.slice(savingPeriodMonths).reduce((sum, row) =>
+    sum + row.total * (getCumulativeLeibniz(row.round) - getCumulativeLeibniz(row.round - 1)), 0));
 
   const calculatedPresentValue = savingAmountA + inputAmountB;
 
@@ -764,7 +452,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   const hasPreferential = preferentialCreditors.length > 0;
 
   // 별제권부 채권 필터링 및 계산
-  const securedCreditors = creditors.filter((c: any) => c.isSecured);
+  const securedCreditors = creditors.filter((c) => c.isSecured);
   const hasSecuredCreditors = securedCreditors.length > 0;
 
   let securedRows = '';
@@ -775,10 +463,10 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
   let securedTotalRehabilitationAmount = 0;
 
   if (hasSecuredCreditors) {
-    securedRows = securedCreditors.map((c: any) => {
+    securedRows = securedCreditors.map((c) => {
       const principal = Number(c.principal) || 0;
       const interest = Number(c.interest) || 0;
-      const securedData = c.securedData || {};
+      const securedData: Partial<SecuredCreditorData> = c.securedData || {};
       const expectedRepaymentAmount = Number(securedData.expectedRepaymentAmount) || 0;
       const unrepayableAmount = Number(securedData.unrepayableAmount) || 0;
       const securedRehabilitationAmount = Number(securedData.securedRehabilitationAmount) || 0;
@@ -1225,7 +913,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
                   </tr>
               </thead>
               <tbody>
-                  ${hasPreferential ? preferentialCreditors.map((c: any) => `
+                  ${hasPreferential ? preferentialCreditors.map((c) => `
                   <tr>
                       <td class="center">${c.name}</td>
                       <td class="text-right">${formatCurrency(c.principal + (c.interest || 0))}원</td>
@@ -1302,7 +990,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
           <div class="info-box">
               <div class="sub-title">(1) 월 변제예정(유보)액 및 총 변제예정(유보)액의 산정</div>
               <div style="line-height: 1.8; margin-bottom: 10px;">
-                  각 일반 개인회생채권의 [ 원금 ]의 액수를 기준으로 월 평균가용소득에서 회생위원보수를 차감한 월 실제 가용소득을 안분하여 산출한 금액을 각 일반 개인회생채권자에게 변제한다. 이를 기초로 산정한 월 변제예정(유보)액은 제1회부터 제${repaymentCount}회까지 월 [ ${formatCurrency(monthlyActualAvailableIncome)} ]원으로 하고 총 변제예정액은 [ ${formatCurrency(totalActualAvailableIncome)} ]원이다.<br>
+                  각 일반 개인회생채권의 [ 원금 ]의 액수를 기준으로 월 평균가용소득에서 회생위원보수를 차감한 월 실제 가용소득을 안분하여 산출한 금액을 각 일반 개인회생채권자에게 변제한다. 이를 기초로 산정한 월 변제예정(유보)액은 제1회부터 제${repaymentCount}회까지 월 최대 [ ${formatCurrency(monthlyActualAvailableIncome)} ]원을 재원으로 하며 실제 총 변제예정액은 [ ${formatCurrency(totalRepaymentAmount)} ]원이다. 각 회차의 실제 배당액은 채권 잔액을 한도로 하며 아래 변제예정액표를 따른다.<br>
                   구체적 산정 내역은 별지 개인회생채권 변제예정액 표 참조.
               </div>
           </div>
@@ -1322,20 +1010,20 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
                   <div>(나) 변제월 및 변제일</div>
                   <div style="margin-left: 10px; margin-top: 5px;">
                       <div style="margin-bottom: 8px;">
-                          ① ${formattedStart}부터 변제계획인가일 직전 [ ${new Date(startYMD).getDate()} ]일까지 기간
+                          ① ${formattedStart}부터 변제계획인가일 직전 [ ${(startYMD ? Number(startYMD.slice(8, 10)) : '')} ]일까지 기간
                       </div>
                       <div class="check-item">
-                          ■ 변제계획인가일 직후 최초 도래하는 월의 [ ${new Date(startYMD).getDate()} ]일에 위 기간 동안의 변제분을 개인회생절차개시후 변제계획 인가 전에 적립된 가용소득으로 일시에 조기 변제
+                          ■ 변제계획인가일 직후 최초 도래하는 월의 [ ${(startYMD ? Number(startYMD.slice(8, 10)) : '')} ]일에 위 기간 동안의 변제분을 개인회생절차개시후 변제계획 인가 전에 적립된 가용소득으로 일시에 조기 변제
                       </div>
                       <div class="check-item">
                           □ 기타 : [ ]
                       </div>
 
                       <div style="margin-top: 15px; margin-bottom: 8px;">
-                          ② 변제계획인가일 직후 최초 도래하는 월의 [ ${new Date(startYMD).getDate()} ]일부터 ${formattedEnd}까지 기간
+                          ② 변제계획인가일 직후 최초 도래하는 월의 [ ${(startYMD ? Number(startYMD.slice(8, 10)) : '')} ]일부터 ${formattedEnd}까지 기간
                       </div>
                       <div class="check-item">
-                          ■ 매월마다 [ ${new Date(startYMD).getDate()} ]일에 변제
+                          ■ 매월마다 [ ${(startYMD ? Number(startYMD.slice(8, 10)) : '')} ]일에 변제
                       </div>
                       <div class="check-item">
                           □ 매 [ ]개월마다 [ ]일에 각 변제
@@ -1426,7 +1114,7 @@ export function generateRepaymentPlanHTML(data: RepaymentPlanData): string {
                   <td>${formatCurrency(monthlyTrusteeFee)}</td>
                   <td>${formatCurrency(monthlyActualAvailableIncome)}</td>
                   <td>${repaymentCount}</td>
-                  <td>${formatCurrency(totalActualAvailableIncome)}</td>
+                  <td>${formatCurrency(totalRepaymentAmount)}</td>
               </tr>
           </tbody>
       </table>

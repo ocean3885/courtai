@@ -38,8 +38,8 @@ export default function SignupPage() {
 
       alert('회원가입이 완료되었습니다. 로그인해 주세요.');
       router.push('/auth/login');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '요청 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
@@ -80,6 +80,10 @@ export default function SignupPage() {
                 <input
                   id="username"
                   name="username"
+                  minLength={3}
+                  maxLength={50}
+                  pattern="[A-Za-z0-9_.\-]+"
+                  placeholder="영문·숫자·_.- 3~50자"
                   type="text"
                   required
                   value={username}
@@ -98,6 +102,7 @@ export default function SignupPage() {
                   id="password"
                   name="password"
                   type="password"
+                  minLength={8}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -115,6 +120,7 @@ export default function SignupPage() {
                   id="confirmPassword"
                   name="confirmPassword"
                   type="password"
+                  minLength={8}
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

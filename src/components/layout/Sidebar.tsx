@@ -41,11 +41,6 @@ const navigation: (NavGroup | NavItem)[] = [
         href: '/case-input',
         icon: 'document',
       },
-      {
-        name: '소송비용액 확정 계산',
-        href: '/case-list',
-        icon: 'calculator',
-      },
     ],
   },
   {
@@ -116,9 +111,11 @@ function NavIcon({ name }: { name: string }) {
 interface SidebarProps {
   isOpen?: boolean;
   onClose?: () => void;
+  collapsed?: boolean;
+  onToggle?: () => void;
 }
 
-export function Sidebar({ isOpen, onClose }: SidebarProps) {
+export function Sidebar({ isOpen, onClose, collapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -146,7 +143,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
       <aside
         className={`
-          fixed inset-y-0 left-0 z-50 w-[230px] transform border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out
+          ${collapsed ? 'md:w-[80px]' : 'md:w-[230px]'} fixed inset-y-0 left-0 z-50 w-[230px] transform border-r border-slate-200 bg-white transition-transform duration-200 ease-in-out
           md:sticky md:top-0 md:translate-x-0 md:self-start md:min-h-screen
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
@@ -156,7 +153,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
               CE
             </span>
-            <span className="text-lg font-bold text-slate-950">Court-Easy</span>
+            <span className={`${collapsed ? 'md:hidden' : ''} text-lg font-bold text-slate-950`}>Court-Easy</span>
           </Link>
 
           {/* Mobile Close Button */}
@@ -181,7 +178,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   return (
                     <li key={item.groupName} className="space-y-2">
                       <div className="px-1">
-                        <h4 className="text-sm font-semibold text-slate-700">
+                        <h4 className={`${collapsed ? 'md:sr-only' : ''} text-sm font-semibold text-slate-700`}>
                           {item.groupName}
                         </h4>
                       </div>
@@ -199,7 +196,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                                   }`}
                               >
                                 <NavIcon name={subItem.icon} />
-                                <span className="text-sm">{subItem.name}</span>
+                                <span className={collapsed ? 'md:sr-only' : 'text-sm'}>{subItem.name}</span>
                               </Link>
                             </li>
                           );
@@ -232,13 +229,15 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
           <button
             type="button"
-            className="mt-8 flex h-11 items-center gap-3 border-t border-slate-200 pt-5 text-sm font-medium text-slate-700"
+            onClick={onToggle}
+            aria-label={collapsed ? '메뉴 펼치기' : '메뉴 접기'}
+            className="hidden md:flex mt-8 flex h-11 items-center gap-3 border-t border-slate-200 pt-5 text-sm font-medium text-slate-700"
           >
             <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m11 17-5-5 5-5" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m18 17-5-5 5-5" />
             </svg>
-            메뉴 접기
+            <span className={collapsed ? 'sr-only' : ''}>{collapsed ? '메뉴 펼치기' : '메뉴 접기'}</span>
           </button>
         </div>
       </aside>

@@ -30,7 +30,7 @@ export default function AdminInquiriesPage() {
                 } else {
                     setError('문의 목록을 불러오는 중 오류가 발생했습니다.');
                 }
-            } catch (err) {
+            } catch {
                 setError('서버와 통신 중 오류가 발생했습니다.');
             } finally {
                 setIsLoading(false);

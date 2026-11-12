@@ -2,12 +2,12 @@
 
 interface DiffResult {
   field: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   type: 'added' | 'modified' | 'deleted';
 }
 
-function formatValue(value: any): string {
+function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '(없음)';
   if (typeof value === 'boolean') return value ? '예' : '아니오';
   if (typeof value === 'object') return JSON.stringify(value, null, 2);
@@ -88,123 +88,39 @@ function getFieldLabel(field: string): string {
 }
 
 function compareObjects(
-  oldObj: any,
-  newObj: any,
+  oldObj: unknown,
+  newObj: unknown,
   path: string = '',
   diffs: DiffResult[] = []
 ): DiffResult[] {
-  // null/undefined 처리
-  if (oldObj === newObj) return diffs;
-  
-  // repaymentSchedule 같은 계산된 필드는 비교하지 않음
-  const ignoredPaths = ['repaymentSchedule', 'totalsByCreditor', 'calculatedValues'];
-  if (ignoredPaths.some(ignored => path.includes(ignored))) {
-    return diffs;
-  }
-  
-  if (!oldObj && newObj) {
-    diffs.push({ field: path, oldValue: null, newValue: newObj, type: 'added' });
-    return diffs;
-  }
-  
-  if (oldObj && !newObj) {
-    diffs.push({ field: path, oldValue: oldObj, newValue: null, type: 'deleted' });
-    return diffs;
-  }
-  
-  // 배열 비교 (채권자 목록 등)
+  if (Object.is(oldObj, newObj)) return diffs;
+  const ignoredPaths = ['repaymentSchedule', 'totalsByCreditor', 'calculatedValues', 'calculationVersion'];
+  if (ignoredPaths.some(ignored => path === ignored)) return diffs;
   if (Array.isArray(oldObj) && Array.isArray(newObj)) {
-    // 배열 길이 변경만 기록
-    if (oldObj.length !== newObj.length) {
-      diffs.push({
-        field: path,
-        oldValue: `${oldObj.length}개`,
-        newValue: `${newObj.length}개`,
-        type: 'modified'
-      });
+    const identified = (items: unknown[]): items is Record<string, unknown>[] => items.every(item =>
+      item !== null && typeof item === 'object' && 'id' in item);
+    if (identified(oldObj) && identified(newObj)) {
+      const oldMap = new Map(oldObj.map(item => [item.id, item]));
+      const newMap = new Map(newObj.map(item => [item.id, item]));
+      for (const item of newObj) compareObjects(oldMap.get(item.id), item, `${path}[${item.number ?? item.id}]`, diffs);
+      for (const item of oldObj) if (!newMap.has(item.id)) compareObjects(item, undefined, `${path}[${item.number ?? item.id}]`, diffs);
+    } else {
+      for (let i = 0; i < Math.max(oldObj.length, newObj.length); i++) compareObjects(oldObj[i], newObj[i], `${path}[${i}]`, diffs);
     }
-    
-    // 채권자 목록인 경우에만 상세 비교
-    if (path === 'creditors') {
-      const oldMap = new Map(oldObj.map((item: any) => [item.id, item]));
-      const newMap = new Map(newObj.map((item: any) => [item.id, item]));
-      
-      // 추가된 항목
-      newObj.forEach((newItem: any) => {
-        const oldItem = oldMap.get(newItem.id);
-        if (!oldItem) {
-          diffs.push({
-            field: `${path}[${newItem.number}]`,
-            oldValue: null,
-            newValue: `${newItem.name} (${newItem.reason})`,
-            type: 'added'
-          });
-        } else {
-          // 중요한 필드만 비교
-          const importantFields = ['name', 'reason', 'principal', 'interest', 'address', 'phone', 'isPreferential', 'isSubrogated', 'isSecured'];
-          importantFields.forEach(field => {
-            if (oldItem[field] !== newItem[field]) {
-              diffs.push({
-                field: `${path}[${newItem.number}].${field}`,
-                oldValue: oldItem[field],
-                newValue: newItem[field],
-                type: 'modified'
-              });
-            }
-          });
-        }
-      });
-      
-      // 삭제된 항목
-      oldObj.forEach((oldItem: any) => {
-        if (!newMap.has(oldItem.id)) {
-          diffs.push({
-            field: `${path}[${oldItem.number}]`,
-            oldValue: `${oldItem.name} (${oldItem.reason})`,
-            newValue: null,
-            type: 'deleted'
-          });
-        }
-      });
+  } else if (oldObj !== null && newObj !== null && typeof oldObj === 'object' && typeof newObj === 'object') {
+    const oldRecord = oldObj as Record<string, unknown>, newRecord = newObj as Record<string, unknown>;
+    for (const key of new Set([...Object.keys(oldRecord), ...Object.keys(newRecord)])) {
+      compareObjects(oldRecord[key], newRecord[key], path ? `${path}.${key}` : key, diffs);
     }
-    
-    return diffs;
+  } else {
+    diffs.push({ field: path, oldValue: oldObj, newValue: newObj,
+      type: oldObj === undefined ? 'added' : newObj === undefined ? 'deleted' : 'modified' });
   }
-  
-  // 객체 비교
-  if (typeof oldObj === 'object' && typeof newObj === 'object') {
-    const allKeys = new Set([...Object.keys(oldObj), ...Object.keys(newObj)]);
-    
-    allKeys.forEach(key => {
-      const newPath = path ? `${path}.${key}` : key;
-      const oldValue = oldObj[key];
-      const newValue = newObj[key];
-      
-      if (typeof oldValue === 'object' && typeof newValue === 'object') {
-        compareObjects(oldValue, newValue, newPath, diffs);
-      } else if (oldValue !== newValue) {
-        if (oldValue === undefined) {
-          diffs.push({ field: newPath, oldValue: null, newValue, type: 'added' });
-        } else if (newValue === undefined) {
-          diffs.push({ field: newPath, oldValue, newValue: null, type: 'deleted' });
-        } else {
-          diffs.push({ field: newPath, oldValue, newValue, type: 'modified' });
-        }
-      }
-    });
-    
-    return diffs;
-  }
-  
-  // 원시값 비교
-  if (oldObj !== newObj) {
-    diffs.push({ field: path, oldValue: oldObj, newValue: newObj, type: 'modified' });
-  }
-  
+
   return diffs;
 }
 
-export function generateChangeLog(oldSnapshot: any, newSnapshot: any): string {
+export function generateChangeLog(oldSnapshot: unknown, newSnapshot: unknown): string {
   try {
     const oldData = typeof oldSnapshot === 'string' ? JSON.parse(oldSnapshot) : oldSnapshot;
     const newData = typeof newSnapshot === 'string' ? JSON.parse(newSnapshot) : newSnapshot;
@@ -217,6 +133,7 @@ export function generateChangeLog(oldSnapshot: any, newSnapshot: any): string {
     
     const now = new Date();
     const timestamp = now.toLocaleString('ko-KR', { 
+      timeZone: 'Asia/Seoul',
       year: 'numeric', 
       month: '2-digit', 
       day: '2-digit', 
@@ -250,7 +167,7 @@ export function generateChangeLog(oldSnapshot: any, newSnapshot: any): string {
   }
 }
 
-export function compareSnapshots(oldSnapshot: any, newSnapshot: any): DiffResult[] {
+export function compareSnapshots(oldSnapshot: unknown, newSnapshot: unknown): DiffResult[] {
   const oldData = typeof oldSnapshot === 'string' ? JSON.parse(oldSnapshot) : oldSnapshot;
   const newData = typeof newSnapshot === 'string' ? JSON.parse(newSnapshot) : newSnapshot;
   return compareObjects(oldData, newData);

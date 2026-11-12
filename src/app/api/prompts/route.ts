@@ -5,7 +5,7 @@ import { getUserIdFromRequest } from '@/lib/auth';
 // GET: 모든 프롬프트 조회
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     )).rows;
 
     return NextResponse.json({ prompts });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Prompt fetch error:', error);
     return NextResponse.json(
       { error: '프롬프트 조회 중 오류가 발생했습니다.' },
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
 // POST: 새 프롬프트 저장
 export async function POST(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
       category,
       created_at: new Date().toISOString(),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Prompt save error:', error);
     return NextResponse.json(
       { error: '프롬프트 저장 중 오류가 발생했습니다.' },

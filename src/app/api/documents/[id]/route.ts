@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { generateDocumentHTML } from '@/lib/document-service';
+import { createDocumentSnapshot, readRenderedDocuments } from '@/lib/document-snapshot';
 import { getUserFromRequest } from '@/lib/auth';
 
 export async function GET(
@@ -8,14 +8,14 @@ export async function GET(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const user = getUserFromRequest(req);
+        const user = (await getUserFromRequest(req));
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
 
         const { id: documentId } = await params;
 
-        const document: any = (await query(`
+        const document = (await query(`
       SELECT cd.*, c.user_id
       FROM case_documents cd
       JOIN creditor c ON cd.creditor_id = c.id
@@ -31,20 +31,19 @@ export async function GET(
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
 
-        // On-the-fly HTML 생성
-        // source_snapshot(JSON)을 파싱하여 즉석에서 HTML을 만들어줍니다.
-        try {
-            const parsedData = JSON.parse(document.source_snapshot);
-            document.html_preview = generateDocumentHTML(document.title, parsedData);
-            document.snapshot_data = parsedData; // 프론트엔드에서 사용할 수 있도록 파싱된 데이터 추가
-        } catch (e) {
-            console.error('Failed to parse snapshot or generate HTML:', e);
-            // JSON 파싱 실패 시, 기존에 저장된(혹은 없을 수도 있는) html_preview를 그대로 둡니다.
-            // 하지만 새 로직에서는 html_preview가 빈 문자열일 수 있으므로 에러 처리가 중요합니다.
-            if (!document.html_preview) {
-                document.html_preview = '<div style="padding:20px; text-align:center;">문서 생성 중 오류가 발생했습니다. (데이터 손상)</div>';
-            }
-        }
+        // New documents are frozen; legacy documents are safely rendered without overwriting history.
+        const parsedData = JSON.parse(document.source_snapshot);
+        const frozen = readRenderedDocuments(document.html_preview);
+        const rendered = frozen ?? createDocumentSnapshot(document.title, {
+            ...parsedData,
+            repaymentPlan: { ...parsedData.repaymentPlan,
+                repaymentCount: parsedData.repaymentPlan?.repaymentPeriod?.months || 36,
+                createDate: parsedData.repaymentPlan?.createDate || new Date(document.created_at).toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }) },
+        }).rendered;
+        document.html_preview = rendered.creditorListHtml;
+        document.repayment_plan_html = rendered.repaymentPlanHtml;
+        document.snapshot_data = parsedData;
+        document.is_legacy = !frozen;
 
         return NextResponse.json(document);
     } catch (error) {
@@ -61,7 +60,7 @@ export async function DELETE(
     { params }: { params: Promise<{ id: string }> }
 ) {
     try {
-        const user = getUserFromRequest(req);
+        const user = (await getUserFromRequest(req));
         if (!user) {
             return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         }
@@ -69,7 +68,7 @@ export async function DELETE(
         const { id: documentId } = await params;
 
         // 문서 소유자 확인
-        const document: any = (await query(`
+        const document = (await query(`
       SELECT cd.*, c.user_id
       FROM case_documents cd
       JOIN creditor c ON cd.creditor_id = c.id

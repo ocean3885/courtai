@@ -18,10 +18,18 @@ interface FieldProps {
 }
 
 function Field({ label, children, note, className = '' }: FieldProps) {
+    const id = React.useId();
+    function connect(nodes: React.ReactNode): React.ReactNode {
+        return React.Children.map(nodes, child => {
+            if (!React.isValidElement<{ id?: string; children?: React.ReactNode }>(child)) return child;
+            if (['input', 'select', 'textarea'].includes(String(child.type))) return React.cloneElement(child, { id });
+            return child.props.children ? React.cloneElement(child, { children: connect(child.props.children) }) : child;
+        });
+    }
     return (
         <div className={className}>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
-            {children}
+            <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
+            {connect(children)}
             {note && <p className="mt-1.5 text-xs leading-5 text-blue-600">{note}</p>}
         </div>
     );
@@ -51,7 +59,7 @@ function ResultBox({ label, value }: { label: string; value: number }) {
     );
 }
 
-const inputClass = 'h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
+const inputClass = 'h-11 w-full rounded-md border border-gray-300 bg-white px-3 text-base text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100';
 
 export function PlanInfoForm({
     repaymentPlan,
@@ -106,7 +114,7 @@ export function PlanInfoForm({
                         <h2 className="text-lg font-bold text-gray-900">변제계획</h2>
                         <p className="mt-1 text-sm text-gray-500">기간, 소득, 공제 항목을 입력하면 하단 결과가 자동 계산됩니다.</p>
                     </div>
-                    <Field label="작성일" className="w-full md:w-48">
+                    <Field label="작성일 *" className="w-full md:w-48">
                         <input
                             type="date"
                             value={repaymentPlan.createDate}
@@ -119,7 +127,7 @@ export function PlanInfoForm({
 
             <Section title="기본 설정">
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                    <Field label="변제시작일">
+                    <Field label="변제시작일 *">
                         <input
                             type="date"
                             max="9999-12-31"
@@ -128,7 +136,7 @@ export function PlanInfoForm({
                             className={inputClass}
                         />
                     </Field>
-                    <Field label="변제종료일">
+                    <Field label="변제종료일 *">
                         <input
                             type="date"
                             max="9999-12-31"
@@ -139,9 +147,9 @@ export function PlanInfoForm({
                     </Field>
                     <Field label="변제기간(개월) ⑧">
                         <input
-                            type="number"
+                            type="number" min={1} max={120}
                             value={repaymentPlan.repaymentPeriod.months}
-                            onChange={(e) => onChange({ ...repaymentPlan, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, months: parseInt(e.target.value) || 0 } })}
+                            onChange={(e) => onChange({ ...repaymentPlan, repaymentCount: parseInt(e.target.value) || 0, repaymentPeriod: { ...repaymentPlan.repaymentPeriod, months: parseInt(e.target.value) || 0 } })}
                             className={inputClass}
                         />
                     </Field>
@@ -307,8 +315,8 @@ export function PlanInfoForm({
                 </div>
             </section>
 
-            <div className="flex flex-col gap-3 rounded-lg border border-gray-300 bg-white p-4 md:flex-row md:items-center md:justify-between">
-                <p className="text-sm text-gray-600">저장된 데이터를 기반으로 법원 제출용 문서를 생성합니다.</p>
+            <div className="sticky bottom-0 z-20 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
+                <p className="text-sm text-gray-600">* 작성일, 변제 시작·종료일과 채권자명을 입력해주세요.</p>
                 <button
                     onClick={handleGenerate}
                     disabled={isGenerating || !isCompanyNameValid}

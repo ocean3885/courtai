@@ -23,8 +23,8 @@ export default function ChangePasswordPage() {
             return;
         }
 
-        if (newPassword.length < 4) {
-            setError('비밀번호는 최소 4자 이상이어야 합니다.');
+        if (newPassword.length < 8) {
+            setError('비밀번호는 최소 8자 이상이어야 합니다.');
             return;
         }
 
@@ -40,14 +40,14 @@ export default function ChangePasswordPage() {
             const data = await res.json();
 
             if (res.ok) {
-                setSuccess('비밀번호가 성공적으로 변경되었습니다. 잠시 후 메인 페이지로 이동합니다.');
+                setSuccess('비밀번호가 변경되었습니다. 다시 로그인해주세요.');
                 setTimeout(() => {
-                    router.push('/');
+                    router.push('/auth/login');
                 }, 2000);
             } else {
                 setError(data.error || '비밀번호 변경 중 오류가 발생했습니다.');
             }
-        } catch (err) {
+        } catch {
             setError('서버와 통신 중 오류가 발생했습니다.');
         } finally {
             setIsLoading(false);

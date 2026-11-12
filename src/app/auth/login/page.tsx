@@ -31,8 +31,8 @@ export default function LoginPage() {
 
       router.push('/');
       router.refresh();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : '요청 중 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }

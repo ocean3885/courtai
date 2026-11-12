@@ -5,7 +5,7 @@ import { getUserIdFromRequest } from '@/lib/auth';
 // GET: 최근 프롬프트 조회 (단일)
 export async function GET(request: NextRequest) {
   try {
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ prompt: recentPrompt });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Recent prompt fetch error:', error);
     return NextResponse.json(
       { error: '최근 프롬프트 조회 중 오류가 발생했습니다.' },

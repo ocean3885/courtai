@@ -9,7 +9,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -31,7 +31,7 @@ export async function GET(
     }
 
     return NextResponse.json({ prompt });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Prompt fetch error:', error);
     return NextResponse.json(
       { error: '프롬프트 조회 중 오류가 발생했습니다.' },
@@ -47,7 +47,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -83,7 +83,7 @@ export async function PUT(
     `, [name, prompt, model, category, is_favorite !== undefined ? is_favorite : null, promptId, userId]);
 
     return NextResponse.json({ id: promptId, name, prompt, model, category, is_favorite });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Prompt update error:', error);
     return NextResponse.json(
       { error: '프롬프트 업데이트 중 오류가 발생했습니다.' },
@@ -99,7 +99,7 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
-    const userId = getUserIdFromRequest(request);
+    const userId = (await getUserIdFromRequest(request));
     if (!userId) {
       return NextResponse.json(
         { error: '인증이 필요합니다.' },
@@ -125,7 +125,7 @@ export async function DELETE(
     await query('DELETE FROM prompts WHERE id = $1 AND user_id = $2', [promptId, userId]);
 
     return NextResponse.json({ message: '프롬프트가 삭제되었습니다.' });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Prompt delete error:', error);
     return NextResponse.json(
       { error: '프롬프트 삭제 중 오류가 발생했습니다.' },

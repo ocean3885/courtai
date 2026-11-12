@@ -24,7 +24,7 @@ export default function InquiryPage() {
             });
 
             if (res.ok) {
-                setMessage({ type: 'success', text: '문의가 성공적으로 접수되었습니다. 곧 답변 드리겠습니다.' });
+                setMessage({ type: 'success', text: '문의가 성공적으로 접수되었습니다. 관리자가 내용을 확인하겠습니다.' });
                 setTitle('');
                 setContent('');
                 setTimeout(() => router.push('/'), 3000);
@@ -32,7 +32,7 @@ export default function InquiryPage() {
                 const data = await res.json();
                 setMessage({ type: 'error', text: data.error || '접수 중 오류가 발생했습니다.' });
             }
-        } catch (err) {
+        } catch {
             setMessage({ type: 'error', text: '서버와 통신 중 오류가 발생했습니다.' });
         } finally {
             setIsSubmitting(false);

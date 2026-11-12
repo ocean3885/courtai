@@ -30,9 +30,9 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
 
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white">
-      <div className="flex h-[68px] items-center justify-between gap-4 px-4 md:px-7">
-        <div className="flex min-w-0 flex-1 items-center gap-4">
-          <div className="flex items-center gap-3 md:hidden">
+      <div className="flex h-[68px] items-center justify-between gap-2 px-4 sm:gap-4 md:px-7">
+        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={onMenuClick}
               className="rounded-lg p-2 text-slate-600 hover:bg-slate-100"
@@ -47,11 +47,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
                 CE
               </span>
-              <span className="font-bold text-slate-950">Court-Easy</span>
+              <span className="whitespace-nowrap text-sm font-bold text-slate-950 sm:text-base">Court-Easy</span>
             </Link>
           </div>
 
-          <label className="relative hidden w-full max-w-[304px] md:block">
+          <form role="search" action="/case-list" method="get" className="relative hidden w-full max-w-[304px] md:block">
             <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-4.3-4.3M10.8 18a7.2 7.2 0 1 1 0-14.4 7.2 7.2 0 0 1 0 14.4Z" />
@@ -59,10 +59,12 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
             </span>
             <input
               type="search"
-              placeholder="메뉴, 업무, 문서 검색"
+              aria-label="사건 제목 검색"
+              name="q"
+              placeholder="사건 제목 검색"
               className="h-10 w-full rounded-md border border-slate-300 bg-white py-2 pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
-          </label>
+          </form>
         </div>
 
         <div className="flex items-center gap-4">
@@ -82,7 +84,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void }) {
               </Link>
               <button
                 onClick={handleLogout}
-                className="hidden text-sm font-medium text-slate-500 transition-colors hover:text-red-600 lg:block"
+                className="text-sm font-medium text-slate-500 transition-colors hover:text-red-600 lg:block"
               >
                 로그아웃
               </button>

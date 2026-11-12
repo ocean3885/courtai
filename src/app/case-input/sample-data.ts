@@ -310,5 +310,5 @@ export const SAMPLE_REPAYMENT_PLAN: RepaymentPlan = {
     dependentsCount: 1,
     standardMedianIncome: 2077892,
     adjustedLivingCost: 1246735,
-    createDate: new Date().toISOString().split('T')[0],
+    createDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }),
 };

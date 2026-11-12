@@ -8,10 +8,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ user: null }, { status: 200 });
   }
 
-  const user = getUserFromRequest(request);
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 200 });
+  try {
+    const user = await getUserFromRequest(request);
+    return NextResponse.json({ user });
+  } catch (error) {
+    console.error('Session lookup failed:', error);
+    return NextResponse.json({ error: '로그인 상태를 확인하지 못했습니다.' }, { status: 503 });
   }
-
-  return NextResponse.json({ user });
 }

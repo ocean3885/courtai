@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const authUser = getUserFromRequest(request);
+        const authUser = (await getUserFromRequest(request));
         if (!authUser) {
             return NextResponse.json({ error: '로그인이 필요합니다.' }, { status: 401 });
         }
@@ -19,8 +19,8 @@ export async function POST(request: NextRequest) {
 
         const { currentPassword, newPassword } = await request.json();
 
-        if (!currentPassword || !newPassword) {
-            return NextResponse.json({ error: '현재 비밀번호와 새 비밀번호를 모두 입력해주세요.' }, { status: 400 });
+        if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' || !currentPassword || newPassword.length < 8 || Buffer.byteLength(newPassword) > 72) {
+            return NextResponse.json({ error: '현재 비밀번호와 8자 이상, UTF-8 72바이트 이하의 새 비밀번호를 입력해주세요.' }, { status: 400 });
         }
 
         // 사용자 조회
@@ -40,9 +40,12 @@ export async function POST(request: NextRequest) {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-        await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, userId]);
+        const updated = await query('UPDATE users SET password = $1 WHERE id = $2 AND password = $3', [hashedPassword, userId, user.password]);
+        if (!updated.rowCount) return NextResponse.json({ error: '비밀번호가 변경되었습니다. 다시 로그인해주세요.' }, { status: 409 });
 
-        return NextResponse.json({ message: '비밀번호가 성공적으로 변경되었습니다.' });
+        const response = NextResponse.json({ message: '비밀번호가 변경되었습니다. 다시 로그인해주세요.' });
+        response.cookies.delete('auth_token');
+        return response;
     } catch (error) {
         console.error('Password change error:', error);
         return NextResponse.json({ error: '서버 오류가 발생했습니다.' }, { status: 500 });

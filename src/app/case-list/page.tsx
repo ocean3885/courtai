@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useCallback, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { MainLayout } from '@/components/layout';
 
 interface CaseDocument {
@@ -18,30 +18,34 @@ interface CreditorCase {
     documents: CaseDocument[];
 }
 
-export default function CaseListPage() {
+function CaseListContent() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const search = searchParams.get('q')?.trim().toLowerCase() || '';
+    const [error, setError] = useState('');
     const [cases, setCases] = useState<CreditorCase[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
 
-    useEffect(() => {
-        fetchCases();
-    }, []);
-
-    const fetchCases = async () => {
+    const fetchCases = useCallback(async () => {
+        setError('');
         try {
             const res = await fetch('/api/creditors');
+            if (res.status === 401) { router.push('/auth/login'); return; }
+            if (!res.ok) throw new Error('사건 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
             if (res.ok) {
                 const data = await res.json();
                 setCases(data);
             }
         } catch (error) {
-            console.error('Failed to fetch cases:', error);
+            setError(error instanceof Error ? error.message : '서버와 통신하지 못했습니다.');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [router]);
+
+    useEffect(() => { void fetchCases(); }, [fetchCases]);
 
     const handleDelete = async (id: number, e: React.MouseEvent) => {
         e.stopPropagation();
@@ -78,10 +82,12 @@ export default function CaseListPage() {
     };
 
     // 페이지네이션 계산
-    const totalPages = Math.ceil(cases.length / itemsPerPage);
-    const startIndex = (currentPage - 1) * itemsPerPage;
+    const filteredCases = cases.filter(item => item.title.toLowerCase().includes(search));
+    const totalPages = Math.ceil(filteredCases.length / itemsPerPage);
+    const page = Math.min(currentPage, Math.max(1, totalPages));
+    const startIndex = (page - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const currentCases = cases.slice(startIndex, endIndex);
+    const currentCases = filteredCases.slice(startIndex, endIndex);
 
     if (isLoading) {
         return (
@@ -96,14 +102,14 @@ export default function CaseListPage() {
     return (
         <MainLayout>
             <div className="max-w-7xl mx-auto px-4 py-8">
-                <div className="mb-6 flex justify-between items-center">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">내 사건 목록</h1>
                         <p className="text-gray-600 mt-2">저장된 사건 정보를 확인하고 수정하세요</p>
                     </div>
                     <button
                         onClick={() => router.push('/case-input')}
-                        className="px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
+                        className="min-h-11 shrink-0 whitespace-nowrap px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-2"
                     >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
@@ -112,12 +118,17 @@ export default function CaseListPage() {
                     </button>
                 </div>
 
-                {cases.length === 0 ? (
+                <form action="/case-list" method="get" role="search" className="mb-6 flex gap-2">
+                    <label htmlFor="case-list-query" className="sr-only">내 사건 검색</label>
+                    <input id="case-list-query" name="q" type="search" defaultValue={searchParams.get('q') || ''} placeholder="사건 제목으로 검색" className="min-h-11 min-w-0 flex-1 rounded-lg border border-slate-300 px-3 text-base focus:outline-2 focus:outline-blue-600" />
+                    <button type="submit" className="min-h-11 shrink-0 rounded-lg bg-blue-600 px-4 text-white">검색</button>
+                </form>
+                {error ? <div role="alert" className="rounded bg-red-50 p-5 text-red-700">{error}<button onClick={fetchCases} className="ml-4 underline">다시 시도</button></div> : filteredCases.length === 0 ? (
                     <div className="text-center py-20 bg-gray-50 rounded-lg">
                         <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        <h3 className="mt-2 text-sm font-medium text-gray-900">저장된 사건이 없습니다</h3>
+                        <h3 className="mt-2 text-sm font-medium text-gray-900">{search ? '검색 결과가 없습니다' : '저장된 사건이 없습니다'}</h3>
                         <p className="mt-1 text-sm text-gray-500">새 사건을 추가하여 시작하세요</p>
                         <div className="mt-6">
                             <button
@@ -138,38 +149,38 @@ export default function CaseListPage() {
                                     <div key={caseItem.id} className="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
                                         {/* 사건 헤더 */}
                                         <div className="px-4 py-4 bg-blue-50 border-b border-blue-200">
-                                            <div className="flex items-center justify-between">
+                                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                                 <div className="flex items-center flex-1 min-w-0">
                                                     <svg className="h-6 w-6 text-blue-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                     </svg>
                                                     <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <p className="text-base font-bold text-gray-900 truncate">
+                                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                            <p className="text-base font-bold text-gray-900 break-words">
                                                                 {caseItem.title}
                                                             </p>
                                                             {hasDocuments && (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-600 text-white">
+                                                                <span className="inline-flex shrink-0 whitespace-nowrap items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-600 text-white">
                                                                     문서 {caseItem.documents.length}
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
-                                                            <span>생성: {new Date(caseItem.created_at + (caseItem.created_at.includes('Z') ? '' : 'Z')).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
-                                                            <span>수정: {new Date(caseItem.updated_at + (caseItem.updated_at.includes('Z') ? '' : 'Z')).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                                                            <span>생성: {new Date(caseItem.created_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
+                                                            <span>수정: {new Date(caseItem.updated_at).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}</span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="ml-4 flex items-center gap-2 flex-shrink-0">
+                                                <div className="flex shrink-0 items-center justify-end gap-2 sm:ml-4">
                                                     <button
                                                         onClick={() => router.push(`/case-input?id=${caseItem.id}`)}
-                                                        className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors"
+                                                        className="min-h-11 whitespace-nowrap px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded transition-colors"
                                                     >
                                                         수정
                                                     </button>
                                                     <button
                                                         onClick={(e) => handleDelete(caseItem.id, e)}
-                                                        className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                        className="flex min-h-11 min-w-11 items-center justify-center p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
                                                         title="삭제"
                                                     >
                                                         <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -188,29 +199,29 @@ export default function CaseListPage() {
                                                     {caseItem.documents.map((doc) => (
                                                         <div
                                                             key={doc.id}
-                                                            className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors"
+                                                            className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between bg-gray-50 px-3 py-2 rounded border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors"
                                                         >
                                                             <div className="flex items-center gap-2 flex-1 min-w-0">
                                                                 <svg className="h-4 w-4 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                 </svg>
                                                                 <div className="flex-1 min-w-0">
-                                                                    <p className="text-sm text-gray-900 truncate">{doc.title}</p>
+                                                                    <p className="text-sm text-gray-900 break-words">{doc.title}</p>
                                                                     <p className="text-xs text-gray-500">
-                                                                        {new Date(doc.created_at + (doc.created_at.includes('Z') ? '' : 'Z')).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                                                                        {new Date(doc.created_at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                                                                     </p>
                                                                 </div>
                                                             </div>
-                                                            <div className="flex gap-2">
+                                                            <div className="flex justify-end gap-2">
                                                                 <button
                                                                     onClick={() => router.push(`/documents/${doc.id}`)}
-                                                                    className="px-3 py-1 text-xs bg-green-600 text-white hover:bg-green-700 rounded transition-colors flex-shrink-0"
+                                                                    className="min-h-11 min-w-11 whitespace-nowrap px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded transition-colors flex-shrink-0"
                                                                 >
                                                                     보기
                                                                 </button>
                                                                 <button
                                                                     onClick={(e) => handleDeleteDocument(doc.id, e)}
-                                                                    className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                                                                    className="flex min-h-11 min-w-11 items-center justify-center p-1 text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
                                                                     title="삭제"
                                                                 >
                                                                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,9 +243,9 @@ export default function CaseListPage() {
                         {totalPages > 1 && (
                             <div className="mt-6 flex justify-center items-center gap-2">
                                 <button
-                                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                                    disabled={currentPage === 1}
-                                    className={`px-3 py-1 rounded ${currentPage === 1
+                                    onClick={() => setCurrentPage(Math.max(1, page - 1))}
+                                    disabled={page === 1}
+                                    className={`min-h-11 min-w-11 px-3 py-1 rounded ${page === 1
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                         : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                                         }`}
@@ -246,7 +257,7 @@ export default function CaseListPage() {
                                     <button
                                         key={page}
                                         onClick={() => setCurrentPage(page)}
-                                        className={`px-3 py-1 rounded ${page === currentPage
+                                        className={`min-h-11 min-w-11 px-3 py-1 rounded ${page === Math.min(currentPage, totalPages)
                                             ? 'bg-blue-600 text-white'
                                             : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                                             }`}
@@ -256,9 +267,9 @@ export default function CaseListPage() {
                                 ))}
 
                                 <button
-                                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                                    disabled={currentPage === totalPages}
-                                    className={`px-3 py-1 rounded ${currentPage === totalPages
+                                    onClick={() => setCurrentPage(Math.min(totalPages, page + 1))}
+                                    disabled={page === totalPages}
+                                    className={`min-h-11 min-w-11 px-3 py-1 rounded ${page === totalPages
                                         ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                         : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
                                         }`}
@@ -272,4 +283,8 @@ export default function CaseListPage() {
             </div>
         </MainLayout>
     );
+}
+
+export default function CaseListPage() {
+  return <Suspense fallback={<p role="status">불러오는 중입니다.</p>}><CaseListContent /></Suspense>;
 }

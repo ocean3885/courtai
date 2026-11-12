@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Creditor, SubrogatedCreditor, SecuredCreditorData } from '../types';
 import { formatCurrency, parseCurrency } from '../utils';
 
@@ -13,6 +13,25 @@ interface CreditorInfoFormProps {
     onUpdateSecured: (id: string, field: keyof SecuredCreditorData, value: string | number) => void;
 }
 
+function CreditorSection({ creditor, onRemove, children }: { creditor: Creditor; onRemove: () => void; children: React.ReactNode }) {
+    const [open, setOpen] = useState(!creditor.name.trim());
+    return <details id={`creditor-${creditor.id}`} data-creditor-card open={open} onToggle={event => setOpen(event.currentTarget.open)} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary className="cursor-pointer bg-slate-50 p-4 text-slate-900 marker:text-blue-600">
+            <span className="ml-1 inline-flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-x-3 gap-y-1 align-middle">
+                <span className="rounded bg-blue-100 px-2 py-1 text-sm font-bold text-blue-700">{creditor.number}</span>
+                <span className="min-w-0 break-all font-bold">{creditor.name || '새 채권자'}</span>
+                <span className="text-sm text-slate-600">원금 {formatCurrency(creditor.principal)}원</span>
+                <span className="text-xs text-blue-700">{open ? '접기' : '상세 입력'}</span>
+            </span>
+        </summary>
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 px-4 pt-3">
+            <p className="text-sm text-slate-500">채권자 정보와 금액을 확인해주세요.</p>
+            <button type="button" onClick={() => { if (confirm(`${creditor.name || '이 채권자'} 정보를 삭제하시겠습니까?`)) onRemove(); }} className="border border-red-200 bg-white px-3 text-sm text-red-700">채권자 삭제</button>
+        </div>
+        {children}
+    </details>;
+}
+
 export function CreditorInfoForm({
     creditors,
     onAdd,
@@ -24,9 +43,21 @@ export function CreditorInfoForm({
     onUpdateSecured
 }: CreditorInfoFormProps) {
     return (
-        <div className="space-y-3">
+        <div className="space-y-4">
+            <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div><h2 className="font-bold text-slate-900">채권자 {creditors.length}명</h2><p className="mt-1 text-sm text-slate-600">채권자를 선택해 상세 정보를 펼치세요.</p></div>
+                {creditors.length > 0 && <label className="text-sm text-slate-600">빠른 이동
+                    <select aria-label="채권자 빠른 이동" value="" onChange={event => {
+                        const card = document.getElementById(`creditor-${event.target.value}`) as HTMLDetailsElement | null;
+                        if (card) { card.open = true; card.scrollIntoView({ behavior: 'smooth', block: 'start' }); card.querySelector('summary')?.focus(); }
+                    }} className="mt-1 w-full border bg-white sm:ml-2 sm:w-52">
+                        <option value="">채권자 선택</option>
+                        {creditors.map(c => <option key={c.id} value={c.id}>{c.number}. {c.name || '새 채권자'}</option>)}
+                    </select>
+                </label>}
+            </div>
             {creditors.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 border border-gray-300">
+                <div className="text-center py-12 rounded-xl bg-slate-50 border border-slate-200">
                     <p className="text-gray-600 mb-3">입력된 채권자가 없습니다.</p>
                     <button
                         onClick={onAdd}
@@ -37,26 +68,11 @@ export function CreditorInfoForm({
                 </div>
             ) : (
                 creditors.map((c) => (
-                    <div key={c.id} className="bg-white border-2 border-gray-400">
-                        <div className="bg-gray-100 px-3 py-2 flex justify-between items-center border-b-2 border-gray-400">
-                            <div className="flex items-center gap-2">
-                                <span className="bg-gray-700 text-white px-2 py-1 text-sm font-bold">
-                                    {c.number}
-                                </span>
-                                <h3 className="font-bold text-base text-gray-900">{c.name || '새 채권자'}</h3>
-                            </div>
-                            <button
-                                onClick={() => onRemove(c.id)}
-                                className="text-gray-500 hover:text-red-600 text-sm px-2 py-1 border border-gray-400 bg-white hover:bg-red-50"
-                            >
-                                삭제
-                            </button>
-                        </div>
-
+                    <CreditorSection key={c.id} creditor={c} onRemove={() => onRemove(c.id)}>
                         <div className="p-3 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">채권번호</label>
-                                <input
+                                <label htmlFor={`CreditorInfoForm-${c.id}-1`} className="block text-sm font-medium text-gray-700 mb-1">채권번호</label>
+                                <input id={`CreditorInfoForm-${c.id}-1`}
                                     type="text"
                                     value={c.number}
                                     onChange={(e) => onUpdate(c.id, 'number', e.target.value)}
@@ -64,8 +80,8 @@ export function CreditorInfoForm({
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">채권자명</label>
-                                <input
+                                <label htmlFor={`CreditorInfoForm-${c.id}-2`} className="block text-sm font-medium text-gray-700 mb-1">채권자명</label>
+                                <input id={`CreditorInfoForm-${c.id}-2`}
                                     type="text"
                                     value={c.name}
                                     onChange={(e) => onUpdate(c.id, 'name', e.target.value)}
@@ -74,8 +90,8 @@ export function CreditorInfoForm({
                                 />
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">주소</label>
-                                <input
+                                <label htmlFor={`CreditorInfoForm-${c.id}-3`} className="block text-sm font-medium text-gray-700 mb-1">주소</label>
+                                <input id={`CreditorInfoForm-${c.id}-3`}
                                     type="text"
                                     value={c.address}
                                     onChange={(e) => onUpdate(c.id, 'address', e.target.value)}
@@ -84,8 +100,8 @@ export function CreditorInfoForm({
                                 />
                             </div>
                             <div className="md:col-span-2 lg:col-span-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">원인</label>
-                                <textarea
+                                <label htmlFor={`CreditorInfoForm-${c.id}-4`} className="block text-sm font-medium text-gray-700 mb-1">원인</label>
+                                <textarea id={`CreditorInfoForm-${c.id}-4`}
                                     value={c.reason}
                                     onChange={(e) => onUpdate(c.id, 'reason', e.target.value)}
                                     placeholder="2002.12.20.자 (주)나이스대부 대출금 양수채권"
@@ -94,27 +110,27 @@ export function CreditorInfoForm({
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">전화</label>
-                                <input type="text" value={c.phone} onChange={(e) => onUpdate(c.id, 'phone', e.target.value)} placeholder="02-2135-7339" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-5`} className="block text-sm font-medium text-gray-700 mb-1">전화</label>
+                                <input id={`CreditorInfoForm-${c.id}-5`} type="text" value={c.phone} onChange={(e) => onUpdate(c.id, 'phone', e.target.value)} placeholder="02-2135-7339" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">팩스</label>
-                                <input type="text" value={c.fax} onChange={(e) => onUpdate(c.id, 'fax', e.target.value)} placeholder="0504-847-9030" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-6`} className="block text-sm font-medium text-gray-700 mb-1">팩스</label>
+                                <input id={`CreditorInfoForm-${c.id}-6`} type="text" value={c.fax} onChange={(e) => onUpdate(c.id, 'fax', e.target.value)} placeholder="0504-847-9030" className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">원금</label>
-                                <input type="text" value={formatCurrency(c.principal)} onChange={(e) => onUpdate(c.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-7`} className="block text-sm font-medium text-gray-700 mb-1">원금</label>
+                                <input id={`CreditorInfoForm-${c.id}-7`} type="text" value={formatCurrency(c.principal)} onChange={(e) => onUpdate(c.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">이자</label>
-                                <input type="text" value={formatCurrency(c.interest)} onChange={(e) => onUpdate(c.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-8`} className="block text-sm font-medium text-gray-700 mb-1">이자</label>
+                                <input id={`CreditorInfoForm-${c.id}-8`} type="text" value={formatCurrency(c.interest)} onChange={(e) => onUpdate(c.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">이자기산일</label>
-                                <input type="date" max="9999-12-31" value={c.interestStartDate} onChange={(e) => onUpdate(c.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-9`} className="block text-sm font-medium text-gray-700 mb-1">이자기산일</label>
+                                <input id={`CreditorInfoForm-${c.id}-9`} type="date" max="9999-12-31" value={c.interestStartDate} onChange={(e) => onUpdate(c.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">이자이율</label>
+                                <label htmlFor={`interest-rate-${c.id}`} className="block text-sm font-medium text-gray-700 mb-1">이자이율</label>
                                 <input
                                     id={`interest-rate-${c.id}`}
                                     type="text"
@@ -151,10 +167,10 @@ export function CreditorInfoForm({
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">산정기준일</label>
-                                <input type="date" max="9999-12-31" value={c.baseDate} onChange={(e) => onUpdate(c.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                <label htmlFor={`CreditorInfoForm-${c.id}-11`} className="block text-sm font-medium text-gray-700 mb-1">산정기준일</label>
+                                <input id={`CreditorInfoForm-${c.id}-11`} type="date" max="9999-12-31" value={c.baseDate} onChange={(e) => onUpdate(c.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <label className="flex items-center gap-1 cursor-pointer">
                                     <input
                                         type="checkbox"
@@ -237,39 +253,39 @@ export function CreditorInfoForm({
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">채권번호</label>
-                                                <input readOnly value={sub.number} className="w-full px-2 py-1 bg-gray-100 border border-gray-400 text-base cursor-default outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-12`} className="block text-sm font-medium text-blue-900 mb-1">채권번호</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-12`} readOnly value={sub.number} className="w-full px-2 py-1 bg-gray-100 border border-gray-400 text-base cursor-default outline-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">대위변제자명</label>
-                                                <input type="text" value={sub.name} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'name', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-13`} className="block text-sm font-medium text-blue-900 mb-1">대위변제자명</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-13`} type="text" value={sub.name} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'name', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div className="md:col-span-2">
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">주소</label>
-                                                <input type="text" value={sub.address} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'address', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-14`} className="block text-sm font-medium text-blue-900 mb-1">주소</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-14`} type="text" value={sub.address} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'address', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div className="lg:col-span-4">
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">원인 (대위변제)</label>
-                                                <textarea value={sub.reason} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'reason', e.target.value)} rows={2} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none resize-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-15`} className="block text-sm font-medium text-blue-900 mb-1">원인 (대위변제)</label>
+                                                <textarea id={`CreditorInfoForm-${sub.id}-15`} value={sub.reason} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'reason', e.target.value)} rows={2} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none resize-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">전화</label>
-                                                <input type="text" value={sub.phone} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'phone', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-16`} className="block text-sm font-medium text-blue-900 mb-1">전화</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-16`} type="text" value={sub.phone} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'phone', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">원금</label>
-                                                <input type="text" value={formatCurrency(sub.principal)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-17`} className="block text-sm font-medium text-blue-900 mb-1">원금</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-17`} type="text" value={formatCurrency(sub.principal)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'principal', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자</label>
-                                                <input type="text" value={formatCurrency(sub.interest || 0)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-18`} className="block text-sm font-medium text-blue-900 mb-1">이자</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-18`} type="text" value={formatCurrency(sub.interest || 0)} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interest', parseCurrency(e.target.value))} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자기산일</label>
-                                                <input type="date" max="9999-12-31" value={sub.interestStartDate || ''} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-19`} className="block text-sm font-medium text-blue-900 mb-1">이자기산일</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-19`} type="date" max="9999-12-31" value={sub.interestStartDate || ''} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'interestStartDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">이자이율</label>
+                                                <label htmlFor={`sub-interest-rate-${sub.id}`} className="block text-sm font-medium text-blue-900 mb-1">이자이율</label>
                                                 <input
                                                     id={`sub-interest-rate-${sub.id}`}
                                                     type="text"
@@ -305,8 +321,8 @@ export function CreditorInfoForm({
                                                 </div>
                                             </div>
                                             <div>
-                                                <label className="block text-sm font-medium text-blue-900 mb-1">산정기준일</label>
-                                                <input type="date" max="9999-12-31" value={sub.baseDate} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
+                                                <label htmlFor={`CreditorInfoForm-${sub.id}-21`} className="block text-sm font-medium text-blue-900 mb-1">산정기준일</label>
+                                                <input id={`CreditorInfoForm-${sub.id}-21`} type="date" max="9999-12-31" value={sub.baseDate} onChange={(e) => onUpdateSubrogation(c.id, sub.id, 'baseDate', e.target.value)} className="w-full px-2 py-1 bg-white border border-gray-400 text-base focus:border-gray-600 focus:outline-none" />
                                             </div>
                                         </div>
                                     </div>
@@ -332,8 +348,8 @@ export function CreditorInfoForm({
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                     <div>
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">채권현재액</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-22`} className="block text-sm font-medium text-purple-900 mb-1">채권현재액</label>
+                                        <input id={`CreditorInfoForm-${c.id}-22`}
                                             type="text"
                                             value={formatCurrency(c.securedData.currentAmount)}
                                             onChange={(e) => onUpdateSecured(c.id, 'currentAmount', parseCurrency(e.target.value))}
@@ -341,8 +357,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">채권최고액</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-23`} className="block text-sm font-medium text-purple-900 mb-1">채권최고액</label>
+                                        <input id={`CreditorInfoForm-${c.id}-23`}
                                             type="text"
                                             value={formatCurrency(c.securedData.maxAmount)}
                                             onChange={(e) => onUpdateSecured(c.id, 'maxAmount', parseCurrency(e.target.value))}
@@ -350,8 +366,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">별제권행사 변제예상액</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-24`} className="block text-sm font-medium text-purple-900 mb-1">별제권행사 변제예상액</label>
+                                        <input id={`CreditorInfoForm-${c.id}-24`}
                                             type="text"
                                             value={formatCurrency(c.securedData.expectedRepaymentAmount)}
                                             onChange={(e) => onUpdateSecured(c.id, 'expectedRepaymentAmount', parseCurrency(e.target.value))}
@@ -359,8 +375,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">담보부회생채권액</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-25`} className="block text-sm font-medium text-purple-900 mb-1">담보부회생채권액</label>
+                                        <input id={`CreditorInfoForm-${c.id}-25`}
                                             type="text"
                                             value={formatCurrency(c.securedData.securedRehabilitationAmount)}
                                             onChange={(e) => onUpdateSecured(c.id, 'securedRehabilitationAmount', parseCurrency(e.target.value))}
@@ -368,8 +384,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">별제권행사 변제불능액</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-26`} className="block text-sm font-medium text-purple-900 mb-1">별제권행사 변제불능액</label>
+                                        <input id={`CreditorInfoForm-${c.id}-26`}
                                             type="text"
                                             value={formatCurrency(c.securedData.unrepayableAmount)}
                                             onChange={(e) => onUpdateSecured(c.id, 'unrepayableAmount', parseCurrency(e.target.value))}
@@ -377,8 +393,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div className="md:col-span-2 lg:col-span-3">
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">환가예상액 (계산식)</label>
-                                        <input
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-27`} className="block text-sm font-medium text-purple-900 mb-1">환가예상액 (계산식)</label>
+                                        <input id={`CreditorInfoForm-${c.id}-27`}
                                             type="text"
                                             value={c.securedData.expectedLiquidationValue}
                                             onChange={(e) => onUpdateSecured(c.id, 'expectedLiquidationValue', e.target.value)}
@@ -387,8 +403,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div className="md:col-span-2 lg:col-span-4">
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">목적물</label>
-                                        <textarea
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-28`} className="block text-sm font-medium text-purple-900 mb-1">목적물</label>
+                                        <textarea id={`CreditorInfoForm-${c.id}-28`}
                                             value={c.securedData.collateralObject}
                                             onChange={(e) => onUpdateSecured(c.id, 'collateralObject', e.target.value)}
                                             placeholder="예: 서울시 강남구 테헤란로 123 아파트 101호"
@@ -397,8 +413,8 @@ export function CreditorInfoForm({
                                         />
                                     </div>
                                     <div className="md:col-span-2 lg:col-span-4">
-                                        <label className="block text-sm font-medium text-purple-900 mb-1">별제권내용</label>
-                                        <textarea
+                                        <label htmlFor={`CreditorInfoForm-${c.id}-29`} className="block text-sm font-medium text-purple-900 mb-1">별제권내용</label>
+                                        <textarea id={`CreditorInfoForm-${c.id}-29`}
                                             value={c.securedData.securedRightDetails}
                                             onChange={(e) => onUpdateSecured(c.id, 'securedRightDetails', e.target.value)}
                                             placeholder="예: 근저당권, 전세권 등"
@@ -409,7 +425,7 @@ export function CreditorInfoForm({
                                 </div>
                             </div>
                         )}
-                    </div>
+                    </CreditorSection>
                 ))
             )}
 

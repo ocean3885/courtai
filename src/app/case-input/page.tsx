@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { validateCase } from '@/lib/case-validation';
 import { MainLayout } from '@/components/layout';
 import { DebtorInfoForm } from './components/DebtorInfoForm';
 import { CreditorInfoForm } from './components/CreditorInfoForm';
@@ -54,7 +55,7 @@ const createInitialRepaymentPlan = (): RepaymentPlan => ({
     dependentsCount: 1,
     standardMedianIncome: 0,
     adjustedLivingCost: 0,
-    createDate: new Date().toISOString().split('T')[0],
+    createDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }),
 });
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -80,6 +81,11 @@ function CreditorListContent() {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [saveMessage, setSaveMessage] = useState<string>('');
+    const [messageType, setMessageType] = useState<'success' | 'error'>('success');
+    const [generationError, setGenerationError] = useState('');
+    useEffect(() => {
+        if (generationError) document.getElementById('generation-error')?.focus();
+    }, [generationError]);
 
     useEffect(() => {
         fetch('/api/auth/me')
@@ -433,7 +439,7 @@ function CreditorListContent() {
         setCreditors(SAMPLE_CREDITORS);
         setRepaymentPlan({
             ...SAMPLE_REPAYMENT_PLAN,
-            createDate: new Date().toISOString().split('T')[0], // 생성일만 오늘 날짜로 갱신
+            createDate: new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }), // 생성일만 오늘 날짜로 갱신
         });
 
         setTitle('샘플(체험) 사건');
@@ -478,16 +484,18 @@ function CreditorListContent() {
             if (res.ok) {
                 const json = await res.json();
                 if (!loadedId) setLoadedId(json.id);
+                setMessageType('success');
                 setSaveMessage('저장되었습니다.');
                 setTimeout(() => setSaveMessage(''), 3000);
             } else {
-                setSaveMessage('저장 실패.');
-                setTimeout(() => setSaveMessage(''), 3000);
+                const failure = await res.json();
+                setMessageType('error');
+                setSaveMessage(failure.error || '저장 실패.');
             }
         } catch (e) {
             console.error(e);
+            setMessageType('error');
             setSaveMessage('저장 중 오류가 발생했습니다.');
-            setTimeout(() => setSaveMessage(''), 3000);
         } finally {
             setIsSaving(false);
         }
@@ -512,12 +520,14 @@ function CreditorListContent() {
     };
 
     const handleGenerate = async () => {
+        setGenerationError('');
         setIsGenerating(true);
         try {
+            validateCase(title || '체험용 문서', { debtorInfo, creditors, repaymentPlan }, true);
             let res;
             if (isLoggedIn) {
                 if (!loadedId) {
-                    alert('먼저 데이터를 저장해주세요.');
+                    setGenerationError('먼저 상단 저장 버튼으로 사건을 저장해주세요.');
                     setIsGenerating(false);
                     return;
                 }
@@ -532,6 +542,7 @@ function CreditorListContent() {
 
                 if (res.ok) {
                     const data = await res.json();
+                    setMessageType('success');
                     setSaveMessage('채권자목록 및 변제계획안이 생성되었습니다.');
                     setTimeout(() => setSaveMessage(''), 2000);
 
@@ -541,7 +552,7 @@ function CreditorListContent() {
                     const errorData = await res.json();
                     const errorMessage = errorData.error || JSON.stringify(errorData);
                     console.error('Generate failed:', errorMessage);
-                    alert(`생성 실패 (회원): ${errorMessage}`);
+                    setGenerationError(errorMessage);
                 }
             } else {
                 // 비로그인 사용자: 로컬 스토리지에 저장하고 미리보기 페이지로 이동 (DB 저장 안 함)
@@ -551,6 +562,7 @@ function CreditorListContent() {
                 };
                 localStorage.setItem('temp_case_data', JSON.stringify(tempData));
 
+                setMessageType('success');
                 setSaveMessage('문서가 생성되었습니다.');
                 setTimeout(() => setSaveMessage(''), 2000);
 
@@ -560,7 +572,7 @@ function CreditorListContent() {
         } catch (error: unknown) {
             console.error('Generation error:', error);
             const message = error instanceof Error ? error.message : '알 수 없는 오류';
-            alert(`생성 중 오류가 발생했습니다: ${message}`);
+            setGenerationError(message);
         } finally {
             setIsGenerating(false);
         }
@@ -587,30 +599,33 @@ function CreditorListContent() {
 
     return (
         <MainLayout>
-            <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="case-workspace max-w-7xl mx-auto px-4 py-5">
                 {/* 탭 메뉴 */}
-                <div className="flex gap-2 mb-4 border-b-2 border-gray-300">
+                <div className="mb-5 grid grid-cols-3 gap-1 border-b border-slate-200" aria-label="서류 작성 단계">
                     <button
+                        aria-current={activeTab === 'debtor' ? 'step' : undefined}
                         onClick={() => setActiveTab('debtor')}
-                        className={`px-4 py-2 font-medium text-base ${activeTab === 'debtor'
+                        className={`min-h-12 whitespace-nowrap px-1 py-3 text-sm font-semibold sm:text-base ${activeTab === 'debtor'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
                             : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
-                        1. 채무자정보
+                        1. 채무자
                     </button>
                     <button
+                        aria-current={activeTab === 'creditor' ? 'step' : undefined}
                         onClick={() => setActiveTab('creditor')}
-                        className={`px-4 py-2 font-medium text-base ${activeTab === 'creditor'
+                        className={`min-h-12 whitespace-nowrap px-1 py-3 text-sm font-semibold sm:text-base ${activeTab === 'creditor'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
                             : 'text-gray-600 hover:text-gray-900'
                             }`}
                     >
-                        2. 채권자정보
+                        2. 채권자
                     </button>
                     <button
+                        aria-current={activeTab === 'plan' ? 'step' : undefined}
                         onClick={() => setActiveTab('plan')}
-                        className={`px-4 py-2 font-medium text-base ${activeTab === 'plan'
+                        className={`min-h-12 whitespace-nowrap px-1 py-3 text-sm font-semibold sm:text-base ${activeTab === 'plan'
                             ? 'border-b-2 border-blue-600 text-blue-600 -mb-0.5'
                             : 'text-gray-600 hover:text-gray-900'
                             }`}
@@ -619,14 +634,15 @@ function CreditorListContent() {
                     </button>
                 </div>
 
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4 pb-3 border-b-2 border-gray-300">
+                <div className={`mb-4 flex flex-col items-start justify-between gap-3 border-b border-slate-200 pb-3 md:flex-row md:items-center ${isLoggedIn ? 'sticky top-[68px] z-20 bg-white/95 py-3 backdrop-blur' : ''}`}>
                     <div className="flex-1 w-full md:w-auto">
                         <div className="flex items-center gap-2">
                             <input
                                 type="text"
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                placeholder="사건명을 입력하세요 (미입력 시 자동생성)"
+                                aria-label="사건명"
+                                placeholder="사건명 (미입력 시 자동 생성)"
                                 className="text-lg font-bold text-gray-900 border-b-2 border-transparent hover:border-gray-300 focus:border-blue-500 focus:outline-none bg-transparent w-full transition-colors placeholder:text-gray-400 placeholder:font-normal"
                             />
                         </div>
@@ -643,7 +659,7 @@ function CreditorListContent() {
                         </button>
                     )}
                     {isLoggedIn && (
-                        <div className="flex gap-2">
+                        <div className="flex w-full flex-wrap gap-2 md:w-auto">
                             <button
                                 onClick={() => { fetchSavedLists(); setSearchTerm(''); setCurrentPage(1); setShowLoadModal(true); }}
                                 className="px-3 py-1 bg-white text-gray-700 border border-gray-400 hover:bg-gray-100 text-base"
@@ -681,7 +697,7 @@ function CreditorListContent() {
 
                 {/* 저장 성공 메시지 */}
                 {saveMessage && (
-                    <div className="mt-3 p-3 bg-green-100 border border-green-400 text-green-800 text-base">
+                    <div role={messageType === 'error' ? 'alert' : 'status'} className={`mb-4 rounded-lg border p-3 text-sm ${messageType === 'error' ? 'border-red-200 bg-red-50 text-red-800' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>
                         {saveMessage}
                     </div>
                 )}
@@ -708,6 +724,7 @@ function CreditorListContent() {
                     />
                 )}
 
+                {generationError && <p id="generation-error" tabIndex={-1} role="alert" className="my-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">{generationError}</p>}
                 {/* 변제계획 탭 */}
                 {
                     activeTab === 'plan' && (
@@ -719,6 +736,10 @@ function CreditorListContent() {
                         />
                     )
                 }
+                <nav className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4" aria-label="입력 단계 이동">
+                    {activeTab !== 'debtor' ? <button type="button" className="border border-slate-300 px-4 text-sm text-slate-700" onClick={() => { setActiveTab(activeTab === 'plan' ? 'creditor' : 'debtor'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>이전 단계</button> : <p className="text-sm text-slate-500">1/3 · 채무자 기본정보</p>}
+                    {activeTab !== 'plan' ? <button type="button" className="bg-blue-600 px-4 text-sm font-semibold text-white" onClick={() => { setActiveTab(activeTab === 'debtor' ? 'creditor' : 'plan'); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>다음: {activeTab === 'debtor' ? '채권자 입력' : '변제계획'}</button> : <p className="text-sm text-slate-500">3/3 · 입력 완료 후 문서를 생성하세요.</p>}
+                </nav>
             </div >
 
             {/* 불러오기 모달 */}
