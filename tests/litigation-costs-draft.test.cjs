@@ -15,7 +15,7 @@ test('draft round trip preserves empty amounts, counterclaim parties and scope o
 });
 
 test('corrupt storage, incompatible versions and malformed nested references are rejected', () => {
-  for (const raw of ['null', '{}', '{', JSON.stringify({ ...blankDraft(), version: 2 })]) assert.throws(() => parseDraft(raw));
+  for (const raw of ['null', '{}', '{', JSON.stringify({ ...blankDraft(), version: 3 })]) assert.throws(() => parseDraft(raw));
   const d = sampleDraft();
   d.costs[0].payerIds = null;
   assert.throws(() => parseDraft(JSON.stringify(d)));

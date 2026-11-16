@@ -1,18 +1,23 @@
-// 입력·검토 초안 모델. 운영 법률 계산이나 확정 처리는 수행하지 않는다.
+// 입력·검토 모델. 직원 인정액의 배분 가계산과 법률상 확정 처리를 구분한다.
+import { emptyCalculation, isCalculationInput, type CalculationInput } from './litigation-costs-calculation-types';
+import { sampleCalculation } from './litigation-costs-sample-calculation';
 export type Party = { id: string; name: string; mainRole: string; applicationRole: string };
 export type Claim = { id: string; kind: string; title: string; claimantIds: string[]; opponentIds: string[]; value: string; relation: string };
 export type Stage = { id: string; type: string; number: string; partyIds: string[]; appealScope: string; changes: string };
-export type Ruling = { id: string; text: string; stageIds: string[]; claimIds: string[]; payerIds: string[]; receiverIds: string[]; numerator: string; denominator: string; status: string };
+export type Ruling = { id: string; text: string; stageIds: string[]; claimIds: string[]; payerIds: string[]; receiverIds: string[]; numerator: string; denominator: string; reverseNumerator: string; reverseDenominator: string; status: string };
 export type Mandate = { id: string; name: string; partyIds: string[]; stageIds: string[]; claimIds: string[]; start: string; end: string; endReason: string; agreed: string; paid: string; evidence: string };
 export type Cost = { id: string; title: string; kind: string; stageId: string; payerIds: string[]; claimIds: string[]; claimed: string; refund: string; recognized: string; evidence: string; allocation: string; targetIds: string[]; reason: string; note: string };
 export type LitigationDraft = {
-  version: 1;
+  version: 2;
+  referenceCaseId?: string;
   meta: { title: string; court: string; number: string; applicationDate: string; requested: string; scopeNote: string };
   parties: Party[]; claims: Claim[]; stages: Stage[]; rulings: Ruling[]; mandates: Mandate[]; costs: Cost[];
   review: { highestDate: string; responseDeadline: string; responseState: string; setoff: string; rounding: string; notes: string };
+  calculation: CalculationInput;
 };
 
-export const STORAGE_KEY = 'courtai.litigation-costs.draft.v1';
+export const STORAGE_KEY = 'courtai.litigation-costs.draft.v2';
+export const LEGACY_STORAGE_KEY = 'courtai.litigation-costs.draft.v1';
 export const stageTypes = ['제1심', '항소심', '상고심', '환송심', '재상고심', '확정신청'];
 export const allocationTypes = ['미정', '직접 귀속', '소가 비례', '인원 균등', '개별 검토'];
 export const money = (n: number) => n.toLocaleString('ko-KR') + '원';
@@ -23,10 +28,11 @@ export function amount(value: string): number | null {
 }
 export function blankDraft(): LitigationDraft {
   return {
-    version: 1,
+    version: 2,
     meta: { title: '', court: '', number: '', applicationDate: '', requested: '', scopeNote: '' },
     parties: [], claims: [], stages: [], rulings: [], mandates: [], costs: [],
     review: { highestDate: '', responseDeadline: '', responseState: '미확인', setoff: '미검토', rounding: '미확정', notes: '' },
+    calculation: emptyCalculation(),
   };
 }
 
@@ -39,7 +45,8 @@ export function parseDraft(raw: string): LitigationDraft {
   if (raw.length > 2_000_000) throw new Error('초안 크기가 너무 큽니다.');
   const x: unknown = JSON.parse(raw);
   const fail = () => { throw new Error('저장된 초안의 형식이 맞지 않습니다.'); };
-  if (!strings(x) || x.version !== 1) return fail();
+  if (!strings(x) || ![1, 2].includes(Number(x.version)) || typeof x.version !== 'number') return fail();
+  if (x.referenceCaseId !== undefined && (typeof x.referenceCaseId !== 'string' || x.referenceCaseId.length > 200)) return fail();
   const shape: Record<string, [string[], string[]]> = {
     parties: [['id', 'name', 'mainRole', 'applicationRole'], []],
     claims: [['id', 'kind', 'title', 'value', 'relation'], ['claimantIds', 'opponentIds']],
@@ -56,6 +63,9 @@ export function parseDraft(raw: string): LitigationDraft {
     const ids = values.map(v => v.id);
     if (ids.some(id => !id) || new Set(ids).size !== ids.length) return fail();
   }
+  if (x.version === 1) return { ...x, version: 2, rulings: (x.rulings as Record<string, unknown>[]).map(r => ({ ...r, reverseNumerator: '', reverseDenominator: '' })), calculation: emptyCalculation() } as unknown as LitigationDraft;
+  if (!(x.rulings as unknown[]).every(r => fields(r, ['reverseNumerator', 'reverseDenominator']))) return fail();
+  if (!isCalculationInput(x.calculation)) return fail();
   return x as unknown as LitigationDraft;
 }
 
@@ -101,6 +111,8 @@ export function reviewDraft(d: LitigationDraft): ReviewIssue[] {
     if (r.payerIds.some(id => r.receiverIds.includes(id))) add(2, `${label}: 부담자와 상대방이 겹칩니다.`);
     const n = amount(r.numerator), den = amount(r.denominator);
     if (n === null || den === null || den === 0 || n > den) add(2, `${label}: 부담 비율은 0~1의 분수여야 합니다. 분모는 0일 수 없습니다.`);
+    const rev = amount(r.reverseNumerator), revDen = amount(r.reverseDenominator);
+    if (rev === null || revDen === null || revDen === 0 || rev > revDen) add(2, `${label}: 역방향 부담 비율을 0~1의 분수로 확인하세요.`);
     if (r.status !== '검토함') add(2, `${label}: 주문의 적용 범위·효력을 확인하세요.`);
   });
   d.mandates.forEach((m, i) => {
@@ -135,7 +147,13 @@ export function reviewDraft(d: LitigationDraft): ReviewIssue[] {
 }
 
 export function isReferenced(d: LitigationDraft, id: string): boolean {
-  return [...d.claims, ...d.stages, ...d.rulings, ...d.mandates, ...d.costs].some(row =>
+  const linked = (x: unknown): boolean => {
+    if (Array.isArray(x)) return x.some(linked);
+    if (!x || typeof x !== 'object') return false;
+    return Object.entries(x).some(([key, value]) => key !== 'id' &&
+      ((key.endsWith('Id') && value === id) || (key.endsWith('Ids') && Array.isArray(value) && value.includes(id)) || linked(value)));
+  };
+  return linked(d.calculation) || [...d.claims, ...d.stages, ...d.rulings, ...d.mandates, ...d.costs].some(row =>
     Object.entries(row).some(([key, value]) => key !== 'id' && (Array.isArray(value) ? value.includes(id) : key === 'stageId' && value === id)));
 }
 
@@ -155,7 +173,7 @@ export function sampleDraft(): LitigationDraft {
   ];
   d.rulings = defendants.flatMap(defendant => p.map((person, i) => ({
     id: `${defendant}-${person}`, text: i < 2 ? '가·나와 각 피고 사이의 소송총비용: 원고 30%, 해당 피고 70%. A와의 관계는 본소·반소를 통틀어 정함.' : '다·라와 각 피고 사이의 비용은 피고들이 부담한다.',
-    stageIds: ['s1', 's2'], claimIds: defendant === 'A' && i < 2 ? ['main', 'counter'] : ['main'], payerIds: [defendant], receiverIds: [person], numerator: i < 2 ? '7' : '1', denominator: i < 2 ? '10' : '1', status: '미확인',
+    stageIds: ['s1', 's2'], claimIds: defendant === 'A' && i < 2 ? ['main', 'counter'] : ['main'], payerIds: [defendant], receiverIds: [person], numerator: i < 2 ? '7' : '1', denominator: i < 2 ? '10' : '1', reverseNumerator: i < 2 ? '3' : '0', reverseDenominator: i < 2 ? '10' : '1', status: '미확인',
   })));
   d.mandates = [
     { id: 'mp', name: '원고 측 공동대리 (자료상 표기)', partyIds: p, stageIds: ['s1', 's2'], claimIds: ['main', 'counter'], start: '', end: '', endReason: '', agreed: '', paid: '', evidence: '첨부자료 별지 2. 계약서·선임일은 별도 자료 없음.' },
@@ -181,6 +199,7 @@ export function sampleDraft(): LitigationDraft {
     cost('application', '확정신청 인지·송달료', '신청비용', 'app', p, [], 27293, 0, '인원 균등', all, '원고 4명·피고 2명에 배분한 후 가·나 70%, 다·라 100% 상대방 부담.'),
   ];
   d.review.notes = '방향별 10원 미만 절사 후 상계 시 8개 금액 재현. 총괄표 정밀 합계 1원 차이 미해결. 이 사례에는 상고·사임 사례가 포함되지 않음.';
+  d.calculation = sampleCalculation();
   return d;
 }
 

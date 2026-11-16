@@ -15,6 +15,7 @@ module.exports = function loader(mocks = {}) {
     const localRequire = name => {
       if (Object.hasOwn(mocks, name)) return mocks[name];
       if (name.startsWith('@/')) return load('src/' + name.slice(2) + '.ts');
+      if (name.startsWith('.') && name.endsWith('.json')) return JSON.parse(fs.readFileSync(path.resolve(path.dirname(filename), name), 'utf8'));
       if (name.startsWith('.')) return load(path.resolve(path.dirname(filename), name) + '.ts');
       return require(name);
     };

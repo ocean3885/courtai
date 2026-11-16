@@ -1,0 +1,3681 @@
+{
+  "description": "입력 인정액·명시적 배분의 독립 분수 검산. 원문 기재액의 차이를 그대로 보존하며 법률상 정답·현행 보수 기준으로 확정하지 않음.",
+  "cases": [
+    {
+      "id": "B01",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "3366304",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3366304"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "3100004",
+          "allocated": {
+            "numerator": "3100004",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "230000",
+          "allocated": {
+            "numerator": "230000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "26120",
+          "allocated": {
+            "numerator": "26120",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "10180",
+          "allocated": {
+            "numerator": "10180",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 4,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "3366304",
+          "computed": "3366304",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B02",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "10573240",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "10573240"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "6600000",
+          "allocated": {
+            "numerator": "6600000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "2310000",
+          "allocated": {
+            "numerator": "2310000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "1650000",
+          "allocated": {
+            "numerator": "1650000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "13240",
+          "allocated": {
+            "numerator": "13240",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 4,
+      "sourceComparison": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "net": "10573240",
+          "computed": "10573240",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B03",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "3963786",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "2750000",
+            "denominator": "3"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3047119"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "5151409",
+          "allocated": {
+            "numerator": "5151409",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "525200",
+          "allocated": {
+            "numerator": "525200",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "57890",
+          "allocated": {
+            "numerator": "57890",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "200000",
+          "allocated": {
+            "numerator": "200000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "11180",
+          "allocated": {
+            "numerator": "11180",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-6",
+          "recognized": "2750000",
+          "allocated": {
+            "numerator": "2750000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 6,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "3047119",
+          "computed": "3047119",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B04",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "513466",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "513460"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "513466",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "513460"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D3",
+          "forward": {
+            "numerator": "513466",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "513460"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "1307008",
+          "allocated": {
+            "numerator": "1307008",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "82500",
+          "allocated": {
+            "numerator": "82500",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "75570",
+          "allocated": {
+            "numerator": "75570",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "75320",
+          "allocated": {
+            "numerator": "75320",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 12,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "513460",
+          "computed": "513460",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "net": "513460",
+          "computed": "513460",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D3",
+          "net": "513460",
+          "computed": "513460",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B05",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "2913900",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2913900"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "2913900",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2913900"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "5800000",
+          "allocated": {
+            "numerator": "5800000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "27800",
+          "allocated": {
+            "numerator": "27800",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 4,
+      "sourceComparison": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "net": "2913900",
+          "computed": "2913900",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P1",
+          "net": "2913900",
+          "computed": "2913900",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B06",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "108517032374141768",
+            "denominator": "4047335881"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "26811966"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "113229838600568824",
+            "denominator": "4047335881"
+          },
+          "reverse": {
+            "numerator": "1100000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "26876387"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D3",
+          "forward": {
+            "numerator": "107996609425448824",
+            "denominator": "4047335881"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "26683382"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "15032280",
+          "allocated": {
+            "numerator": "15032280",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "5967500",
+          "allocated": {
+            "numerator": "5967500",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "114410",
+          "allocated": {
+            "numerator": "114410",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "79200000",
+          "allocated": {
+            "numerator": "79200000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "1500000",
+          "allocated": {
+            "numerator": "1500000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-6",
+          "recognized": "25480",
+          "allocated": {
+            "numerator": "25480",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-7",
+          "recognized": "5500000",
+          "allocated": {
+            "numerator": "5500000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 19,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "26811966",
+          "computed": "26811966",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "net": "26876388",
+          "computed": "26876387",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D3",
+          "net": "26683382",
+          "computed": "26683382",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B07",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "10689433",
+            "denominator": "3"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3563140"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "21483461",
+            "denominator": "9"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2387050"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "21483461",
+            "denominator": "9"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2387050"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "21483461",
+            "denominator": "9"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2387050"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "5040869",
+          "allocated": {
+            "numerator": "5040869",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "5040869",
+          "allocated": {
+            "numerator": "5040869",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "503100",
+          "allocated": {
+            "numerator": "503100",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "84340",
+          "allocated": {
+            "numerator": "84340",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "55120",
+          "allocated": {
+            "numerator": "55120",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 20,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "3563140",
+          "computed": "3563140",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "net": "2387050",
+          "computed": "2387050",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "net": "2387050",
+          "computed": "2387050",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D1",
+          "net": "2387050",
+          "computed": "2387050",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B08",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P7",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P8",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P9",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P10",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P11",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P12",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P13",
+          "forward": {
+            "numerator": "75571126",
+            "denominator": "119"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "635050"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P14",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P15",
+          "forward": {
+            "numerator": "3267294",
+            "denominator": "17"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "192190"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P16",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P17",
+          "forward": {
+            "numerator": "411163616",
+            "denominator": "357"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1151710"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "3100004",
+          "allocated": {
+            "numerator": "3100004",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "3100004",
+          "allocated": {
+            "numerator": "3100004",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "3100004",
+          "allocated": {
+            "numerator": "3100004",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "167290",
+          "allocated": {
+            "numerator": "167290",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 47,
+      "sourceComparison": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P2",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P3",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P4",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P5",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P6",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P7",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P8",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P9",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P10",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P11",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P12",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P13",
+          "net": "635050",
+          "computed": "635050",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P14",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P15",
+          "net": "192190",
+          "computed": "192190",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P16",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P17",
+          "net": "1151710",
+          "computed": "1151710",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B09",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "9381582154578815",
+            "denominator": "894262407"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "10490860"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "571410882034030",
+            "denominator": "894262407"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "638974"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "571410882034030",
+            "denominator": "894262407"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "638974"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "13700000",
+          "allocated": {
+            "numerator": "13700000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "6814800",
+          "allocated": {
+            "numerator": "6814800",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "134300",
+          "allocated": {
+            "numerator": "134300",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "1600000",
+          "allocated": {
+            "numerator": "1600000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "10570",
+          "allocated": {
+            "numerator": "10570",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 15,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "10490860",
+          "computed": "10490860",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "net": "638975",
+          "computed": "638974",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "net": "638975",
+          "computed": "638974",
+          "difference": "-1"
+        }
+      ]
+    },
+    {
+      "id": "B10",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "138108354165",
+            "denominator": "58916"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2344157"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "138108354165",
+            "denominator": "58916"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2344157"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "12995745015",
+            "denominator": "5356"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2426390"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "12995745015",
+            "denominator": "5356"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "2426390"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "4921010015",
+            "denominator": "5356"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "918784"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "4921010015",
+            "denominator": "5356"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "918784"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "596054555",
+            "denominator": "572"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1042053"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "596054555",
+            "denominator": "572"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1042053"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "6000000",
+          "allocated": {
+            "numerator": "6000000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "1199000",
+          "allocated": {
+            "numerator": "1199000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "93890",
+          "allocated": {
+            "numerator": "93890",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "6150000",
+          "allocated": {
+            "numerator": "6150000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "19880",
+          "allocated": {
+            "numerator": "19880",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 38,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "2344157",
+          "computed": "2344157",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "net": "2344157",
+          "computed": "2344157",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "net": "2426390",
+          "computed": "2426390",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D2",
+          "net": "2426390",
+          "computed": "2426390",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D1",
+          "net": "918785",
+          "computed": "918784",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "P3",
+          "respondentId": "D2",
+          "net": "918785",
+          "computed": "918784",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D1",
+          "net": "1042053",
+          "computed": "1042053",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P4",
+          "respondentId": "D2",
+          "net": "1042053",
+          "computed": "1042053",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B11",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "1001441195",
+            "denominator": "177198"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "5651"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "3338214085",
+            "denominator": "88599"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "37677"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "607823688005",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "116277"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "211769333855",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "40511"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "1369944570395",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "262072"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "3977929637285",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "760985"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "1038408572275",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "99324"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "67564927985",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "12925"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "35429295325",
+            "denominator": "10454682"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "3388"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "294811497695",
+            "denominator": "20909364"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "14099"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P2",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P3",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P4",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P5",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P6",
+          "forward": {
+            "numerator": "151494998510",
+            "denominator": "5227341"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "28981"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "8533815",
+          "allocated": {
+            "numerator": "8533815",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "49960",
+          "allocated": {
+            "numerator": "49960",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 168,
+      "sourceComparison": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P2",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P3",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P4",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P5",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D1",
+          "respondentId": "P6",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P1",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P2",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P3",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P4",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P5",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D2",
+          "respondentId": "P6",
+          "net": "5652",
+          "computed": "5651",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P1",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P2",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P3",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P4",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P5",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D3",
+          "respondentId": "P6",
+          "net": "37678",
+          "computed": "37677",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P1",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P2",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P3",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P4",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P5",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D4",
+          "respondentId": "P6",
+          "net": "116278",
+          "computed": "116277",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P1",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P2",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P3",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P4",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P5",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D5",
+          "respondentId": "P6",
+          "net": "40512",
+          "computed": "40511",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P1",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P2",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P3",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P4",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P5",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D6",
+          "respondentId": "P6",
+          "net": "262073",
+          "computed": "262072",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P1",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P2",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P3",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P4",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P5",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D7",
+          "respondentId": "P6",
+          "net": "760985",
+          "computed": "760985",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P1",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P2",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P3",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P4",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P5",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D8",
+          "respondentId": "P6",
+          "net": "99325",
+          "computed": "99324",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P1",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P2",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P3",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P4",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P5",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D9",
+          "respondentId": "P6",
+          "net": "12925",
+          "computed": "12925",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P1",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P2",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P3",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P4",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P5",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D10",
+          "respondentId": "P6",
+          "net": "3389",
+          "computed": "3388",
+          "difference": "-1"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P1",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P2",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P3",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P4",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P5",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D11",
+          "respondentId": "P6",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P1",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P2",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P3",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P4",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P5",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D12",
+          "respondentId": "P6",
+          "net": "14099",
+          "computed": "14099",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P1",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P2",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P3",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P4",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P5",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D13",
+          "respondentId": "P6",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P1",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P2",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P3",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P4",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P5",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        },
+        {
+          "applicantId": "D14",
+          "respondentId": "P6",
+          "net": "28981",
+          "computed": "28981",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "B12",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "625476",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "372000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "253476"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "625476",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "372000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "253476"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "425676",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "248000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "177676"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D2",
+          "forward": {
+            "numerator": "425676",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "248000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "177676"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "3100000",
+          "allocated": {
+            "numerator": "3100000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "230000",
+          "allocated": {
+            "numerator": "230000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "151440",
+          "allocated": {
+            "numerator": "151440",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "22400",
+          "allocated": {
+            "numerator": "22400",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-5",
+          "recognized": "3100000",
+          "allocated": {
+            "numerator": "3100000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 20,
+      "sourceComparison": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "net": "253476",
+          "computed": "253476",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P1",
+          "respondentId": "D2",
+          "net": "253476",
+          "computed": "253476",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D1",
+          "net": "177676",
+          "computed": "177676",
+          "difference": "0"
+        },
+        {
+          "applicantId": "P2",
+          "respondentId": "D2",
+          "net": "177676",
+          "computed": "177676",
+          "difference": "0"
+        }
+      ]
+    },
+    {
+      "id": "S01",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "forward": {
+            "numerator": "164443039289991",
+            "denominator": "96931832"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "1696480"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "3300000",
+          "allocated": {
+            "numerator": "3300000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "327400",
+          "allocated": {
+            "numerator": "327400",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "47625",
+          "allocated": {
+            "numerator": "47625",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "23138",
+          "allocated": {
+            "numerator": "23138",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 6,
+      "sourceComparison": [
+        {
+          "applicantId": "D1",
+          "respondentId": "P1",
+          "net": "1614630",
+          "computed": "1696480",
+          "difference": "81850"
+        }
+      ]
+    },
+    {
+      "id": "S02",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "900000",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "200000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "700000"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "900000",
+          "allocated": {
+            "numerator": "900000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "300000",
+          "allocated": {
+            "numerator": "300000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "600000",
+          "allocated": {
+            "numerator": "600000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "200000",
+          "allocated": {
+            "numerator": "200000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 4,
+      "sourceComparison": []
+    },
+    {
+      "id": "S03",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "0",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "0"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "500000",
+          "allocated": {
+            "numerator": "500000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "300000",
+          "allocated": {
+            "numerator": "300000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 2,
+      "sourceComparison": []
+    },
+    {
+      "id": "S04",
+      "status": "preview",
+      "rows": [
+        {
+          "applicantId": "P1",
+          "respondentId": "D1",
+          "forward": {
+            "numerator": "900000",
+            "denominator": "1"
+          },
+          "reverse": {
+            "numerator": "300000",
+            "denominator": "1"
+          },
+          "forwardRounded": null,
+          "reverseRounded": null,
+          "net": "600000"
+        }
+      ],
+      "budgets": [
+        {
+          "costId": "cost-1",
+          "recognized": "1200000",
+          "allocated": {
+            "numerator": "1200000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-2",
+          "recognized": "400000",
+          "allocated": {
+            "numerator": "400000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-3",
+          "recognized": "600000",
+          "allocated": {
+            "numerator": "600000",
+            "denominator": "1"
+          }
+        },
+        {
+          "costId": "cost-4",
+          "recognized": "200000",
+          "allocated": {
+            "numerator": "200000",
+            "denominator": "1"
+          }
+        }
+      ],
+      "traceCount": 4,
+      "sourceComparison": []
+    },
+    {
+      "id": "S05",
+      "status": "blocked",
+      "reason": "복수·연대",
+      "rows": [],
+      "budgets": [],
+      "traceCount": 0,
+      "sourceComparison": []
+    },
+    {
+      "id": "S06",
+      "status": "blocked",
+      "reason": "신청 대상 외",
+      "rows": [],
+      "budgets": [],
+      "traceCount": 0,
+      "sourceComparison": []
+    }
+  ]
+}
