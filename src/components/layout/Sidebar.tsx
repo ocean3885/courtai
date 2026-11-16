@@ -41,6 +41,11 @@ const navigation: (NavGroup | NavItem)[] = [
         href: '/case-input',
         icon: 'document',
       },
+      {
+        name: '소송비용액확정',
+        href: '/litigation-costs',
+        icon: 'calculator',
+      },
     ],
   },
   {

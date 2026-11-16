@@ -1,0 +1,47 @@
+{
+  "status": "대표 산술 검증 완료; 반소 사례 불일치는 미해결",
+  "scope": "전 사례 검증 아님. 원본 시각 대조와 법률 적용 검증 미완료",
+  "checks": [
+    {
+      "id": "A1",
+      "status": "일치",
+      "topic": "기본 일부승소 사례",
+      "exact": {
+        "numerator": 9141358,
+        "denominator": 3
+      },
+      "source_floor1": 3047119
+    },
+    {
+      "id": "A2",
+      "status": "원본 대조 필요",
+      "topic": "반소 인지대 누락 의심",
+      "main_exact": {
+        "numerator": 33247047312375,
+        "denominator": 24232958
+      },
+      "counter_exact": {
+        "numerator": 55809679161575,
+        "denominator": 24232958
+      },
+      "allocation_conservation": 3675025,
+      "printed_component_sum": 2303049,
+      "source_counter_display": 1975649,
+      "component_discrepancy": 327400,
+      "with_stamp_floor10": 1696480,
+      "without_stamp_floor10": 1614630,
+      "source_final": 1614630,
+      "final_discrepancy": 81850,
+      "note": "인지대 포함 비교 경로가 법률상 최종 정답임을 선언하지 않는다."
+    },
+    {
+      "id": "A3",
+      "status": "버전 차이 확인",
+      "topic": "5억원 보수 기준 예",
+      "manual_old_basis": 9800000,
+      "verified_2020_basis": 13400000,
+      "difference": 3600000,
+      "note": "자료 구요율과 2020년 별표의 차이. 구자료 산술 오류로 처리하지 않음."
+    }
+  ]
+}
