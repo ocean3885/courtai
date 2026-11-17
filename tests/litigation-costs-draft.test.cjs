@@ -70,3 +70,17 @@ test('zero is distinct from unknown and unsafe or non-integer money is not accep
   d.costs[0].recognized = '';
   assert.ok(reviewDraft(d).some(i => i.message.includes('원고 1심 변호사보수 직원 검토 인정액')));
 });
+
+test('review follows executable rounding settings and preserves legacy notes without requiring a work title', () => {
+  const d = sampleDraft();
+  d.meta.title = '';
+  d.review.rounding = '미확정';
+  d.calculation.rounding = { unit: '10', timing: 'direction' };
+  let messages = reviewDraft(d).map(i => i.message).join('\n');
+  assert.doesNotMatch(messages, /작업명|절사 단위와 적용 시점이 미확정/);
+  d.calculation.rounding = { unit: '', timing: '' };
+  d.review.rounding = '방향별 10원 미만 절사 후 상계 (사례 방식)';
+  messages = reviewDraft(d).map(i => i.message).join('\n');
+  assert.match(messages, /절사 단위와 적용 시점이 미확정/);
+  assert.equal(parseDraft(JSON.stringify(d)).review.rounding, d.review.rounding);
+});

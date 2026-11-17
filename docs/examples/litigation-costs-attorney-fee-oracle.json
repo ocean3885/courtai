@@ -1,0 +1,753 @@
+{
+  "scope": "2020.12.28. 별표·명시적 제5조·실비 상한의 산술 검산. 소가·지급의무·규칙 적용 시점의 법률 판단은 별도.",
+  "rows": [
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "0"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "1"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "2000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "2999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "3000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "300000",
+          "denominator": "1"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "3000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "3000001",
+          "denominator": "10"
+        },
+        "standardAmount": "300000",
+        "limitExact": {
+          "numerator": "3000001",
+          "denominator": "10"
+        },
+        "limitAmount": "300000",
+        "recognized": "300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "19999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "19999999",
+          "denominator": "10"
+        },
+        "standardAmount": "1999999",
+        "limitExact": {
+          "numerator": "19999999",
+          "denominator": "10"
+        },
+        "limitAmount": "1999999",
+        "recognized": "1999999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "20000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "2000000",
+          "denominator": "1"
+        },
+        "standardAmount": "2000000",
+        "limitExact": {
+          "numerator": "2000000",
+          "denominator": "1"
+        },
+        "limitAmount": "2000000",
+        "recognized": "2000000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "20000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "50000002",
+          "denominator": "25"
+        },
+        "standardAmount": "2000000",
+        "limitExact": {
+          "numerator": "50000002",
+          "denominator": "25"
+        },
+        "limitAmount": "2000000",
+        "recognized": "2000000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "49999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "109999998",
+          "denominator": "25"
+        },
+        "standardAmount": "4399999",
+        "limitExact": {
+          "numerator": "109999998",
+          "denominator": "25"
+        },
+        "limitAmount": "4399999",
+        "recognized": "4399999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "limitAmount": "4400000",
+        "recognized": "4400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "220000003",
+          "denominator": "50"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "220000003",
+          "denominator": "50"
+        },
+        "limitAmount": "4400000",
+        "recognized": "4400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "99999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "369999997",
+          "denominator": "50"
+        },
+        "standardAmount": "7399999",
+        "limitExact": {
+          "numerator": "369999997",
+          "denominator": "50"
+        },
+        "limitAmount": "7399999",
+        "recognized": "7399999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "100000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "7400000",
+          "denominator": "1"
+        },
+        "standardAmount": "7400000",
+        "limitExact": {
+          "numerator": "7400000",
+          "denominator": "1"
+        },
+        "limitAmount": "7400000",
+        "recognized": "7400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "100000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "185000001",
+          "denominator": "25"
+        },
+        "standardAmount": "7400000",
+        "limitExact": {
+          "numerator": "185000001",
+          "denominator": "25"
+        },
+        "limitAmount": "7400000",
+        "recognized": "7400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "149999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "234999999",
+          "denominator": "25"
+        },
+        "standardAmount": "9399999",
+        "limitExact": {
+          "numerator": "234999999",
+          "denominator": "25"
+        },
+        "limitAmount": "9399999",
+        "recognized": "9399999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "150000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "9400000",
+          "denominator": "1"
+        },
+        "standardAmount": "9400000",
+        "limitExact": {
+          "numerator": "9400000",
+          "denominator": "1"
+        },
+        "limitAmount": "9400000",
+        "recognized": "9400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "150000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "470000001",
+          "denominator": "50"
+        },
+        "standardAmount": "9400000",
+        "limitExact": {
+          "numerator": "470000001",
+          "denominator": "50"
+        },
+        "limitAmount": "9400000",
+        "recognized": "9400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "199999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "519999999",
+          "denominator": "50"
+        },
+        "standardAmount": "10399999",
+        "limitExact": {
+          "numerator": "519999999",
+          "denominator": "50"
+        },
+        "limitAmount": "10399999",
+        "recognized": "10399999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "200000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "10400000",
+          "denominator": "1"
+        },
+        "standardAmount": "10400000",
+        "limitExact": {
+          "numerator": "10400000",
+          "denominator": "1"
+        },
+        "limitAmount": "10400000",
+        "recognized": "10400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "200000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "1040000001",
+          "denominator": "100"
+        },
+        "standardAmount": "10400000",
+        "limitExact": {
+          "numerator": "1040000001",
+          "denominator": "100"
+        },
+        "limitAmount": "10400000",
+        "recognized": "10400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "499999999"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "1339999999",
+          "denominator": "100"
+        },
+        "standardAmount": "13399999",
+        "limitExact": {
+          "numerator": "1339999999",
+          "denominator": "100"
+        },
+        "limitAmount": "13399999",
+        "recognized": "13399999"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "500000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "13400000",
+          "denominator": "1"
+        },
+        "standardAmount": "13400000",
+        "limitExact": {
+          "numerator": "13400000",
+          "denominator": "1"
+        },
+        "limitAmount": "13400000",
+        "recognized": "13400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "500000001"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "2680000001",
+          "denominator": "200"
+        },
+        "standardAmount": "13400000",
+        "limitExact": {
+          "numerator": "2680000001",
+          "denominator": "200"
+        },
+        "limitAmount": "13400000",
+        "recognized": "13400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "1000000000"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "15900000",
+          "denominator": "1"
+        },
+        "standardAmount": "15900000",
+        "limitExact": {
+          "numerator": "15900000",
+          "denominator": "1"
+        },
+        "limitAmount": "15900000",
+        "recognized": "15900000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "9007199254740991"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "9007201434740991",
+          "denominator": "200"
+        },
+        "standardAmount": "45036007173704",
+        "limitExact": {
+          "numerator": "9007201434740991",
+          "denominator": "200"
+        },
+        "limitAmount": "45036007173704",
+        "recognized": "45036007173704"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000000"
+      },
+      "paid": "10000000",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "limitAmount": "4400000",
+        "recognized": "4400000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000000"
+      },
+      "paid": "3300000",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "limitAmount": "4400000",
+        "recognized": "3300000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000000"
+      },
+      "paid": "0",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "limitAmount": "4400000",
+        "recognized": "0"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "50000000"
+      },
+      "paid": "5000000",
+      "refund": "2000000",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "limitAmount": "4400000",
+        "recognized": "3000000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "half",
+        "litigationValue": "50000000"
+      },
+      "paid": "1000000",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "2200000",
+          "denominator": "1"
+        },
+        "limitAmount": "2200000",
+        "recognized": "1000000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "half",
+        "litigationValue": "50000000"
+      },
+      "paid": "10000000",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "4400000",
+          "denominator": "1"
+        },
+        "standardAmount": "4400000",
+        "limitExact": {
+          "numerator": "2200000",
+          "denominator": "1"
+        },
+        "limitAmount": "2200000",
+        "recognized": "2200000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "half",
+        "litigationValue": "3000011"
+      },
+      "paid": "9007199254740991",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "3000011",
+          "denominator": "10"
+        },
+        "standardAmount": "300001",
+        "limitExact": {
+          "numerator": "3000011",
+          "denominator": "20"
+        },
+        "limitAmount": "150000",
+        "recognized": "150000"
+      }
+    },
+    {
+      "input": {
+        "schedule": "2020-12-28",
+        "treatment": "ordinary",
+        "litigationValue": "154110828"
+      },
+      "paid": "10000000",
+      "refund": "0",
+      "expected": {
+        "standardExact": {
+          "numerator": "237055414",
+          "denominator": "25"
+        },
+        "standardAmount": "9482216",
+        "limitExact": {
+          "numerator": "237055414",
+          "denominator": "25"
+        },
+        "limitAmount": "9482216",
+        "recognized": "9482216"
+      }
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+# Uploaded case records stay in the cloud workspace, outside Git and public assets.
+**/originals/
+**/extracted/
+**/catalog.private.*
+**/previews/

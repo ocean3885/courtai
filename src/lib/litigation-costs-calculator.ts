@@ -1,3 +1,4 @@
+import { findAutoFeeConflict, getCostRecognition, type AttorneyFeeCalculation } from './litigation-costs-attorney-fee';
 import type { LitigationDraft, Cost } from './litigation-costs-draft';
 import type { AllocationNode, AllocationWeight } from './litigation-costs-calculation-types';
 
@@ -41,12 +42,13 @@ export type PairResult = {
 };
 export type CalculationResult = {
   status: 'blocked' | 'preview'; errors: string[]; warnings: string[]; traces: AllocationTrace[]; rows: PairResult[];
+  attorneyFees: { costId: string; calculation: AttorneyFeeCalculation }[];
   budgets: { costId: string; recognized: string; allocated: ExactAmount }[];
 };
 
-// 명시적으로 입력된 배분 계획을 실행한다. 주문 해석·법률상 인정액·보수 한도를 추론하지 않는다.
+// 명시한 배분 계획과 선택한 보수 별표를 실행한다. 주문 해석·소가의 법률상 적정성은 추론하지 않는다.
 export function calculateAllocation(draft: LitigationDraft): CalculationResult {
-  const result: CalculationResult = { status: 'blocked', errors: [], warnings: [], traces: [], rows: [], budgets: [] };
+  const result: CalculationResult = { status: 'blocked', errors: [], warnings: [], traces: [], rows: [], budgets: [], attorneyFees: [] };
   const warningSet = new Set<string>();
   function fail(message: string): never { throw new Error(message); }
   try {
@@ -60,6 +62,8 @@ export function calculateAllocation(draft: LitigationDraft): CalculationResult {
     const values = map(c.values, '가액'), groups = map(c.groups, '산정 그룹');
     map(draft.costs, '비용');
     if (!draft.costs.length) fail('계산할 비용이 없습니다.');
+    const feeConflict = findAutoFeeConflict(draft.costs);
+    if (feeConflict) fail(feeConflict);
     if (!c.rounding.unit || !c.rounding.timing) fail('절사 단위와 시점을 선택하세요.');
     if (c.setoff === 'unreviewed') fail('비용 상계 계산 방식을 선택하세요.');
     if (c.setoff === 'mutual' && (draft.review.responseState === '기간 내 미제출' || draft.review.setoff === '제111조 제2항 예외 검토')) fail('상대방 미제출·제111조 제2항 예외와 쌍방 상계 설정이 충돌합니다. 계산 방식을 다시 검토하세요.');
@@ -113,15 +117,22 @@ export function calculateAllocation(draft: LitigationDraft): CalculationResult {
       if (!stages.has(cost.stageId)) fail(`${cost.title}: 발생 절차를 확인하세요.`);
       checkRefs(cost.payerIds, parties, `${cost.title} 귀속자`); checkRefs(cost.targetIds, parties, `${cost.title} 배분 대상`);
       checkRefs(cost.claimIds, claims, `${cost.title} 청구`);
-      const recognized = integer(cost.recognized, `${cost.title} 직원 인정액`);
+      const recognition = getCostRecognition(cost);
+      if (recognition.status === 'blocked') fail(`${cost.title}: ${recognition.errors.join(' ')}`);
+      const recognized = BigInt(recognition.recognized);
+      if (recognition.attorneyFee) {
+        if (!['제1심', '항소심', '상고심'].includes(stages.get(cost.stageId)!.type)) fail(`${cost.title}: 자동 보수는 제1심·항소심·상고심 본안 비용에만 적용합니다.`);
+        result.attorneyFees.push({ costId: cost.id, calculation: recognition.attorneyFee });
+      }
       const claimed = integer(cost.claimed, `${cost.title} 청구액`), refund = integer(cost.refund, `${cost.title} 환급액`);
       if (refund > claimed) fail(`${cost.title}: 환급액이 청구액보다 큽니다.`);
       if (recognized > claimed - refund && !cost.note.trim()) fail(`${cost.title}: 순청구액 초과 인정 사유를 입력하세요.`);
       if (!cost.evidence.trim()) warningSet.add('증빙·기록 참조가 없는 비용이 있습니다.');
       const plan = c.plans.find(p => p.costId === cost.id)!;
       let basisValue = '';
-      if (cost.kind === '변호사보수' && !plan.basisGroupId) fail(`${cost.title}: 보수 산정 기초 그룹을 연결하세요.`);
-      if (plan.basisGroupId) {
+      if (cost.kind === '변호사보수' && !cost.attorneyFee && !plan.basisGroupId) fail(`${cost.title}: 보수 산정 기초 그룹을 연결하세요.`);
+      if (cost.attorneyFee) basisValue = cost.attorneyFee.litigationValue;
+      if (plan.basisGroupId && !cost.attorneyFee) {
         const group = groups.get(plan.basisGroupId), mandate = group?.mandateId ? mandates.get(group.mandateId) : null;
         if (!group || group.stageId !== cost.stageId) fail(`${cost.title}: 산정 기초 그룹의 절차를 확인하세요.`);
         if (cost.kind === '변호사보수' && (!mandate || cost.payerIds.some(id => !mandate.partyIds.includes(id)))) fail(`${cost.title}: 공동대리 산정 그룹의 의뢰인 범위를 확인하세요.`);
@@ -174,7 +185,7 @@ export function calculateAllocation(draft: LitigationDraft): CalculationResult {
         if (!applicant || !respondent || applicant.id === respondent.id) fail('현재 계산은 신청인·피신청인 사이의 쌍별 관계만 지원합니다. 신청 대상 외 당사자의 몫을 임의로 제외하지 않습니다.');
         const forward = owner.id === applicant.id;
         const included = c.setoff !== 'applicantOnly' || forward;
-        result.traces.push({ costId: cost.id, costTitle: cost.title, ownerId: owner.id, otherId: other.id, claimId: node.claimId, rulingId: ruling.id, recognized: String(recognized), basisGroupId: plan.basisGroupId, basisValue, path, allocated: exact(value), burden: exact(burden), reimbursable: exact(reimbursable), included });
+        result.traces.push({ costId: cost.id, costTitle: cost.title, ownerId: owner.id, otherId: other.id, claimId: node.claimId, rulingId: ruling.id, recognized: String(recognized), basisGroupId: cost.attorneyFee ? '' : plan.basisGroupId, basisValue, path, allocated: exact(value), burden: exact(burden), reimbursable: exact(reimbursable), included });
         const key = JSON.stringify([applicant.id, respondent.id]);
         if (!pairs.has(key)) pairs.set(key, { applicantId: applicant.id, respondentId: respondent.id, forward: rational(ZERO), reverse: rational(ZERO) });
         const pair = pairs.get(key)!;
@@ -196,11 +207,11 @@ export function calculateAllocation(draft: LitigationDraft): CalculationResult {
       const applicantTotal = result.rows.reduce((n, row) => n + (BigInt(row.net) > ZERO ? BigInt(row.net) : ZERO), ZERO);
       if (applicantTotal > requested) fail('가계산 합계가 신청총액을 초과합니다. 신청 범위별 한도 배분은 아직 지원하지 않으므로 결과를 보류합니다.');
     } else warningSet.add('신청총액 상한은 미입력입니다. 신청 범위·선행 확정결정을 별도로 검토하세요.');
-    warningSet.add('직원 인정액과 명시한 배분 계획을 실행한 가계산입니다. 소가의 법률상 적정성·보수 한도·재량 조정·결정문 확정을 대신하지 않습니다.');
+    warningSet.add(result.attorneyFees.length ? '입력 소가·실비와 선택한 별표로 산입액을 자동 계산한 가계산입니다. 소가·지급의무의 적정성, 적용 시점·특례·재량 조정 및 결정문 확정은 별도 검토합니다.' : '직원 인정액과 명시한 배분 계획을 실행한 가계산입니다. 소가의 법률상 적정성·보수 한도·재량 조정·결정문 확정을 대신하지 않습니다.');
     result.status = 'preview';
     result.warnings = [...warningSet];
     return result;
   } catch (error) {
-    return { status: 'blocked', errors: [error instanceof Error ? error.message : '계산 설정을 확인하세요.'], warnings: [...warningSet], traces: [], rows: [], budgets: [] };
+    return { status: 'blocked', errors: [error instanceof Error ? error.message : '계산 설정을 확인하세요.'], warnings: [...warningSet], traces: [], rows: [], budgets: [], attorneyFees: [] };
   }
 }

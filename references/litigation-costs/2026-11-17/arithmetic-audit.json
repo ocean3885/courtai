@@ -1,0 +1,231 @@
+{
+  "scope": "원문 인정액·명시 산식의 일부 산술 대조. 법률 검증·정답 확정·계산기 편입 미완료.",
+  "notes": [
+    {
+      "document": "PDF-01",
+      "label": "기재 인정액의 합계",
+      "exact": {
+        "numerator": "18979299",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "18979299",
+      "source": "18979299",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-02",
+      "label": "기재 인정액의 합계",
+      "exact": {
+        "numerator": "312595",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "312595",
+      "source": "312595",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-06",
+      "label": "기재 인정액의 합계",
+      "exact": {
+        "numerator": "2801561",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "2801561",
+      "source": "2801561",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-09",
+      "label": "기재 인정액의 합계",
+      "exact": {
+        "numerator": "10310037",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "10310037",
+      "source": "10310037",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-03",
+      "label": "B1·B2 각 정밀 상계 후 원 미만 절사",
+      "exact": {
+        "numerator": "1187946968063733",
+        "denominator": "500784355"
+      },
+      "unit": "1",
+      "computed": "2372172",
+      "source": "2372170",
+      "difference": "2"
+    },
+    {
+      "document": "PDF-03",
+      "label": "B1·B2 각 정밀 상계 후 10원 미만 절사",
+      "exact": {
+        "numerator": "1187946968063733",
+        "denominator": "500784355"
+      },
+      "unit": "10",
+      "computed": "2372170",
+      "source": "2372170",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-03",
+      "label": "B3 정밀 부담액의 10원 미만 절사",
+      "exact": {
+        "numerator": "442215993756774",
+        "denominator": "100156871"
+      },
+      "unit": "10",
+      "computed": "4415230",
+      "source": "4415230",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-04",
+      "label": "A1 · 2쪽 산식의 반소 가액 경로",
+      "exact": {
+        "numerator": "627453902505015292698897498568091",
+        "denominator": "386172205754219834988986358"
+      },
+      "unit": "1",
+      "computed": "1624803",
+      "source": "1625012",
+      "difference": "-209"
+    },
+    {
+      "document": "PDF-04",
+      "label": "A2 · 2쪽 산식의 반소 가액 경로",
+      "exact": {
+        "numerator": "2933581229407731420228539083876637",
+        "denominator": "2703205440279538844922904506"
+      },
+      "unit": "1",
+      "computed": "1085223",
+      "source": "1085223",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-04",
+      "label": "A1 · 1쪽 표의 반소 가액 경로",
+      "exact": {
+        "numerator": "631899933655011758375775498568091",
+        "denominator": "386172205754219834988986358"
+      },
+      "unit": "1",
+      "computed": "1636316",
+      "source": "1625012",
+      "difference": "11304"
+    },
+    {
+      "document": "PDF-04",
+      "label": "A2 · 1쪽 표의 반소 가액 경로",
+      "exact": {
+        "numerator": "2954329364019901438006071583876637",
+        "denominator": "2703205440279538844922904506"
+      },
+      "unit": "1",
+      "computed": "1092898",
+      "source": "1085223",
+      "difference": "7675"
+    },
+    {
+      "document": "PDF-05",
+      "label": "중간 표시 신청인 본안 부담액 합계",
+      "exact": {
+        "numerator": "60872743",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "60872743",
+      "source": "60872742",
+      "difference": "1"
+    },
+    {
+      "document": "PDF-05",
+      "label": "양방향 원 미만 절사 후 상계",
+      "exact": {
+        "numerator": "45174515",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "45174515",
+      "source": "45174515",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-05",
+      "label": "정밀 상계 후 원 미만 절사",
+      "exact": {
+        "numerator": "225872572",
+        "denominator": "5"
+      },
+      "unit": "1",
+      "computed": "45174514",
+      "source": "45174515",
+      "difference": "-1"
+    },
+    {
+      "document": "PDF-07",
+      "label": "전체 피고 3명의 몫 유지 후 최종 10원 미만 절사",
+      "exact": {
+        "numerator": "551645",
+        "denominator": "1"
+      },
+      "unit": "10",
+      "computed": "551640",
+      "source": "551640",
+      "difference": "0"
+    },
+    {
+      "document": "PDF-08",
+      "label": "본안비용 + 신청비용",
+      "exact": {
+        "numerator": "9385460",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "9385460",
+      "source": "9165460",
+      "difference": "220000"
+    },
+    {
+      "document": "PDF-08",
+      "label": "별지와 표제 소가의 차이",
+      "exact": {
+        "numerator": "6000",
+        "denominator": "1"
+      },
+      "unit": "1",
+      "computed": "6000"
+    },
+    {
+      "document": "PDF-08",
+      "label": "2쪽 B1 산식을 그대로 실행한 신청인별 금액",
+      "exact": {
+        "numerator": "114782048971790",
+        "denominator": "162505969"
+      },
+      "unit": "1",
+      "computed": "706325",
+      "source": "1527576",
+      "difference": "-821251"
+    },
+    {
+      "document": "PDF-08",
+      "label": "2쪽 B2 산식을 그대로 실행한 신청인별 금액",
+      "exact": {
+        "numerator": "527573129515370",
+        "denominator": "487517907"
+      },
+      "unit": "1",
+      "computed": "1082161",
+      "source": "1082161",
+      "difference": "0"
+    }
+  ]
+}

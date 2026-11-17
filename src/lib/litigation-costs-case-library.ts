@@ -28,6 +28,11 @@ export function findReferenceCase(id: string | undefined) { return referenceCase
 export function referenceCaseDraft(id: string): LitigationDraft {
   const entry = findReferenceCase(id);
   if (!entry) throw new Error('알 수 없는 검증 사례입니다.');
+  return draftFromReferenceCase(entry);
+}
+
+export function draftFromReferenceCase(entry: ReferenceCase): LitigationDraft {
+  const id = entry.id;
   const d = blankDraft();
   d.referenceCaseId = id;
   d.meta = {
@@ -79,12 +84,12 @@ export function referenceCaseDraft(id: string): LitigationDraft {
     let basisGroupId = '';
     if (cost.kind === '변호사보수') {
       const mandateId = uid('mandate');
-      d.mandates.push({ id: mandateId, name: `${cost.title} 대리 범위`, partyIds: [...ownerIds], stageIds: [cost.stageId], claimIds: [...claimIds], start: '', end: '', endReason: '', agreed: '', paid: '', evidence: '실무서의 공동대리·인정액을 전사. 선임일·계약서 등은 별도 자료 없음.' });
+      d.mandates.push({ id: mandateId, name: `${cost.title} 대리 범위`, partyIds: [...ownerIds], stageIds: [cost.stageId], claimIds: [...claimIds], start: '', end: '', endReason: '', agreed: '', paid: '', evidence: '사례 자료의 공동대리·인정액을 전사. 선임일·계약서 등은 별도 자료 없음.' });
       basisGroupId = uid('group');
       d.calculation.groups.push({
         id: basisGroupId, label: `${cost.title} 소가 기초`, stageId: cost.stageId, mandateId, claimIds: [...claimIds],
         valueIds: cost.basis.map(b => value(cost.stageId, b.claimId, '', b.amount, '보수 소가')), method: '합산',
-        note: '실무서가 채택한 보수 산정 기초. 합산 여부·중복 청구의 법률상 적정성을 자동 판단하지 않음.',
+        note: '사례 자료가 채택한 보수 산정 기초. 합산 여부·중복 청구의 법률상 적정성을 자동 판단하지 않음.',
       });
     }
     const ownerEqual = cost.owners.every(o => o.weight === '1');
@@ -102,7 +107,7 @@ export function referenceCaseDraft(id: string): LitigationDraft {
       };
     });
     d.calculation.plans.push({ costId: cost.id, basisGroupId,
-      applicationBasis: d.stages.find(s => s.id === cost.stageId)?.type === '확정신청' ? '실무서 해당 사례가 채택한 신청비용 부담 경로. 일반 규칙으로 확정하지 않으며 실제 사건에서 별도 검토.' : '',
+      applicationBasis: d.stages.find(s => s.id === cost.stageId)?.type === '확정신청' ? '해당 사례가 채택한 신청비용 부담 경로. 일반 규칙으로 확정하지 않으며 실제 사건에서 별도 검토.' : '',
       root: { id: uid('owners'), type: 'split', label: '지출 비용의 당사자별 귀속', method: ownerEqual ? 'equal' : 'weighted', branches },
     });
   }

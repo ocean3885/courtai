@@ -18,6 +18,13 @@ export function Select({ label, value, options, onChange }: { label: string; val
   const id = useId();
   return <div className="min-w-0 text-sm font-medium text-slate-700"><label htmlFor={id} className="mb-2 block">{label}</label><select id={id} className={inputClass} value={value} onChange={e => onChange(e.target.value)}>{options.map(x => <option key={x}>{x}</option>)}</select></div>;
 }
+export function Choice({ label, value, items, onChange, empty = '선택하세요' }: { label: string; value: string; items: { id: string; name: string }[]; onChange: (v: string) => void; empty?: string }) {
+  const id = useId();
+  return <div className="min-w-0 text-sm font-medium text-slate-700"><label htmlFor={id} className="mb-2 block">{label}</label>
+    <select id={id} className={inputClass} value={value} onChange={e => onChange(e.target.value)}><option value="">{empty}</option>{items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+  </div>;
+}
+
 export function Multi({ label, items, selected, onChange }: { label: string; items: { id: string; name: string }[]; selected: string[]; onChange: (ids: string[]) => void }) {
   return <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium text-slate-700">{label}</legend>
     {items.length ? <div className="flex flex-wrap gap-2">{items.map(x => <label key={x.id} className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${selected.includes(x.id) ? 'border-blue-300 bg-blue-50 text-blue-900' : 'border-slate-200 text-slate-600'}`}>
@@ -26,6 +33,13 @@ export function Multi({ label, items, selected, onChange }: { label: string; ite
   </fieldset>;
 }
 export function Panel({ title, description, children, action }: { title: string; description?: string; children: ReactNode; action?: ReactNode }) {
-  return <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-950">{title}</h2>{description && <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-500">{description}</p>}</div>{action}</div>{children}</section>;
+  return <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"><div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-950">{title}</h3>{description && <p className="mt-1.5 max-w-3xl text-sm leading-relaxed text-slate-500">{description}</p>}</div>{action}</div>{children}</section>;
 }
 export function Empty({ children }: { children: ReactNode }) { return <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-6 text-sm text-slate-500">{children}</p>; }
+
+export function AdvancedFields({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
+  return <details data-advanced-fields className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <summary className="cursor-pointer text-sm font-semibold text-slate-700">{title}<span className="ml-2 font-normal text-slate-500">{summary}</span></summary>
+    <div className="mt-4 space-y-5">{children}</div>
+  </details>;
+}

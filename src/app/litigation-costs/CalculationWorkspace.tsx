@@ -1,22 +1,17 @@
 'use client';
 
-import { useId, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { getSimpleAllocationContext } from '@/lib/litigation-costs-simple-allocation';
+import { SimpleAllocationEditor } from './SimpleAllocationEditor';
 import { amount, isReferenced, type LitigationDraft } from '@/lib/litigation-costs-draft';
 import { calculateAllocation, formatExact } from '@/lib/litigation-costs-calculator';
 import { emptyPair, type AllocationNode, type AllocationPlan, type CalculationInput } from '@/lib/litigation-costs-calculation-types';
-import { Empty, Field, Multi, Panel, Select, inputClass, primary, secondary } from './form-controls';
+import { Choice, Empty, Field, Multi, Panel, Select, primary, secondary } from './form-controls';
 
 type Props = { draft: LitigationDraft; onChange: (fn: (old: LitigationDraft) => LitigationDraft) => void; section: 'values' | 'groups' | 'plans' | 'results' };
-type Option = { id: string; name: string };
 const newId = () => crypto.randomUUID();
 const won = (v: string) => `${BigInt(v).toLocaleString('ko-KR')}원`;
 
-function Choice({ label, value, items, onChange, empty = '선택하세요' }: { label: string; value: string; items: Option[]; onChange: (v: string) => void; empty?: string }) {
-  const id = useId();
-  return <div className="min-w-0 text-sm font-medium text-slate-700"><label htmlFor={id} className="mb-2 block">{label}</label>
-    <select id={id} className={inputClass} value={value} onChange={e => onChange(e.target.value)}><option value="">{empty}</option>{items.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
-  </div>;
-}
 
 function NodeEditor({ node, draft, onChange, depth = 0 }: { node: AllocationNode; draft: LitigationDraft; onChange: (n: AllocationNode) => void; depth?: number }) {
   const [open, setOpen] = useState(depth === 0);
@@ -52,7 +47,7 @@ function NodeEditor({ node, draft, onChange, depth = 0 }: { node: AllocationNode
 function Results({ draft }: { draft: LitigationDraft }) {
   const result = useMemo(() => calculateAllocation(draft), [draft]);
   const name = (id: string) => draft.parties.find(p => p.id === id)?.name || id;
-  return <Panel title="배분 가계산 결과" description="직원 인정액과 입력한 배분·부담 관계를 사용한 현재 입력의 계산 결과입니다. 최종 결정액이 아닙니다.">
+  return <Panel title="배분 가계산 결과" description="입력 인정액·자동 보수 산입액과 배분·부담 관계를 사용한 현재 입력의 계산 결과입니다. 최종 결정액이 아닙니다.">
     {result.status === 'blocked' ? <div role="alert" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-950"><p className="font-semibold">계산 보류</p>{result.errors.map(e => <p key={e} className="mt-2 leading-relaxed">{e}</p>)}<p className="mt-2">미완성·미지원 설정을 0원으로 취급하지 않습니다. 이전 결과도 표시하지 않습니다.</p></div>
       : <>
         <div className="mb-5 rounded-lg bg-blue-50 p-4 text-sm text-blue-950"><p className="font-semibold">가계산 · {draft.calculation.rounding.timing === 'direction' ? '방향별 절사 후 상계' : '상계 후 차액 절사'} · {draft.calculation.rounding.unit}원 미만 버림</p><p className="mt-2">{draft.calculation.setoff === 'applicantOnly' ? '신청인 비용만 반영합니다. 피신청인 귀속 비용은 경로에 보존하되 상환액에서 제외합니다.' : '양측 비용의 상환의무를 대등액에서 상계합니다.'}</p></div>
@@ -93,16 +88,22 @@ export function CalculationWorkspace({ draft, onChange, section }: Props) {
     })}</div>}
   </Panel>;
   function replacePlan(plan: AllocationPlan) { update(c => ({ ...c, plans: [...c.plans.filter(p => p.costId !== plan.costId), plan] })); }
-  return <Panel title="계산할 배분 단계와 절사 설정" description="기존 배분 메모와 별개로 실행할 단계를 지정합니다. 계획 누락·잘못된 연결·0인 가중치 합계는 계산을 보류합니다.">
+  return <Panel title="계산할 배분 단계와 절사 설정" description="1대1 본소는 비용 귀속·청구를 가져와 부담 관계만 확인하면 간편 배분 계획을 만들 수 있습니다. 복합 사건은 기존 단계 편집을 사용합니다. 계획 누락·잘못된 연결은 계산을 보류합니다.">
     <div className="mb-5 grid gap-4 sm:grid-cols-3"><Choice label="절사 단위" value={calc.rounding.unit} items={[{ id: '1', name: '1원 미만 버림' }, { id: '10', name: '10원 미만 버림' }]} onChange={unit => update(c => ({ ...c, rounding: { ...c.rounding, unit: unit as typeof calc.rounding.unit } }))} /><Choice label="절사 적용 시점" value={calc.rounding.timing} items={[{ id: 'direction', name: '방향별 절사 후 상계' }, { id: 'net', name: '상계 후 차액 절사' }]} onChange={timing => update(c => ({ ...c, rounding: { ...c.rounding, timing: timing as typeof calc.rounding.timing } }))} /><Choice label="상계 계산 방식" value={calc.setoff} items={[{ id: 'unreviewed', name: '미선택' }, { id: 'mutual', name: '쌍방 비용 대등액 상계' }, { id: 'applicantOnly', name: '신청인 비용만 (제111조 제2항 검토)' }]} onChange={setoff => update(c => ({ ...c, setoff: (setoff || 'unreviewed') as typeof calc.setoff }))} /></div>
     <div className="space-y-3">{draft.costs.map(cost => {
       const plan = calc.plans.find(p => p.costId === cost.id);
-      return <details key={cost.id} className="min-w-0 rounded-lg border border-slate-200 p-4"><summary className="cursor-pointer text-sm font-semibold">{cost.title || '비용명 미입력'} · {plan ? '계획 입력됨' : '계획 없음'}</summary><div className="mt-4 space-y-4"><p className="text-xs leading-relaxed text-slate-500">기존 검토 메모: {cost.reason || '없음'}</p>{plan ? <>
-        <Choice label="보수 산정 기초 그룹" value={plan.basisGroupId} empty="연결 없음 (보수 외 비용)" items={calc.groups.filter(g => g.stageId === cost.stageId).map(g => ({ id: g.id, name: g.label }))} onChange={basisGroupId => replacePlan({ ...plan, basisGroupId })} />
-        {draft.stages.find(s => s.id === cost.stageId)?.type === '확정신청' && <Field label="신청비용 부담 재판 준용 근거" multiline value={plan.applicationBasis} onChange={applicationBasis => replacePlan({ ...plan, applicationBasis })} />}
-        <NodeEditor node={plan.root} draft={draft} onChange={root => replacePlan({ ...plan, root })} />
-        <button className="rounded border border-red-200 px-3 py-2 text-sm text-red-700" onClick={() => update(c => ({ ...c, plans: c.plans.filter(p => p.costId !== cost.id) }))}>이 비용의 계산 계획 제거</button>
-      </> : <button className={primary} onClick={() => replacePlan({ costId: cost.id, basisGroupId: '', applicationBasis: '', root: emptyPair(newId()) })}>배분 계획 만들기</button>}</div></details>;
+      const simple = getSimpleAllocationContext(draft, cost.id);
+      return <details data-allocation-cost={cost.id} key={cost.id} className="min-w-0 rounded-lg border border-slate-200 p-4"><summary className="cursor-pointer text-sm font-semibold">{cost.title || '비용명 미입력'} · {plan ? '계획 입력됨' : '계획 없음'}</summary><div className="mt-4 space-y-4"><p className="text-xs leading-relaxed text-slate-500">기존 검토 메모: {cost.reason || '없음'}</p>
+        {simple.status === 'ready' ? <SimpleAllocationEditor key={JSON.stringify([cost.stageId, cost.payerIds, cost.claimIds, plan?.root, plan?.applicationBasis])} draft={draft} context={simple} onChange={onChange} /> : <p className="rounded-lg bg-slate-50 p-3 text-sm leading-relaxed text-slate-600">{simple.reason}</p>}
+        {plan ? <>
+          {cost.attorneyFee ? <p className="text-sm text-blue-900">자동 보수는 ‘대리인·비용’에 직접 입력한 심급별 소가·실비를 사용합니다.</p> : cost.kind === '변호사보수' || plan.basisGroupId ? <Choice label="보수 산정 기초 그룹" value={plan.basisGroupId} empty="연결 없음 (수동 보수는 연결 필요)" items={calc.groups.filter(g => g.stageId === cost.stageId).map(g => ({ id: g.id, name: g.label }))} onChange={basisGroupId => replacePlan({ ...plan, basisGroupId })} /> : null}
+          {simple.status === 'ready' ? <details className="rounded-lg border border-slate-200 p-3"><summary className="cursor-pointer text-sm font-medium text-slate-600">복합 배분 단계 직접 편집</summary><div className="mt-4"><NodeEditor node={plan.root} draft={draft} onChange={root => replacePlan({ ...plan, root })} /></div></details> : <>
+            {draft.stages.find(s => s.id === cost.stageId)?.type === '확정신청' && <Field label="신청비용 부담 재판 준용 근거" multiline value={plan.applicationBasis} onChange={applicationBasis => replacePlan({ ...plan, applicationBasis })} />}
+            <NodeEditor node={plan.root} draft={draft} onChange={root => replacePlan({ ...plan, root })} />
+          </>}
+          <button className="rounded border border-red-200 px-3 py-2 text-sm text-red-700" onClick={() => update(c => ({ ...c, plans: c.plans.filter(p => p.costId !== cost.id) }))}>이 비용의 계산 계획 제거</button>
+        </> : simple.status === 'unavailable' ? <button className={primary} onClick={() => replacePlan({ costId: cost.id, basisGroupId: '', applicationBasis: '', root: emptyPair(newId()) })}>배분 계획 만들기</button> : null}
+      </div></details>;
     })}</div>
     {!draft.costs.length && <Empty>비용을 등록하면 비용마다 배분 계획을 입력할 수 있습니다.</Empty>}
   </Panel>;

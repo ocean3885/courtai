@@ -1,12 +1,13 @@
 // 입력·검토 모델. 직원 인정액의 배분 가계산과 법률상 확정 처리를 구분한다.
 import { emptyCalculation, isCalculationInput, type CalculationInput } from './litigation-costs-calculation-types';
+import { findAutoFeeConflict, getCostRecognition, isAttorneyFeeInput, type AttorneyFeeInput } from './litigation-costs-attorney-fee';
 import { sampleCalculation } from './litigation-costs-sample-calculation';
 export type Party = { id: string; name: string; mainRole: string; applicationRole: string };
 export type Claim = { id: string; kind: string; title: string; claimantIds: string[]; opponentIds: string[]; value: string; relation: string };
 export type Stage = { id: string; type: string; number: string; partyIds: string[]; appealScope: string; changes: string };
 export type Ruling = { id: string; text: string; stageIds: string[]; claimIds: string[]; payerIds: string[]; receiverIds: string[]; numerator: string; denominator: string; reverseNumerator: string; reverseDenominator: string; status: string };
 export type Mandate = { id: string; name: string; partyIds: string[]; stageIds: string[]; claimIds: string[]; start: string; end: string; endReason: string; agreed: string; paid: string; evidence: string };
-export type Cost = { id: string; title: string; kind: string; stageId: string; payerIds: string[]; claimIds: string[]; claimed: string; refund: string; recognized: string; evidence: string; allocation: string; targetIds: string[]; reason: string; note: string };
+export type Cost = { attorneyFee?: AttorneyFeeInput; id: string; title: string; kind: string; stageId: string; payerIds: string[]; claimIds: string[]; claimed: string; refund: string; recognized: string; evidence: string; allocation: string; targetIds: string[]; reason: string; note: string };
 export type LitigationDraft = {
   version: 2;
   referenceCaseId?: string;
@@ -63,6 +64,7 @@ export function parseDraft(raw: string): LitigationDraft {
     const ids = values.map(v => v.id);
     if (ids.some(id => !id) || new Set(ids).size !== ids.length) return fail();
   }
+  if (!(x.costs as Record<string, unknown>[]).every(c => c.attorneyFee === undefined || isAttorneyFeeInput(c.attorneyFee))) return fail();
   if (x.version === 1) return { ...x, version: 2, rulings: (x.rulings as Record<string, unknown>[]).map(r => ({ ...r, reverseNumerator: '', reverseDenominator: '' })), calculation: emptyCalculation() } as unknown as LitigationDraft;
   if (!(x.rulings as unknown[]).every(r => fields(r, ['reverseNumerator', 'reverseDenominator']))) return fail();
   if (!isCalculationInput(x.calculation)) return fail();
@@ -82,7 +84,6 @@ export function reviewDraft(d: LitigationDraft): ReviewIssue[] {
   function numeric(step: number, label: string, v: string, required = true) {
     if ((!v && required) || (v && amount(v) === null)) add(step, `${label}: 0 이상의 정수 금액을 입력하세요.`);
   }
-  if (!d.meta.title.trim()) add(0, '작업명을 입력하세요.');
   if (!d.meta.court.trim() || !d.meta.number.trim()) add(0, '신청 법원과 사건번호를 확인하세요.');
   numeric(0, '신청총액', d.meta.requested, false);
   if (d.parties.length < 2) add(0, '신청인과 피신청인을 포함해 당사자를 등록하세요.');
@@ -122,6 +123,8 @@ export function reviewDraft(d: LitigationDraft): ReviewIssue[] {
     if (m.start && m.end && m.start > m.end) add(3, `${label}: 종료일이 선임일보다 빠릅니다.`);
   });
   if (!d.costs.length) add(3, '비용 항목을 등록하세요.');
+  const feeConflict = findAutoFeeConflict(d.costs);
+  if (feeConflict) add(3, feeConflict);
   d.costs.forEach((c, i) => {
     const label = c.title || `비용 ${i + 1}`;
     if (!c.title.trim()) add(3, `${label}: 항목명을 입력하세요.`);
@@ -130,19 +133,22 @@ export function reviewDraft(d: LitigationDraft): ReviewIssue[] {
     // 신청비용 등 청구와 무관한 비용은 청구 연결을 선택하지 않을 수 있다.
     if (c.claimIds.length) refs(3, `${label} 청구`, c.claimIds, claims);
     numeric(3, `${label} 청구액`, c.claimed); numeric(3, `${label} 환급액`, c.refund);
-    numeric(3, `${label} 직원 검토 인정액`, c.recognized);
+    const recognition = getCostRecognition(c);
+    if (c.attorneyFee) { if (recognition.status === 'blocked') recognition.errors.forEach(message => add(3, `${label}: ${message}`)); }
+    else numeric(3, `${label} 직원 검토 인정액`, c.recognized);
+    if (c.attorneyFee && !['제1심', '항소심', '상고심'].includes(d.stages.find(s => s.id === c.stageId)?.type || '')) add(3, `${label}: 자동 보수는 제1심·항소심·상고심 본안 비용에 적용합니다.`);
     const gross = amount(c.claimed), refund = amount(c.refund);
     if (gross !== null && refund !== null && refund > gross) add(3, `${label}: 환급액이 청구액보다 큽니다.`);
     if (!c.evidence.trim()) add(3, `${label}: 증빙 또는 기록 참조를 입력하세요.`);
     if (c.allocation === '미정' || !allocationTypes.includes(c.allocation)) add(4, `${label}: 배분 방식을 검토하세요.`);
     refs(4, `${label} 배분 대상`, c.targetIds, parties);
     if (!c.reason.trim()) add(4, `${label}: 배분 근거·순서를 입력하세요.`);
-    const recognized = amount(c.recognized);
+    const recognized = recognition.status === 'ready' ? amount(recognition.recognized) : null;
     if (gross !== null && refund !== null && recognized !== null && recognized > gross - refund && !c.note.trim()) add(4, `${label}: 순청구액 초과 인정의 검토 사유를 입력하세요.`);
   });
   if (d.review.responseState === '미확인') add(4, '상대방 최고·자료 제출 상태를 확인하세요.');
   if (d.review.setoff === '미검토') add(4, '비용 법정상계의 적용 또는 예외를 검토하세요.');
-  if (d.review.rounding === '미확정') add(4, '절사 단위와 적용 시점이 미확정입니다.');
+  if (!['1', '10'].includes(d.calculation.rounding.unit) || !['direction', 'net'].includes(d.calculation.rounding.timing)) add(4, '절사 단위와 적용 시점이 미확정입니다.');
   return issues;
 }
 
