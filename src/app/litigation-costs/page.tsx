@@ -5,6 +5,10 @@ import { Field, Select, Choice, Multi, Panel, Empty, AdvancedFields, primary, se
 import { CalculationWorkspace } from './CalculationWorkspace';
 import { FormSection } from './FormSection';
 import { AttorneyFeeEditor } from './AttorneyFeeEditor';
+import { GuidedStep1Setup } from './GuidedStep1Setup';
+import { GuidedStep2Values } from './GuidedStep2Values';
+import { GuidedStep3Rulings } from './GuidedStep3Rulings';
+import { GuidedStep4And5Costs } from './GuidedStep4And5Costs';
 import { getCostRecognition } from '@/lib/litigation-costs-attorney-fee';
 import { ReportWorkspace } from './ReportWorkspace';
 import { reportCaseDraft } from '@/lib/litigation-costs-report-cases';
@@ -18,12 +22,12 @@ import {
 } from '@/lib/litigation-costs-draft';
 
 const sections = [
-  { title: '사건·당사자', description: '신청 사건과 본소·반소의 당사자 관계를 입력합니다.' },
-  { title: '심급·청구 변동', description: '심급별 참여 범위와 소가·불복 금액을 연결합니다.' },
-  { title: '비용 부담 주문', description: '주문 원문과 적용할 당사자·청구·심급별 비율을 확인합니다.' },
-  { title: '대리인·비용', description: '심급별 보수·비용·증빙을 먼저 입력하고 필요한 수임 범위를 확인합니다.' },
+  { title: '사건·당사자', description: 'Step 1. 확정사건 기본 정보, 특수 절차 여부, 신청인·피신청인 명단과 선임 그룹을 설정합니다.' },
+  { title: '심급·청구 변동', description: 'Step 2. 심급별 소가(청구취지 변경·항소가·반소 소가)와 다수 당사자 안분 기준을 설정합니다.' },
+  { title: '비용 부담 주문', description: 'Step 3. 판결 주문의 부담 방식(전부/비율·분수/본소·반소 분리)과 당사자별 비율을 확인합니다.' },
+  { title: '대리인·비용', description: 'Step 4·5. 심급별 본안 지출 비용(변호사보수 상한 비교·인지·송달·기타)과 확정신청 비용을 입력합니다.' },
   { title: '배분·검토', description: '배분 계획, 상계·절사와 현재 계산 결과를 함께 검토합니다.' },
-  { title: '계산서 출력', description: '검토용 계산서를 생성하고 인쇄 또는 PDF로 저장합니다.' },
+  { title: '계산서 출력', description: 'Step 6. 단수 처리(절삭) 기준을 확인하고 검토용 계산서를 생성·인쇄·PDF로 저장합니다.' },
 ];
 type Replacement = 'sample' | 'case' | 'report' | 'new' | 'load';
 type Collection = 'parties' | 'claims' | 'stages' | 'rulings' | 'mandates' | 'costs';
@@ -142,13 +146,14 @@ export default function LitigationCostsPage() {
 
     <div ref={form} className="space-y-5">
       <FormSection {...sectionProps(0)}>
+        <GuidedStep1Setup key={planSession} draft={draft} onChange={change} />
         <Panel title="신청 사건" description="신청 사건의 기본 정보를 입력하세요. 작업명은 선택 사항이며 임시 저장은 필수 정보가 비어 있어도 가능합니다." action={<button className={secondary} onClick={() => requestReplace('new')}>새 초안</button>}><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <Field label="작업명" hint="선택 사항 · 초안을 구분하는 이름으로 계산서에는 출력되지 않습니다." value={draft.meta.title} onChange={title => meta({ title })} /><Field label="신청 법원" value={draft.meta.court} onChange={court => meta({ court })} /><Field label="확정신청 사건번호" value={draft.meta.number} onChange={number => meta({ number })} />
           <Field label="신청일" type="date" value={draft.meta.applicationDate} onChange={applicationDate => meta({ applicationDate })} /><Field label="신청총액 (원)" type="money" value={draft.meta.requested} onChange={requested => meta({ requested })} hint="미확인 금액은 공란으로 둡니다. 공란과 0원은 다르게 취급합니다." /><Field label="신청 범위·선행 신청 메모" value={draft.meta.scopeNote} onChange={scopeNote => meta({ scopeNote })} />
         </div></Panel>
         <Panel title="전체 당사자" description="이번 신청 대상이 아닌 본안 당사자도 등록하세요. 반소 및 심급별 관계는 아래 청구·절차에서 따로 연결합니다." action={<button className={secondary} onClick={() => add('parties', { name: '', mainRole: '원고', applicationRole: '신청인' })}>+ 당사자 추가</button>}>
           {!draft.parties.length ? <Empty>당사자를 추가하거나 검증 사례를 불러와 시작하세요.</Empty> : <div className="space-y-3">{draft.parties.map((p, i) => <div key={p.id} className="grid items-end gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-[1fr_1fr_1fr_auto]">
-            <Field label={`당사자 ${i + 1} 표시명`} value={p.name} onChange={name => edit('parties', p.id, { name })} /><Select label="본안의 기본 지위" value={p.mainRole} options={['원고', '피고', '독립당사자참가인', '보조참가인', '기타']} onChange={mainRole => edit('parties', p.id, { mainRole })} /><Select label="이번 신청 지위" value={p.applicationRole} options={['신청인', '피신청인', '신청 대상 아님']} onChange={applicationRole => edit('parties', p.id, { applicationRole })} />{del('parties', p.id, `당사자 ${i + 1}`)}
+            <Field label={`당사자 ${i + 1} 표시명`} value={p.name} onChange={name => edit('parties', p.id, { name })} /><Select label="본안의 기본 지위" value={p.mainRole} options={['원고', '피고', '승계인', '독립당사자참가인', '보조참가인', '기타']} onChange={mainRole => edit('parties', p.id, { mainRole })} /><Select label="이번 신청 지위" value={p.applicationRole} options={['신청인', '피신청인', '신청 대상 아님']} onChange={applicationRole => edit('parties', p.id, { applicationRole })} />{del('parties', p.id, `당사자 ${i + 1}`)}
           </div>)}</div>}
         </Panel>
         <Panel title="본소·반소 및 청구 관계" description="반소는 실제로 관련된 당사자만 선택하세요. 아래 소가는 청구별 자료값이며 심급별 보수·인지 소가의 자동 확정값이 아닙니다." action={<button className={secondary} onClick={() => add('claims', { kind: '본소', title: '', claimantIds: [], opponentIds: [], value: '', relation: '' })}>+ 청구 추가</button>}>
@@ -156,17 +161,20 @@ export default function LitigationCostsPage() {
         </Panel>
       </FormSection>
       <FormSection {...sectionProps(1)}>
+        <GuidedStep2Values key={planSession} draft={draft} onChange={change} />
         <Panel title="심급·청구 변경 이력" description="환송·재상고·확정신청을 별개 절차로 등록할 수 있습니다. 절차 수를 변호사보수 산입 횟수로 자동 사용하지 않습니다." action={<button className={secondary} onClick={() => add('stages', { type: '제1심', number: '', partyIds: [], appealScope: '', changes: '' })}>+ 절차 추가</button>}>
         {!draft.stages.length ? <Empty>본안 사건과 불복 절차를 등록하세요.</Empty> : <div className="space-y-5">{draft.stages.map((s, i) => <div key={s.id} className="space-y-4 rounded-lg border border-slate-200 p-4"><div className="flex items-center justify-between"><h3 className="font-semibold">절차 {i + 1}</h3>{del('stages', s.id, `절차 ${i + 1}`)}</div><div className="grid gap-4 sm:grid-cols-2"><Select label="절차 유형" value={s.type} options={stageTypes} onChange={type => edit('stages', s.id, { type })} /><Field label="본안·절차 사건번호" value={s.number} onChange={number => edit('stages', s.id, { number })} /></div><Multi label="참여 당사자" items={partyOptions} selected={s.partyIds} onChange={partyIds => edit('stages', s.id, { partyIds })} /><Field label="불복 당사자·상대방·금액·범위" multiline value={s.appealScope} onChange={appealScope => edit('stages', s.id, { appealScope })} /><Field label="청구 변경·취하·환송·병합 이력과 소가 근거" multiline value={s.changes} onChange={changes => edit('stages', s.id, { changes })} /></div>)}</div>}
       </Panel><AdvancedFields title="추가 계산용 가액·배분 가중치" summary={`${draft.calculation.values.length}건 · 복합 사건·수동 산정 시`}><p className="text-sm leading-relaxed text-slate-600">일반적인 자동 보수 계산은 대리인·비용 목차에서 심급별 소가와 실비를 입력합니다. 이곳은 별도 배분 가중치나 수동 산정 기초가 필요한 경우 사용합니다.</p><CalculationWorkspace section="values" draft={draft} onChange={fn => change(fn)} /></AdvancedFields>
       </FormSection>
       <FormSection {...sectionProps(2)}>
+        <GuidedStep3Rulings key={planSession} draft={draft} onChange={change} />
         <Panel title="비용 부담 주문과 적용 관계" description="주문 원문과 해석한 관계를 함께 기록합니다. 정방향은 부담자가 상대방 비용에 부담하는 몫, 역방향은 그 상대방이 부담자의 비용에 부담하는 몫입니다. 두 비율을 각각 확인합니다. 연대 등 복합 관계는 메모하고 개별 검토하세요." action={<button className={secondary} onClick={() => add('rulings', { text: '', stageIds: [], claimIds: [], payerIds: [], receiverIds: [], numerator: '', denominator: '', reverseNumerator: '', reverseDenominator: '', status: '미확인' })}>+ 부담 관계 추가</button>}>
         {!draft.rulings.length ? <Empty>당사자·심급·청구별 부담 관계를 등록하세요.</Empty> : <div className="space-y-5">{draft.rulings.map((r, i) => <div key={r.id} className="space-y-4 rounded-lg border border-slate-200 p-4"><div className="flex items-center justify-between"><h3 className="font-semibold">부담 관계 {i + 1}</h3>{del('rulings', r.id, `부담 관계 ${i + 1}`)}</div><Field label="주문 원문·적용 범위 해석" multiline value={r.text} onChange={text => edit('rulings', r.id, { text })} /><Multi label="적용 절차" items={stageOptions} selected={r.stageIds} onChange={stageIds => edit('rulings', r.id, { stageIds })} /><Multi label="적용 청구" items={claimOptions} selected={r.claimIds} onChange={claimIds => edit('rulings', r.id, { claimIds })} /><div className="grid gap-4 lg:grid-cols-2"><Multi label="비용 부담자" items={partyOptions} selected={r.payerIds} onChange={payerIds => edit('rulings', r.id, { payerIds })} /><Multi label="상환받을 상대방" items={partyOptions} selected={r.receiverIds} onChange={receiverIds => edit('rulings', r.id, { receiverIds })} /></div><div className="grid gap-4 sm:grid-cols-3"><Field label="부담 비율 분자" type="money" value={r.numerator} onChange={numerator => edit('rulings', r.id, { numerator })} /><Field label="부담 비율 분모" type="money" value={r.denominator} onChange={denominator => edit('rulings', r.id, { denominator })} /><Field label="역방향 부담 비율 분자" type="money" value={r.reverseNumerator} onChange={reverseNumerator => edit('rulings', r.id, { reverseNumerator })} /><Field label="역방향 부담 비율 분모" type="money" value={r.reverseDenominator} onChange={reverseDenominator => edit('rulings', r.id, { reverseDenominator })} /><Select label="주문 범위·확정 또는 집행력 확인" value={r.status} options={['미확인', '검토함', '추가 자료 필요']} onChange={status => edit('rulings', r.id, { status })} /></div></div>)}</div>}
       </Panel>
       </FormSection>
       <FormSection {...sectionProps(3)}>
         <Panel title="비용·증빙" description="변호사보수는 해당 심급 소가와 실비로 자동 산입액을 계산할 수 있습니다. 그 밖의 비용은 청구액·환급액·직원 인정액을 구분하고 증빙 문서·쪽수를 기록하세요." action={<button className={secondary} onClick={() => add('costs', { attorneyFee: { schedule: '2020-12-28', treatment: 'ordinary', litigationValue: '' }, title: '', kind: '변호사보수', stageId: '', payerIds: [], claimIds: [], claimed: '', refund: '0', recognized: '', evidence: '', allocation: '미정', targetIds: [], reason: '', note: '' })}>+ 비용 추가</button>}>
+          <GuidedStep4And5Costs key={planSession} draft={draft} onChange={change} />
           {!draft.costs.length ? <Empty>비용을 추가한 뒤 배분·검토 목차에서 처리 계획을 정하세요.</Empty> : <div className="space-y-4">{draft.costs.map((c, i) => <details key={c.id} className="rounded-lg border border-slate-200 p-4"><summary className="cursor-pointer text-sm font-semibold"><span>{c.title || `비용 ${i + 1}`}</span><span className="ml-3 font-normal text-slate-500">인정액 {recognizedValue(c) === null ? '입력 확인' : `${BigInt(recognizedValue(c)!).toLocaleString('ko-KR')}원`}</span></summary><div className="mt-5 space-y-4"><div className="flex justify-end">{del('costs', c.id, `비용 ${i + 1}`)}</div><div className="grid gap-4 sm:grid-cols-3"><Field label="비용명" value={c.title} onChange={title => edit('costs', c.id, { title })} /><Select label="비용 종류" value={c.kind} options={['변호사보수', '인지대', '송달료', '감정료', '신청비용', '법무사보수', '당사자비용', '기타']} onChange={kind => edit('costs', c.id, { kind, attorneyFee: kind === '변호사보수' ? c.attorneyFee : undefined })} /><Choice label="발생 절차" value={c.stageId} items={stageOptions} onChange={stageId => edit('costs', c.id, { stageId })} /></div><Multi label="지출·귀속 당사자" items={partyOptions} selected={c.payerIds} onChange={payerIds => edit('costs', c.id, { payerIds })} /><Multi label="관련 청구 (신청비용 등은 선택 가능)" items={claimOptions} selected={c.claimIds} onChange={claimIds => edit('costs', c.id, { claimIds })} />{c.kind === '변호사보수' && <AttorneyFeeEditor cost={c} stageName={draft.stages.find(s => s.id === c.stageId)?.type || ''} initialValue={(() => { const plan = draft.calculation.plans.find(p => p.costId === c.id); const group = draft.calculation.groups.find(g => g.id === plan?.basisGroupId); const values = group?.valueIds.map(id => draft.calculation.values.find(v => v.id === id)?.amount); if (!values?.length || values.some(v => v === undefined || amount(v) === null)) return ''; const numbers = values.map(v => BigInt(v!)); return String(group!.method === '합산' ? numbers.reduce((a, b) => a + b, BigInt(0)) : numbers.reduce((a, b) => a > b ? a : b)); })()} onChange={patch => edit('costs', c.id, patch)} />}
           {!c.attorneyFee && <div className="grid gap-4 sm:grid-cols-3"><Field label="청구액·환급 반영 전 금액 (원)" type="money" value={c.claimed} onChange={claimed => edit('costs', c.id, { claimed })} /><Field label="별도 차감할 환급액 (원)" type="money" value={c.refund} onChange={refund => edit('costs', c.id, { refund })} hint="이미 순액을 입력한 경우 0원을 입력합니다." /><Field label="직원 검토 인정액 (원)" type="money" value={c.recognized} onChange={recognized => edit('costs', c.id, { recognized })} /></div>}<Field label="증빙·기록 문서명과 쪽수" value={c.evidence} onChange={evidence => edit('costs', c.id, { evidence })} /><Field label="인정액 조정 사유·지급자와 귀속자가 다른 사정" multiline value={c.note} onChange={note => edit('costs', c.id, { note })} /></div></details>)}</div>}
         </Panel>
@@ -200,7 +208,7 @@ export default function LitigationCostsPage() {
         </Panel>
       </FormSection>
       <FormSection {...sectionProps(5)}>
-        <ReportWorkspace draft={draft} onLoadCase={id => { selectedCaseId.current = id; requestReplace('report'); }} />
+        <ReportWorkspace draft={draft} onChange={change} onLoadCase={id => { selectedCaseId.current = id; requestReplace('report'); }} />
       </FormSection>
 
     </div>

@@ -7,7 +7,11 @@ import { matchesReportCase, reportValidationCases } from '@/lib/litigation-costs
 import type { LitigationDraft } from '@/lib/litigation-costs-draft';
 import { inputClass, Panel, primary, secondary } from './form-controls';
 
-export function ReportWorkspace({ draft, onLoadCase }: { draft: LitigationDraft; onLoadCase: (id: string) => void }) {
+export function ReportWorkspace({ draft, onLoadCase, onChange }: {
+  draft: LitigationDraft;
+  onLoadCase: (id: string) => void;
+  onChange?: (fn: (old: LitigationDraft) => LitigationDraft) => void;
+}) {
   const current = useMemo(() => buildCostReport(draft), [draft]);
   const caseSelectId = useId();
   const [caseId, setCaseId] = useState('R01');
@@ -31,7 +35,34 @@ export function ReportWorkspace({ draft, onLoadCase }: { draft: LitigationDraft;
     try { frame.current.contentWindow.focus(); frame.current.contentWindow.print(); }
     catch { setMessage('인쇄 창을 열지 못했습니다. 브라우저의 인쇄 허용 설정을 확인하세요.'); }
   }
-  return <Panel title="계산서 출력 · 1차 검증" description="원고 1명·피고 1명의 본소부터 검토용 계산서를 생성합니다. 사례의 기대 금액과 계산 결과를 비교한 뒤 인쇄 또는 PDF로 저장하세요.">
+  return <Panel title="계산서 출력 · 1차 검증" description="단수 처리(절삭) 기준을 확인하고 원고 1명·피고 1명의 본소부터 검토용 계산서를 생성합니다. 사례의 기대 금액과 계산 결과를 비교한 뒤 인쇄 또는 PDF로 저장하세요.">
+    {onChange && (
+      <fieldset className="mb-5 rounded-lg border border-blue-200 bg-blue-50/40 p-4" data-testid="guided-step6-rounding">
+        <legend className="px-1 text-xs font-bold text-blue-900">Step 6-1. 최종 상환액 절삭(단수 처리) 기준</legend>
+        <div className="mt-1 flex flex-wrap items-center gap-4 text-sm">
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-slate-800">
+            <input
+              type="radio"
+              name="step6-rounding-unit"
+              className="h-4 w-4 accent-blue-700"
+              checked={draft.calculation.rounding.unit === '1'}
+              onChange={() => onChange(old => ({ ...old, calculation: { ...old.calculation, rounding: { ...old.calculation.rounding, unit: '1' } } }))}
+            />
+            원 미만 버림 (1원 단위)
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 font-medium text-slate-800">
+            <input
+              type="radio"
+              name="step6-rounding-unit"
+              className="h-4 w-4 accent-blue-700"
+              checked={draft.calculation.rounding.unit === '10'}
+              onChange={() => onChange(old => ({ ...old, calculation: { ...old.calculation, rounding: { ...old.calculation.rounding, unit: '10' } } }))}
+            />
+            10원 미만 버림 (10원 단위)
+          </label>
+        </div>
+      </fieldset>
+    )}
     <div className="mb-5 flex flex-wrap items-end gap-3 rounded-lg bg-slate-50 p-4">
       <div className="min-w-0 flex-1 text-sm font-medium text-slate-700"><label htmlFor={caseSelectId}>단순 출력 검증 사례</label><select id={caseSelectId} className={`${inputClass} mt-2`} value={caseId} onChange={e => setCaseId(e.target.value)}>{reportValidationCases.map(c => <option key={c.id} value={c.id}>{c.id} · {c.title}</option>)}</select></div>
       <button className={secondary} onClick={() => onLoadCase(caseId)}>출력 검증 사례 불러오기</button>
