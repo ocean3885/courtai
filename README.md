@@ -12,11 +12,7 @@ Next.js 기반 개인회생 서류 작성 서비스입니다. PostgreSQL(Supabas
 - 비회원 미리보기(입력값은 해당 브라우저 localStorage에 저장)
 - 문의 접수 및 관리자 문의 조회, 사용자 권한 변경·삭제
 
-소송비용액확정은 직원 검토 인정액의 입력·배분 가계산, 브라우저 초안 저장과 단순 본소 사건의 검토용 계산서 미리보기·인쇄/PDF 저장을 제공합니다. 입력한 심급별 소가·실비의 변호사보수 자동 산입(2020.12.28. 별표)도 제공합니다. [1대1 본소 간편 배분](docs/litigation-costs-simple-allocation.md)으로 부담 주문을 확인해 비용별 계획을 만들 수 있습니다. 결정문 확정, AI 호출, PDF 자동 분석, 문의 답변 전송은 현재 구현되어 있지 않습니다.
-
-소송비용 기능의 지원·검증 범위와 후속 사례는 [검증 기준과 현황](docs/litigation-costs-validation-plan.md)에 기록합니다.
-
-기본 1대1 사건은 [신규 입력부터 PDF까지의 검증 기록](docs/litigation-costs-basic-stabilization.md)을 참고하세요.
+소송비용액확정 메뉴에서 당사자, 심급별 지출 비용과 부담 관계를 입력할 수 있습니다. 입력은 현재 화면에서 유지됩니다.
 
 ## 개발 실행
 
@@ -58,8 +54,4 @@ npm run build
 
 ## 소송비용액확정 개발 참고자료
 
-- [작업 인계와 다음 개발 항목](docs/litigation-costs-handoff.md)
-- [심급별 변호사보수 자동 산입](docs/litigation-costs-attorney-fees.md)
-- [단순 출력 사례 7개와 검증 방법](docs/litigation-costs-output-validation.md)
-- [최종 계산서 출력 설계](docs/litigation-costs-output-spec.md): 사건별로 첨부 PDF와 같은 구성의 소송비용계산서를 생성·인쇄·PDF 저장하는 목표입니다. 단순 본소 사건의 검토용 출력부터 연결해 검증 중입니다.
 - [프로젝트 참고자료 보관함](references/litigation-costs/README.md): 사용자 제공 실무서·PDF의 목록과 개발 연결 메모. 실제 사건 원본·추출문은 클라우드 작업공간에 보관하고 Git에서는 제외합니다.

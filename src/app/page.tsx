@@ -23,7 +23,7 @@ export default function HomePage() {
   return (
     <MainLayout wide>
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-8 md:px-7">
-        <div><h1 className="text-3xl font-bold">업무 홈</h1><p className="mt-3 text-slate-600">개인회생 서류를 작성하고 소송비용액확정 입력·검토 작업을 시작하세요.</p></div>
+        <div><h1 className="text-3xl font-bold">업무 홈</h1><p className="mt-3 text-slate-600">원하는 업무를 선택하세요.</p></div>
         <section className="grid gap-5 md:grid-cols-2" aria-label="업무 서비스">
           <div className="rounded-lg border border-slate-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold">개인회생 서류 작성</h2>
@@ -31,9 +31,8 @@ export default function HomePage() {
             <Link href="/case-input" className="inline-block rounded bg-blue-600 px-5 py-2 text-white">작성 시작</Link>
           </div>
           <div className="rounded-lg border border-slate-200 p-6 shadow-sm">
-            <h2 className="text-xl font-bold">소송비용액확정 <span className="ml-2 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">입력·검토 초안</span></h2>
-            <p className="my-4 text-slate-600">본소·반소, 다수 당사자와 심급별 비용의 입력 및 배분 계획을 검토합니다.</p>
-            <Link href="/litigation-costs" className="inline-block rounded bg-blue-600 px-5 py-2 text-white">입력·검토 시작</Link>
+            <h2 className="text-xl font-bold">소송비용액확정 <span className="ml-2 rounded bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700">당사자·비용 입력</span></h2>
+            <Link href="/litigation-costs" className="mt-4 inline-block rounded bg-blue-600 px-5 py-2 text-white">소송비용액확정 열기</Link>
           </div>
           <div className="rounded-lg border border-slate-200 p-6 shadow-sm">
             <h2 className="text-xl font-bold">내 사건과 문서</h2>
