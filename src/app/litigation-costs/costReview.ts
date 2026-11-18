@@ -1,4 +1,13 @@
-import { levels, type Cost, type Party, type Rule, type Stage } from './caseInput';
+import {
+  isApplicantSideParty,
+  stageLevel,
+  type Cost,
+  type MemberValueType,
+  type Party,
+  type Rule,
+  type Stage,
+  type ValueMode,
+} from './caseInput';
 import { ordinaryFeeLimit } from './ordinaryFee';
 
 type Amount = { n: bigint; d: bigint };
@@ -23,6 +32,94 @@ function integer(s: string | undefined, label: string) {
   if (!s || !/^\d{1,16}$/.test(s)) throw Error(label + '을 확인하세요.');
   return BigInt(s);
 }
+const parseNatural = (s: string | undefined): bigint | null =>
+  s && /^\d{1,16}$/.test(s) ? BigInt(s) : null;
+
+export function combinePartyValues(values: bigint[], mode: ValueMode = '합산'): bigint {
+  if (!values.length) return zero;
+  return mode === '흡수'
+    ? values.reduce((a, b) => (a > b ? a : b), zero)
+    : values.reduce((a, b) => a + b, zero);
+}
+
+export function sideValueMode(s: Stage, isApplicantSide: boolean): ValueMode {
+  return (isApplicantSide ? s.applicantValueMode : s.opponentValueMode) || s.valueMode || '합산';
+}
+
+export function combineStageMemberValues(
+  s: Stage,
+  memberIds: string[],
+  defaultMode: ValueMode = '합산'
+): bigint | null {
+  const validEntries: { val: bigint; type: MemberValueType }[] = [];
+  for (const id of memberIds) {
+    const m = s.members[id];
+    const val = parseNatural(m?.value);
+    if (val === null) continue;
+    const type: MemberValueType = m?.valueType || (defaultMode === '흡수' ? '흡수' : '개별');
+    validEntries.push({ val, type });
+  }
+  if (!validEntries.length) return null;
+
+  let individualSum = zero;
+  let common1Max = zero;
+  let common2Max = zero;
+  let absorbedMax = zero;
+
+  for (const entry of validEntries) {
+    if (entry.type === '개별') {
+      individualSum += entry.val;
+    } else if (entry.type === '공통') {
+      if (entry.val > common1Max) common1Max = entry.val;
+    } else if (entry.type === '공통2') {
+      if (entry.val > common2Max) common2Max = entry.val;
+    } else if (entry.type === '흡수') {
+      if (entry.val > absorbedMax) absorbedMax = entry.val;
+    }
+  }
+
+  const baseSum = individualSum + common1Max + common2Max;
+  return baseSum >= absorbedMax ? baseSum : absorbedMax;
+}
+
+export function sideEffectiveValue(s: Stage, parties: Party[], isApplicantSide: boolean): bigint | null {
+  const mode = sideValueMode(s, isApplicantSide);
+  const sideIds = parties
+    .filter((p) => isApplicantSideParty(p) === isApplicantSide && s.members[p.id])
+    .map((p) => p.id);
+  return combineStageMemberValues(s, sideIds, mode);
+}
+
+export function stageEffectiveValue(s: Stage, parties: Party[]): bigint | null {
+  const appTotal = sideEffectiveValue(s, parties, true);
+  const respTotal = sideEffectiveValue(s, parties, false);
+
+  if (appTotal !== null && respTotal !== null) return appTotal >= respTotal ? appTotal : respTotal;
+  if (appTotal !== null) return appTotal;
+  if (respTotal !== null) return respTotal;
+  return parseNatural(s.value);
+}
+
+export function resolveFeeBasisValue(cost: Cost, s: Stage, parties: Party[]): bigint | null {
+  if (s.value && !s.valueMode && !s.applicantValueMode && !s.opponentValueMode && !cost.shared && parties.length === 2) {
+    const explicitStageVal = parseNatural(s.value);
+    if (explicitStageVal !== null) return explicitStageVal;
+  }
+  const owners = (cost.shared ? cost.ids : [cost.payer]).filter(Boolean);
+  if (!owners.length) return null;
+  const ownerParty = parties.find((p) => p.id === owners[0]);
+  const isApplicantSide = ownerParty ? isApplicantSideParty(ownerParty) : true;
+  const mode = sideValueMode(s, isApplicantSide);
+  const ownerValues = owners.map((id) => parseNatural(s.members[id]?.value));
+  if (ownerValues.every((v): v is bigint => v !== null)) {
+    return combineStageMemberValues(s, owners, mode);
+  }
+  if (!cost.shared) {
+    return sideEffectiveValue(s, parties, isApplicantSide) ?? stageEffectiveValue(s, parties);
+  }
+  return null;
+}
+
 export function expenseNet(c: Cost) {
   const net = integer(c.paid, '납부액') - integer(c.refund, '환급액');
   if (net < zero) throw Error('환급액이 납부액을 초과합니다.');
@@ -30,23 +127,24 @@ export function expenseNet(c: Cost) {
 }
 function basis(cost: Cost, s: Stage, parties: Party[]) {
   const net = expenseNet(cost);
-  const simpleFee = cost.kind === '변호사보수' && parties.length === 2 && !s.counter && !cost.shared;
+  const feeBasis = cost.kind === '변호사보수' ? resolveFeeBasisValue(cost, s, parties) : null;
   if (cost.recognized) {
     const reviewed = integer(cost.recognized, '검토 인정액');
     if (reviewed > net) throw Error('검토 인정액이 실지출액을 초과합니다.');
-    if (simpleFee && reviewed > ordinaryFeeLimit(integer(s.value, '본소 소가')))
+    if (feeBasis !== null && reviewed > ordinaryFeeLimit(feeBasis))
       throw Error('보수 인정액이 일반 본안 한도를 초과합니다.');
     return reviewed;
   }
   if (cost.kind !== '변호사보수') return net;
-  if (!simpleFee) throw Error('보수의 증빙 검토 인정액을 입력하세요.');
-  const limit = ordinaryFeeLimit(integer(s.value, '본소 소가'));
+  if (feeBasis === null) throw Error('당사자 소가 또는 보수의 증빙 검토 인정액을 입력하세요.');
+  const limit = ordinaryFeeLimit(feeBasis);
   return limit < net ? limit : net;
 }
 function weights(ids: string[], method: string, s: Stage) {
   if (!ids.length || ids.some((id) => !s.members[id])) throw Error('해당 심급의 대상 당사자를 확인하세요.');
   if (ids.length === 1) return [fraction(one)];
-  if (method !== '균분' && method !== '소가 비율') throw Error('여러 당사자 사이의 안분 기준을 선택하세요.');
+  if (method !== '균분' && method !== '소가 비율' && method !== '안분')
+    throw Error('여러 당사자 사이의 기준(균분/안분)을 선택하세요.');
   const values = ids.map((id) => (method === '균분' ? one : integer(s.members[id].value, '당사자 소가')));
   const sum = values.reduce((a, b) => a + b, zero);
   if (!sum) throw Error('대상 당사자의 소가 합계가 0원입니다.');
@@ -120,11 +218,19 @@ export function reviewCosts(stages: Stage[], parties: Party[]) {
   const lines: Line[] = [],
     errors: string[] = [];
   const ownerTotals = new Map<string, Amount>();
-  stages.forEach((s, index) =>
+  stages.forEach((s, index) => {
+    const feeOwners = new Set<string>();
     s.costs.forEach((c) => {
       try {
+        const owners = (c.shared ? c.ids : [c.payer]).filter(Boolean);
+        if (!owners.length) throw Error('이 비용에 해당하는 당사자를 선택하세요.');
+        if (c.kind === '변호사보수') {
+          if (owners.some((id) => feeOwners.has(id))) {
+            throw Error('같은 심급에서 동일 당사자의 변호사보수가 중복 입력되었습니다.');
+          }
+          owners.forEach((id) => feeOwners.add(id));
+        }
         const value = fraction(basis(c, s, parties));
-        const owners = c.shared ? c.ids : [c.payer];
         if (c.shared && owners.length < 2) throw Error('공동 지출의 귀속 당사자를 두 명 이상 선택하세요.');
         const shares = weights(owners, c.method, s);
         for (const [j, owner] of owners.entries()) {
@@ -141,28 +247,31 @@ export function reviewCosts(stages: Stage[], parties: Party[]) {
           debtors.forEach((debtor, k) => {
             const factors = [shares[j], rate, parts[k]];
             lines.push({
-              stage: levels[index],
+              stage: stageLevel(s, index),
               kind: c.title || c.kind,
               owner,
               debtor,
               amount: factors.reduce(product, value),
-              order: levels[source] + ' · ' + rule.scope,
+              order: stageLevel(stages[source], source) + ' · ' + rule.scope,
               formula: [money(value), ...factors.filter((f) => f.n !== f.d).map(ratio)].join(' × '),
             });
           });
         }
       } catch (e) {
         errors.push(
-          levels[index] +
+          stageLevel(s, index) +
             ' · ' +
-            (parties.find((p) => p.id === c.payer)?.name || '이름 미입력') +
+            ((c.shared ? c.ids : [c.payer])
+              .filter(Boolean)
+              .map((id) => parties.find((p) => p.id === id)?.name || '이름 미입력')
+              .join(', ') || '당사자 미선택') +
             ' · ' +
             c.kind +
             ' — ' +
             (e as Error).message
         );
       }
-    })
-  );
+    });
+  });
   return { lines: errors.length ? [] : lines, errors, ownerTotals };
 }
