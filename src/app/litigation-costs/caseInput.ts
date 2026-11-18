@@ -1,0 +1,42 @@
+export type Group = '신청인' | '피신청인' | '신청외';
+export type Party = { id: string; group: Group; name: string };
+export type Member = { role: string; number: string; value: string; counterRole: string };
+export type Cost = {
+  id: string;
+  payer: string;
+  kind: string;
+  paid: string;
+  recognized?: string;
+  ruleId?: string;
+  refund: string;
+  shared: boolean;
+  ids: string[];
+  method: string;
+  evidence: string;
+  title: string;
+};
+export type Rule = {
+  id: string;
+  left: string[];
+  right: string[];
+  mode: string;
+  n: string;
+  d: string;
+  scope: string;
+  claim: string;
+  leftMethod: string;
+  rightMethod: string;
+};
+export type Stage = {
+  id: string;
+  number: string;
+  value: string;
+  members: Record<string, Member>;
+  counter: string;
+  counterValue: string;
+  counterNumber?: string;
+  costs: Cost[];
+  rules: Rule[];
+};
+export const levels = ['1심', '항소심', '상고심'];
+export type Reviews = Record<string, { submission?: string; treatment?: string; zeroConfirmed?: boolean }>;

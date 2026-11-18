@@ -3,45 +3,18 @@
 import { useState, type ReactNode } from 'react';
 import { ordinaryFeeLimit } from './ordinaryFee';
 
+import {
+  levels,
+  type Group,
+  type Party,
+  type Member,
+  type Rule,
+  type Stage,
+  type Cost,
+  type Reviews,
+} from './caseInput';
+import { CostReview } from './CostReview';
 const groups = ['신청인', '피신청인', '신청외'] as const;
-type Group = (typeof groups)[number];
-type Party = { id: string; group: Group; name: string };
-type Member = { role: string; number: string; value: string; counterRole: string };
-type Cost = {
-  id: string;
-  payer: string;
-  kind: string;
-  paid: string;
-  refund: string;
-  shared: boolean;
-  ids: string[];
-  method: string;
-  evidence: string;
-  title: string;
-};
-type Rule = {
-  id: string;
-  left: string[];
-  right: string[];
-  mode: string;
-  n: string;
-  d: string;
-  scope: string;
-  claim: string;
-  leftMethod: string;
-  rightMethod: string;
-};
-type Stage = {
-  id: string;
-  number: string;
-  value: string;
-  members: Record<string, Member>;
-  counter: string;
-  counterValue: string;
-  costs: Cost[];
-  rules: Rule[];
-};
-const levels = ['1심', '항소심', '상고심'];
 const roleOptions = [
   ['원고', '피고'],
   ['항소인', '피항소인', '항소인 겸 피항소인'],
@@ -126,9 +99,19 @@ function Pick({
     </label>
   );
 }
-function Section({ title, children, open }: { title: string; children: ReactNode; open?: boolean }) {
+function Section({
+  id,
+  title,
+  children,
+  open,
+}: {
+  id: string;
+  title: string;
+  children: ReactNode;
+  open?: boolean;
+}) {
   return (
-    <details open={open} className={box}>
+    <details id={id} open={open} className={box + ' scroll-mt-24'}>
       <summary className="cursor-pointer text-lg font-semibold">{title}</summary>
       {children}
     </details>
@@ -174,7 +157,7 @@ export default function PartyForm() {
     { ...stage('first'), members: { a: member(), b: member() } },
   ]);
   const [applicationCosts, setApplicationCosts] = useState<Cost[]>([]);
-  const [reviews, setReviews] = useState<Record<string, { submission?: string; treatment?: string }>>({});
+  const [reviews, setReviews] = useState<Reviews>({});
   const [notice, setNotice] = useState('');
   const [fullyOpen, setFullyOpen] = useState(false);
   const label = (p: Party) =>
@@ -244,6 +227,11 @@ export default function PartyForm() {
       s && c.kind === '변호사보수' && !s.counter && !c.shared && parties.length === 2 && value !== null
         ? ordinaryFeeLimit(value)
         : null;
+    const owners = c.shared ? c.ids : [c.payer];
+    const candidateRules =
+      s?.rules.filter(
+        (r) => owners.length && owners.every((id) => r.left.includes(id) || r.right.includes(id))
+      ) || [];
     return (
       <div key={c.id} className={box}>
         <div className="flex items-center justify-between">
@@ -262,7 +250,7 @@ export default function PartyForm() {
             value={c.paid}
             change={(paid) => update({ paid })}
           />
-          {c.kind === '송달료' && (
+          {c.kind.endsWith('송달료') && (
             <Field numeric label="환급액 (원)" value={c.refund} change={(refund) => update({ refund })} />
           )}
         </div>
@@ -274,6 +262,22 @@ export default function PartyForm() {
             일반 본안 별표 기준 (2020.12.28.) · 한도 {won(feeLimit)}와 실비 {won(net)} 중 작은 금액{' '}
             {won(feeLimit < net ? feeLimit : net)}
           </p>
+        )}
+        {s && (
+          <details
+            open={
+              c.kind === '변호사보수' && (parties.length > 2 || !!s.counter || c.shared) ? true : undefined
+            }
+          >
+            <summary className="cursor-pointer text-sm">검토 인정액 직접 입력</summary>
+            <Field
+              numeric
+              label="증빙 검토 인정액 (원)"
+              value={c.recognized || ''}
+              change={(recognized) => update({ recognized })}
+            />
+            <p className={small}>실지출액 중 일부만 인정하거나 복합 사건의 보수를 검토한 경우 입력합니다.</p>
+          </details>
         )}
         {s && eligible.length > 1 && (
           <label className="block text-sm">
@@ -327,6 +331,25 @@ export default function PartyForm() {
             </p>
           </>
         )}
+        {s && (candidateRules.length > 1 || c.ruleId) && (
+          <label className="block text-sm font-medium">
+            이 비용 전액에 적용할 부담 관계
+            <select
+              className={input}
+              value={c.ruleId || ''}
+              onChange={(e) => update({ ruleId: e.target.value })}
+            >
+              <option value="">당사자 범위로 확인</option>
+              {candidateRules.map((r) => (
+                <option key={r.id} value={r.id}>
+                  관계 {s.rules.indexOf(r) + 1} ·{' '}
+                  {r.left.map((id) => label(parties.find((p) => p.id === id)!)).join(', ')} /{' '}
+                  {r.right.map((id) => label(parties.find((p) => p.id === id)!)).join(', ')}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <details>
           <summary className="cursor-pointer text-sm">증빙 문서·쪽수</summary>
           <Field label="증빙 참조" value={c.evidence} change={(evidence) => update({ evidence })} />
@@ -341,7 +364,28 @@ export default function PartyForm() {
         if (notice) setNotice('');
       }}
     >
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <nav aria-label="사건 입력 목차" className="flex flex-wrap gap-2">
+          {[
+            ['cost-parties', '사건·당사자'],
+            ...stages.map((s, i) => ['cost-stage-' + s.id, levels[i]]),
+            ['cost-application', '신청 비용'],
+            ['cost-submission', '제출·상계'],
+            ['cost-review', '검산'],
+          ].map(([id, title]) => (
+            <a
+              key={id}
+              href={'#' + id}
+              className="rounded-md bg-slate-100 px-3 py-2 text-sm hover:bg-blue-50"
+              onClick={() => {
+                const target = document.getElementById(id);
+                if (target instanceof HTMLDetailsElement) target.open = true;
+              }}
+            >
+              {title}
+            </a>
+          ))}
+        </nav>
         <button
           className={button}
           onClick={(e) => {
@@ -358,7 +402,7 @@ export default function PartyForm() {
           {fullyOpen ? '전체 접기' : '전체 펼치기'}
         </button>
       </div>
-      <Section title="사건·당사자" open>
+      <Section id="cost-parties" title="사건·당사자" open>
         <div className={grid}>
           {['신청 법원', '확정신청 사건번호'].map((x) => (
             <label className="text-sm" key={x}>
@@ -367,6 +411,19 @@ export default function PartyForm() {
             </label>
           ))}
         </div>
+        <details>
+          <summary className="cursor-pointer text-sm font-medium">신청일·신청취지 금액</summary>
+          <div className={grid}>
+            <label className="text-sm">
+              신청일
+              <input className={input} type="date" />
+            </label>
+            <label className="text-sm">
+              신청취지 금액 (원)
+              <input className={input} inputMode="numeric" />
+            </label>
+          </div>
+        </details>
         {groups.map((group) => (
           <div key={group} className="space-y-2 border-t border-slate-200 pt-3">
             {parties
@@ -394,6 +451,40 @@ export default function PartyForm() {
             </button>
           </div>
         ))}
+        {(parties.length > 2 || stages.length > 1) && (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <caption className="pb-2 text-left font-semibold">심급별 당사자 대조</caption>
+              <thead>
+                <tr>
+                  <th className="p-2">확정신청 당사자</th>
+                  {stages.map((s, i) => (
+                    <th className="p-2" key={s.id}>
+                      {levels[i]}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {parties.map((p) => (
+                  <tr key={p.id} className="border-t">
+                    <th className="p-2 font-medium">{label(p)}</th>
+                    {stages.map((s) => {
+                      const m = s.members[p.id];
+                      return (
+                        <td key={s.id} className="p-2">
+                          {m
+                            ? [m.role || '지위 미입력', m.number, m.counterRole].filter(Boolean).join(' ')
+                            : '참여 미선택'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </Section>
       {stages.map((s, index) => {
         const people = parties.filter((p) => s.members[p.id]);
@@ -405,7 +496,7 @@ export default function PartyForm() {
           patchStage(s.id, { members: { ...s.members, [id]: { ...s.members[id], ...patch } } });
         const priorCounter = stages.slice(0, index).some((t) => t.counter);
         return (
-          <Section key={s.id} title={levels[index] + ' · 참여자와 비용'} open>
+          <Section id={'cost-stage-' + s.id} key={s.id} title={levels[index] + ' · 참여자와 비용'} open>
             {index > 0 && index === stages.length - 1 && (
               <button
                 className={button}
@@ -464,6 +555,7 @@ export default function PartyForm() {
                     !counter &&
                     (s.rules.some((r) => r.claim) ||
                       s.counterValue ||
+                      s.counterNumber ||
                       people.some((p) => s.members[p.id].counterRole) ||
                       stages.slice(index + 1).some((t) => t.counter === '기존 반소 심판 대상'))
                   ) {
@@ -474,12 +566,19 @@ export default function PartyForm() {
                 }}
               />
               {s.counter && (
-                <Field
-                  numeric
-                  label="반소 소가 (원)"
-                  value={s.counterValue}
-                  change={(counterValue) => patchStage(s.id, { counterValue })}
-                />
+                <div className={grid}>
+                  <Field
+                    label="반소 사건번호"
+                    value={s.counterNumber || ''}
+                    change={(counterNumber) => patchStage(s.id, { counterNumber })}
+                  />
+                  <Field
+                    numeric
+                    label="반소 소가 (원)"
+                    value={s.counterValue}
+                    change={(counterValue) => patchStage(s.id, { counterValue })}
+                  />
+                </div>
               )}
             </details>
             {people.map((p) => (
@@ -546,6 +645,12 @@ export default function PartyForm() {
                 </div>
               </div>
             ))}
+            <div className="border-t border-slate-300 pt-4">
+              <h3 className="font-semibold">판결의 비용 부담</h3>
+              <p className={small}>
+                적용할 당사자와 분담비율을 입력하세요. 신청외 당사자도 본안 부담 관계에 포함할 수 있습니다.
+              </p>
+            </div>
             {s.rules.map((r, i) => {
               const edit = (patch: Partial<Rule>) =>
                 patchStage(s.id, { rules: s.rules.map((v) => (v.id === r.id ? { ...v, ...patch } : v)) });
@@ -559,7 +664,13 @@ export default function PartyForm() {
                     <strong>부담 관계 {i + 1}</strong>
                     <button
                       className={button}
-                      onClick={() => patchStage(s.id, { rules: s.rules.filter((v) => v.id !== r.id) })}
+                      onClick={() => {
+                        if (s.costs.some((c) => c.ruleId === r.id)) {
+                          setNotice('비용에 지정된 부담 관계를 먼저 해제하세요.');
+                          return;
+                        }
+                        patchStage(s.id, { rules: s.rules.filter((v) => v.id !== r.id) });
+                      }}
                     >
                       관계 삭제
                     </button>
@@ -667,7 +778,7 @@ export default function PartyForm() {
           + {levels[stages.length]} 추가
         </button>
       )}
-      <Section title="확정신청 비용">
+      <Section id="cost-application" title="확정신청 비용">
         {parties.filter(side).map((p) => (
           <div key={p.id} className="space-y-3">
             <h3 className="font-medium">{label(p)}</h3>
@@ -683,21 +794,23 @@ export default function PartyForm() {
                   () => setApplicationCosts(applicationCosts.filter((v) => v.id !== c.id))
                 )
               )}
-            <div className="flex gap-2">
-              {['인지대', '송달료', '기타 비용'].map((kind) => (
-                <button
-                  key={kind}
-                  className={button}
-                  onClick={() => setApplicationCosts([...applicationCosts, newCost(p.id, kind)])}
-                >
-                  + {kind}
-                </button>
-              ))}
+            <div className="flex flex-wrap gap-2">
+              {['인지대', '기발생 송달료', '결정정본 송달료', '서기료', '서류 발급비', '기타 비용'].map(
+                (kind) => (
+                  <button
+                    key={kind}
+                    className={button}
+                    onClick={() => setApplicationCosts([...applicationCosts, newCost(p.id, kind)])}
+                  >
+                    + {kind}
+                  </button>
+                )
+              )}
             </div>
           </div>
         ))}
       </Section>
-      <Section title="비용자료 제출·상계 검토">
+      <Section id="cost-submission" title="비용자료 제출·상계 검토">
         {parties
           .filter((p) => p.group === '피신청인')
           .map((p) => (
@@ -718,6 +831,19 @@ export default function PartyForm() {
                   value={reviews[p.id]?.treatment || ''}
                   change={(treatment) => setReviews({ ...reviews, [p.id]: { ...reviews[p.id], treatment } })}
                 />
+                <label className="block text-sm">
+                  <input
+                    type="checkbox"
+                    checked={!!reviews[p.id]?.zeroConfirmed}
+                    onChange={(e) =>
+                      setReviews({
+                        ...reviews,
+                        [p.id]: { ...reviews[p.id], zeroConfirmed: e.target.checked },
+                      })
+                    }
+                  />{' '}
+                  본안 귀속 비용 0원 확인
+                </label>
                 {reviews[p.id]?.submission === '기간 내 미제출' &&
                   reviews[p.id]?.treatment === '쌍방 비용 상계' && (
                     <p className={small}>기간 내 미제출 상태입니다. 상계 적용 근거를 다시 확인하세요.</p>
@@ -726,6 +852,13 @@ export default function PartyForm() {
             </div>
           ))}
       </Section>
+      <CostReview
+        parties={parties}
+        stages={stages}
+        reviews={reviews}
+        applicationCosts={applicationCosts}
+        label={label}
+      />
       {notice && (
         <p role="status" className="sticky bottom-3 rounded-lg bg-amber-100 p-3">
           {notice}
