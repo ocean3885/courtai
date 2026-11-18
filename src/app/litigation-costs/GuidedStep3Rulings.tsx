@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { amount, type LitigationDraft } from '@/lib/litigation-costs-draft';
 import { Field, Select, primary } from './form-controls';
 
-type BurdenMode = '전부 부담' | '비율/분수 부담' | '본소·반소 분리 부담';
+type BurdenMode = '각자 부담' | '전부 부담' | '비율/분수 부담' | '본소·반소 분리 부담';
 type RatioUnit = 'percent' | 'fraction';
 type CoPartyBurden = '각자 부담(분할/안분)' | '연대(합동) 부담';
 
@@ -24,7 +24,7 @@ export function GuidedStep3Rulings({ draft, onChange }: {
 
   const [selectedStageId, setSelectedStageId] = useState('all');
   const [burdenMode, setBurdenMode] = useState<BurdenMode>(() =>
-    initialHasCounterRuling ? '본소·반소 분리 부담' : initialIsFull ? '전부 부담' : '비율/분수 부담'
+    initialHasCounterRuling ? '본소·반소 분리 부담' : firstRuling?.numerator === '0' && firstRuling?.reverseNumerator === '0' ? '각자 부담' : initialIsFull ? '전부 부담' : '비율/분수 부담'
   );
   const [fullBearer, setFullBearer] = useState<'피신청인(상대방) 전부 부담' | '신청인 전부 부담'>(() =>
     firstRuling && firstRuling.numerator === '0' && firstRuling.reverseNumerator === '1'
@@ -65,10 +65,20 @@ export function GuidedStep3Rulings({ draft, onChange }: {
       return;
     }
 
+    if (!stageIds.length || !mainClaim || (burdenMode === '본소·반소 분리 부담' && !counterClaim)) {
+      setMsg('적용할 본안 심급과 청구를 먼저 등록하세요. 본소·반소 분리 부담은 두 청구가 모두 필요합니다.'); return;
+    }
+    if ((burdenMode === '본소·반소 분리 부담' && draft.rulings.length > 0) ||
+        (draft.rulings.length === 1 && draft.rulings[0].stageIds.some(id => !stageIds.includes(id)))) {
+      setMsg('기존 부담 관계의 다른 심급·청구와 연결된 계산 계획을 보존해야 합니다. 아래 부담 관계 상세에서 범위별로 추가·수정하고 배분 계획의 연결을 확인하세요.'); return;
+    }
+
     let numerator = '1', denominator = '1', reverseNumerator = '0', reverseDenominator = '1';
     let orderText = '';
 
-    if (burdenMode === '전부 부담') {
+    if (burdenMode === '각자 부담') {
+      numerator = '0'; reverseNumerator = '0'; orderText = '소송비용은 각자 부담한다.';
+    } else if (burdenMode === '전부 부담') {
       if (fullBearer === '피신청인(상대방) 전부 부담') {
         numerator = '1'; denominator = '1'; reverseNumerator = '0'; reverseDenominator = '1';
         orderText = '소송비용은 피신청인(상대방)이 부담한다.';
@@ -205,7 +215,7 @@ export function GuidedStep3Rulings({ draft, onChange }: {
           <Select
             label="3-1. 부담 방식 유형"
             value={burdenMode}
-            options={['전부 부담', '비율/분수 부담', '본소·반소 분리 부담']}
+            options={['전부 부담', '비율/분수 부담', '각자 부담', '본소·반소 분리 부담']}
             onChange={v => setBurdenMode(v as BurdenMode)}
           />
         </div>
@@ -236,13 +246,13 @@ export function GuidedStep3Rulings({ draft, onChange }: {
             {ratioUnit === 'percent' ? (
               <div className="grid items-end gap-4 sm:grid-cols-2">
                 <Field
-                  label="신청인(원고) 측 부담 비율 (%)"
+                  label="신청인 측 부담 비율 (%)"
                   type="money"
                   value={applicantPct}
                   onChange={v => setApplicantPct(digits(v))}
                 />
                 <div className="rounded-lg border border-blue-200 bg-white px-3 py-2.5 text-sm">
-                  <span className="block text-xs text-slate-500">피신청인(피고) 측 부담 비율 (100% − 신청인비율 자동 계산)</span>
+                  <span className="block text-xs text-slate-500">피신청인 측 부담 비율 (100% − 신청인비율 자동 계산)</span>
                   <strong className="mt-1 block text-base font-bold tabular-nums text-blue-900">
                     {respondentPct !== null ? `${respondentPct}% (${respondentPct}/100)` : '0~100 사이 숫자를 입력하세요'}
                   </strong>

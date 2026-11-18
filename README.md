@@ -14,6 +14,10 @@ Next.js 기반 개인회생 서류 작성 서비스입니다. PostgreSQL(Supabas
 
 소송비용액확정은 직원 검토 인정액의 입력·배분 가계산, 브라우저 초안 저장과 단순 본소 사건의 검토용 계산서 미리보기·인쇄/PDF 저장을 제공합니다. 입력한 심급별 소가·실비의 변호사보수 자동 산입(2020.12.28. 별표)도 제공합니다. [1대1 본소 간편 배분](docs/litigation-costs-simple-allocation.md)으로 부담 주문을 확인해 비용별 계획을 만들 수 있습니다. 결정문 확정, AI 호출, PDF 자동 분석, 문의 답변 전송은 현재 구현되어 있지 않습니다.
 
+소송비용 기능의 지원·검증 범위와 후속 사례는 [검증 기준과 현황](docs/litigation-costs-validation-plan.md)에 기록합니다.
+
+기본 1대1 사건은 [신규 입력부터 PDF까지의 검증 기록](docs/litigation-costs-basic-stabilization.md)을 참고하세요.
+
 ## 개발 실행
 
 Node.js 20.9 이상을 사용합니다.

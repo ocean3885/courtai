@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { getSimpleAllocationContext } from '@/lib/litigation-costs-simple-allocation';
+import { applySimpleAllocation, getSimpleAllocationContext } from '@/lib/litigation-costs-simple-allocation';
 import { SimpleAllocationEditor } from './SimpleAllocationEditor';
 import { amount, isReferenced, type LitigationDraft } from '@/lib/litigation-costs-draft';
 import { calculateAllocation, formatExact } from '@/lib/litigation-costs-calculator';
@@ -87,9 +87,30 @@ export function CalculationWorkspace({ draft, onChange, section }: Props) {
       return <details key={g.id} className="rounded-lg border border-slate-200 p-4"><summary className="cursor-pointer text-sm font-semibold">{g.label || `산정 그룹 ${i + 1}`} <span className="font-normal text-slate-500">· {valid ? won(String(total)) : '가액 확인 필요'}</span></summary><div className="mt-4 space-y-4"><div className="flex justify-end">{removeButton(g.id, () => update(c => ({ ...c, groups: c.groups.filter(x => x.id !== g.id) })))}</div><div className="grid gap-4 sm:grid-cols-2"><Field label="산정 그룹명" value={g.label} onChange={label => edit({ label })} /><Choice label="그룹 적용 절차" value={g.stageId} items={stageItems} onChange={stageId => edit({ stageId })} /><Choice label="공동대리 관계" value={g.mandateId} items={draft.mandates.map(m => ({ id: m.id, name: m.name || '대리인 미입력' }))} empty="배분용 그룹 (대리 관계 없음)" onChange={mandateId => edit({ mandateId })} /><Select label="소가 결합 방식" value={g.method} options={['합산', '최다액']} onChange={method => edit({ method: method as typeof g.method })} /></div><Multi label="그룹 청구 범위" items={claimItems} selected={g.claimIds} onChange={claimIds => edit({ claimIds })} /><Multi label="그룹에 포함할 가액" items={calc.values.map(v => ({ id: v.id, name: `${draft.stages.find(s => s.id === v.stageId)?.type || '?'} · ${v.label}` }))} selected={g.valueIds} onChange={valueIds => edit({ valueIds })} /><Field label="중복·흡수·수임 범위 검토 근거" multiline value={g.note} onChange={note => edit({ note })} /></div></details>;
     })}</div>}
   </Panel>;
+  const ruling = draft.rulings.length === 1 ? draft.rulings[0] : undefined;
+  const pending = ruling ? draft.costs.filter(cost => {
+    if (cost.allocation !== '직접 귀속' && cost.allocation !== '미정') return false;
+    if (cost.targetIds.length && !draft.parties.every(p => cost.targetIds.includes(p.id))) return false;
+    const context = getSimpleAllocationContext(draft, cost.id);
+    return context.status === 'ready' && !context.application && !context.plan && context.rulings.length === 1;
+  }) : [];
+  function applyMainCosts() {
+    if (!ruling || !pending.length) return;
+    let next = draft;
+    for (const cost of pending) {
+      const result = applySimpleAllocation(next, cost.id, { rulingId: ruling.id, applicationBasis: '' }, newId());
+      if (!result.ok) return;
+      next = result.draft;
+    }
+    onChange(old => old === draft ? next : old);
+  }
   function replacePlan(plan: AllocationPlan) { update(c => ({ ...c, plans: [...c.plans.filter(p => p.costId !== plan.costId), plan] })); }
   return <Panel title="계산할 배분 단계와 절사 설정" description="1대1 본소는 비용 귀속·청구를 가져와 부담 관계만 확인하면 간편 배분 계획을 만들 수 있습니다. 복합 사건은 기존 단계 편집을 사용합니다. 계획 누락·잘못된 연결은 계산을 보류합니다.">
     <div className="mb-5 grid gap-4 sm:grid-cols-3"><Choice label="절사 단위" value={calc.rounding.unit} items={[{ id: '1', name: '1원 미만 버림' }, { id: '10', name: '10원 미만 버림' }]} onChange={unit => update(c => ({ ...c, rounding: { ...c.rounding, unit: unit as typeof calc.rounding.unit } }))} /><Choice label="절사 적용 시점" value={calc.rounding.timing} items={[{ id: 'direction', name: '방향별 절사 후 상계' }, { id: 'net', name: '상계 후 차액 절사' }]} onChange={timing => update(c => ({ ...c, rounding: { ...c.rounding, timing: timing as typeof calc.rounding.timing } }))} /><Choice label="상계 계산 방식" value={calc.setoff} items={[{ id: 'unreviewed', name: '미선택' }, { id: 'mutual', name: '쌍방 비용 대등액 상계' }, { id: 'applicantOnly', name: '신청인 비용만 (제111조 제2항 검토)' }]} onChange={setoff => update(c => ({ ...c, setoff: (setoff || 'unreviewed') as typeof calc.setoff }))} /></div>
+    {pending.length > 0 && ruling && <div className="mb-4 rounded-lg bg-blue-50 p-4">
+      <p className="mb-2 text-sm">{ruling.text}</p>
+      <button type="button" className={primary} onClick={applyMainCosts}>본안 비용 {pending.length}건에 이 주문 적용</button>
+    </div>}
     <div className="space-y-3">{draft.costs.map(cost => {
       const plan = calc.plans.find(p => p.costId === cost.id);
       const simple = getSimpleAllocationContext(draft, cost.id);

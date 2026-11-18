@@ -1,6 +1,9 @@
+import { sumMoneyInputs } from './litigation-costs-money-input';
+
 /** 변호사보수의 소송비용 산입에 관한 규칙 별표, 2020.12.28. 시행본. */
 export type AttorneyFeeInput = {
   schedule: '2020-12-28'; treatment: 'ordinary' | 'half'; litigationValue: string;
+  components?: { retainer: string; paidSuccess: string; promisedSuccess: string };
 };
 export type AttorneyFeeCalculation = {
   schedule: '2020-12-28'; treatment: 'ordinary' | 'half'; litigationValue: string;
@@ -13,6 +16,9 @@ export type FeeResult = { status: 'ready'; calculation: AttorneyFeeCalculation }
 export function isAttorneyFeeInput(value: unknown): value is AttorneyFeeInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const v = value as Record<string, unknown>;
+  const parts = v.components;
+  if (parts !== undefined && (!parts || typeof parts !== 'object' || Array.isArray(parts) ||
+      !['retainer', 'paidSuccess', 'promisedSuccess'].every(key => typeof (parts as Record<string, unknown>)[key] === 'string' && ((parts as Record<string, string>)[key]).length <= 20000))) return false;
   return v.schedule === '2020-12-28' && (v.treatment === 'ordinary' || v.treatment === 'half') && typeof v.litigationValue === 'string' && v.litigationValue.length <= 20000;
 }
 function integer(value: string, label: string): bigint {
@@ -29,6 +35,11 @@ function exact(n: bigint, d: bigint) {
 export function calculateAttorneyFee(input: AttorneyFeeInput, paid: string, refund = '0'): FeeResult {
   try {
     if (!isAttorneyFeeInput(input)) throw new Error('자동 보수 계산의 적용 별표·사건 유형을 확인하세요.');
+    if (input.components) {
+      const sum = sumMoneyInputs([input.components.retainer, input.components.paidSuccess, input.components.promisedSuccess], true);
+      if (sum.status === 'blocked') throw new Error(`보수 세부내역: ${sum.error}`);
+      if (BigInt(sum.amount) !== integer(paid, '변호사보수 실비')) throw new Error('보수 세부내역 합계와 실비 합계가 다릅니다. 입력 방식을 확인하세요.');
+    }
     const v = integer(input.litigationValue, '심급별 보수 산정 소가'), gross = integer(paid, '변호사보수 실비'), returned = integer(refund, '보수 환급액');
     if (returned > gross) throw new Error('보수 환급액이 실비보다 큽니다.');
     const net = gross - returned;
@@ -53,6 +64,7 @@ export function calculateAttorneyFee(input: AttorneyFeeInput, paid: string, refu
     const formula = [
       `별표(2020.12.28.): ${baseFormula}${rate ? ` = ${money(standard)}원` : ''}${numerator % thousand ? ' (원 미만 버림)' : ''}`,
     ];
+    if (input.components) formula.push(`실비 세부내역: 착수금 ${money(BigInt(input.components.retainer || '0'))} + 기지급 성공보수 ${money(BigInt(input.components.paidSuccess || '0'))} + 지급예정 약정액 ${money(BigInt(input.components.promisedSuccess || '0'))} = ${money(gross)}원 (산입 적정성 별도 검토)`);
     if (input.treatment === 'half') formula.push(`제5조 1/2 적용: 별표 정밀 기준액 × 1/2 = ${money(limit)}원${numerator % divisor ? ' (원 미만 버림)' : ''}`);
     formula.push(returned ? `실비 ${money(gross)} − 환급 ${money(returned)} = ${money(net)}원` : `실비: ${money(net)}원`);
     formula.push(`산입액 = min(규칙상 ${money(limit)}, 실비 ${money(net)}) = ${money(recognized)}원`);

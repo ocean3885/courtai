@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { amount, type Cost, type LitigationDraft } from '@/lib/litigation-costs-draft';
-import { hasRespondentSetoff } from './GuidedStep1Setup';
+import { netMoneyInput, sumMoneyInputs } from '@/lib/litigation-costs-money-input';
 import { Field, Select, primary, secondary } from './form-controls';
 
 const digits = (v: string) => v.replace(/[,\s]/g, '');
@@ -23,7 +23,6 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
   const [side, setSide] = useState<'applicant' | 'respondent'>('applicant');
   const [selectedStageId, setSelectedStageId] = useState('');
   const activeStage = mainStages.find(s => s.id === selectedStageId) || mainStages[0];
-  const respondentEnabled = hasRespondentSetoff(draft);
 
   // 4-2 Stamp fee
   const [eFiling, setEFiling] = useState(true);
@@ -57,27 +56,18 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
     .map(p => p.id);
   const sideLabel = side === 'applicant' ? '신청인' : '피신청인';
 
-  const computedServiceNet = (() => {
-    if (serviceMode === 'net') {
-      return serviceNet && amount(serviceNet) !== null ? BigInt(serviceNet) : null;
-    }
-    const p = servicePaid && amount(servicePaid) !== null ? BigInt(servicePaid) : null;
-    const r = serviceRefund && amount(serviceRefund) !== null ? BigInt(serviceRefund) : BigInt(0);
-    if (p === null || r === null || r > p) return null;
-    return p - r;
-  })();
-
-  const computedAppTotal = (() => {
-    const items = [appStamp, appPriorService, appDecisionService, appSms, appScribeFee, appDocFee];
-    return items.reduce((sum, v) => sum + (v && amount(v) !== null ? BigInt(v) : BigInt(0)), BigInt(0));
-  })();
+  const serviceResult = serviceMode === 'net' ? netMoneyInput(serviceNet, '0') : netMoneyInput(servicePaid, serviceRefund);
+  const computedServiceNet = serviceResult.status === 'ready' ? BigInt(serviceResult.amount) : null;
+  const applicationResult = sumMoneyInputs([appStamp, appPriorService, appDecisionService, appSms, appScribeFee, appDocFee]);
+  const computedAppTotal = applicationResult.status === 'ready' ? BigInt(applicationResult.amount) : null;
 
   function addOrUpdateCost(newCost: Omit<Cost, 'id'>) {
+    const id = crypto.randomUUID();
     onChange(old => {
       if (old.costs.length >= 500) return old;
       return {
         ...old,
-        costs: [...old.costs, { ...newCost, id: crypto.randomUUID() }],
+        costs: [...old.costs, { ...newCost, id }],
       };
     });
   }
@@ -121,10 +111,10 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
       claimed: stampPaid,
       refund: '0',
       recognized: stampPaid,
-      evidence: `소장·상소장 인지 납부서 (${eFiling ? '전자소송 10% 할인 적용' : '서면 접수'})`,
+      evidence: `소장·상소장 인지 납부서 (${eFiling ? '전자소송 접수' : '서면 접수'})`,
       allocation: '직접 귀속',
       targetIds: draft.parties.map(p => p.id),
-      reason: `${activeStage.type} 납부 인지액 (${eFiling ? '전자소송 10% 할인 반영' : '일반'})`,
+      reason: `${activeStage.type} 납부 인지액 (${eFiling ? '전자소송 납부액' : '서면 납부액'})`,
       note: '',
     });
     setStampPaid('');
@@ -160,10 +150,9 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
 
   function addQuickOtherCost() {
     if (!activeStage) { setFeedback('본안 심급을 먼저 선택하세요.'); return; }
-    const p = otherPaid && amount(otherPaid) !== null ? BigInt(otherPaid) : null;
-    const r = otherRefund && amount(otherRefund) !== null ? BigInt(otherRefund) : BigInt(0);
-    if (p === null || r === null || r > p) { setFeedback('기타 절차 비용의 납부액과 환급액을 확인하세요.'); return; }
-    const net = p - r;
+    const expense = netMoneyInput(otherPaid, otherRefund);
+    if (expense.status === 'blocked') { setFeedback(expense.error); return; }
+    const p = BigInt(otherPaid), r = BigInt(otherRefund), net = BigInt(expense.amount);
     const mainClaim = draft.claims.find(c => c.kind === '본소') || draft.claims[0];
     const kind = otherCategory.startsWith('감정료') ? '감정료' : otherCategory.startsWith('당사자') ? '당사자비용' : '기타';
     addOrUpdateCost({
@@ -186,7 +175,7 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
   }
 
   function applyStep5ApplicationCosts() {
-    if (computedAppTotal <= BigInt(0)) { setFeedback('확정신청 비용을 1원 이상 입력하세요.'); return; }
+    if (applicationResult.status === 'blocked' || computedAppTotal === null) { setFeedback(applicationResult.status === 'blocked' ? applicationResult.error : '신청비용을 확인하세요.'); return; }
     onChange(old => {
       let appStage = old.stages.find(s => s.type === '확정신청');
       const nextStages = [...old.stages];
@@ -264,12 +253,10 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
           </button>
           <button
             type="button"
-            disabled={!respondentEnabled}
-            title={!respondentEnabled ? 'Step 1에서 피신청인의 상계 의견서 제출을 체크하면 활성화됩니다.' : undefined}
             onClick={() => setSide('respondent')}
             className={`rounded-lg border px-3 py-1.5 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${side === 'respondent' ? 'border-blue-600 bg-blue-700 text-white' : 'border-slate-300 bg-white text-slate-700'}`}
           >
-            피신청인 지출 비용 {respondentEnabled ? '' : '(상계 미체크)'}
+            피신청인 지출 비용
           </button>
         </div>
       </div>
@@ -300,12 +287,12 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
             <p className="text-xs font-bold text-slate-900">4-2. 인지대 ({activeStage?.type || '심급 미선택'} · {sideLabel})</p>
             <label className="flex cursor-pointer items-center gap-1.5 text-xs font-medium text-blue-900">
               <input type="checkbox" className="h-3.5 w-3.5 accent-blue-700" checked={eFiling} onChange={e => setEFiling(e.target.checked)} />
-              전자소송 접수 (10% 할인 적용)
+              전자소송 접수
             </label>
           </div>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 flex-1">
-              <Field label="실제 납부한 인지액 (원)" type="money" value={stampPaid} onChange={v => setStampPaid(digits(v))} />
+              <Field label="실제 납부한 인지액 (원)" hint="영수증의 실제 납부액을 입력하세요. 전자소송 선택으로 금액을 다시 할인하지 않습니다." type="money" value={stampPaid} onChange={v => setStampPaid(digits(v))} />
             </div>
             <button type="button" className={secondary} onClick={addQuickStampFee}>+ 인지대 추가</button>
           </div>
@@ -346,8 +333,8 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
       </div>
 
       {/* 4-4 Other Court Procedure Costs */}
-      <div className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3">
-        <p className="text-xs font-bold text-slate-900">4-4. 기타 법원 절차 비용 (감정료, 증인여비 등)</p>
+      <details className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3">
+        <summary className="cursor-pointer text-sm font-semibold">기타 비용 추가 · 감정료, 증인여비 등</summary>
         <p className="rounded bg-amber-50 px-3 py-2 text-xs font-medium text-amber-900">
           ※ 법원 증거조사절차 외 임의 지출(사설 녹취록, 포렌식, 사설감정, 번역료 등)은 소송비용에 산입되지 않습니다.
         </p>
@@ -358,7 +345,7 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
           <Field label="기타 비용 환급액 (원)" type="money" value={otherRefund} onChange={v => setOtherRefund(digits(v))} />
           <button type="button" className={secondary} onClick={addQuickOtherCost}>+ 비용 항목 추가</button>
         </div>
-      </div>
+      </details>
 
       {/* Step 5 Application Costs */}
       <div className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3" data-testid="guided-step5">
@@ -368,7 +355,7 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
             <p className="text-xs text-slate-500">본안 이후 확정결정 신청 단계에서 발생한 비용(기본 인지대 900원, 결정정본 송달료 등)을 합산해 반영합니다.</p>
           </div>
           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900">
-            신청비용 합계: {computedAppTotal.toLocaleString('ko-KR')}원
+            신청비용 합계: {computedAppTotal === null ? '입력 확인 필요' : `${computedAppTotal.toLocaleString('ko-KR')}원`}
           </span>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -383,12 +370,13 @@ export function GuidedStep4And5Costs({ draft, onChange }: {
           <Field label="5-2. 발급 내역 비고" value={appDocNote} onChange={setAppDocNote} />
         </div>
         <div className="flex justify-end">
-          <button type="button" className={primary} onClick={applyStep5ApplicationCosts}>
-            확정신청 비용 반영 ({computedAppTotal.toLocaleString('ko-KR')}원)
+          <button type="button" className={`${primary} disabled:opacity-40`} disabled={applicationResult.status === 'blocked'} onClick={applyStep5ApplicationCosts}>
+            확정신청 비용 반영 ({computedAppTotal === null ? '입력 확인 필요' : `${computedAppTotal.toLocaleString('ko-KR')}원`})
           </button>
         </div>
       </div>
 
+      {applicationResult.status === 'blocked' && <p role="alert" className="text-sm text-amber-900">신청비용: {applicationResult.error}</p>}
       {feedback && <p role="status" className="text-xs font-medium text-blue-800">{feedback}</p>}
     </div>
   );

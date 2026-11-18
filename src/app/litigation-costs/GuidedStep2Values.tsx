@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { amount, type LitigationDraft } from '@/lib/litigation-costs-draft';
+import { type LitigationDraft } from '@/lib/litigation-costs-draft';
+import { allocationWeightInput, safeMoneyInteger, sumMoneyInputs } from '@/lib/litigation-costs-money-input';
 import { Field, primary, secondary } from './form-controls';
 
 const digits = (v: string) => v.replace(/[,\s]/g, '');
@@ -25,12 +26,13 @@ export function GuidedStep2Values({ draft, onChange }: {
   const [partyAllocMode, setPartyAllocMode] = useState<'equal' | 'individual'>(() =>
     draft.calculation.values.some(v => v.purpose === '배분 가중치' && v.partyId) ? 'individual' : 'equal'
   );
-  const [matrix, setMatrix] = useState<Record<string, PartyRowVal>>(() => {
-    const initial: Record<string, PartyRowVal> = {};
-    for (const p of draft.parties) {
-      const found = draft.calculation.values.find(v => v.purpose === '배분 가중치' && v.partyId === p.id);
-      if (found) {
-        initial[p.id] = { primary: found.amount, preliminary: '', absorbed: '' };
+  const [matrix, setMatrix] = useState<Record<string, Record<string, PartyRowVal>>>(() => {
+    const initial: Record<string, Record<string, PartyRowVal>> = {};
+    for (const stage of draft.stages) {
+      initial[stage.id] = {};
+      for (const p of draft.parties) {
+        const found = draft.calculation.values.find(v => v.stageId === stage.id && v.purpose === '배분 가중치' && v.partyId === p.id);
+        if (found) initial[stage.id][p.id] = { primary: found.amount, preliminary: '', absorbed: '' };
       }
     }
     return initial;
@@ -47,10 +49,11 @@ export function GuidedStep2Values({ draft, onChange }: {
   const counterVal = counterClaim?.value || '';
 
   const combinedStageValue = (() => {
-    const m = effectiveMainValue && amount(effectiveMainValue) !== null ? BigInt(effectiveMainValue) : BigInt(0);
-    const c = counterVal && amount(counterVal) !== null ? BigInt(counterVal) : BigInt(0);
-    if (!counterClaim) return m;
-    return counterObjective === '합산' ? m + c : (m >= c ? m : c);
+    const inputs = counterClaim ? [effectiveMainValue, counterVal] : [effectiveMainValue];
+    if (inputs.some(v => !safeMoneyInteger(v))) return null;
+    if (counterClaim && counterObjective === '최다액') return BigInt(effectiveMainValue) >= BigInt(counterVal) ? BigInt(effectiveMainValue) : BigInt(counterVal);
+    const total = sumMoneyInputs(inputs);
+    return total.status === 'ready' ? BigInt(total.amount) : null;
   })();
 
   function updateMainClaimValue(val: string) {
@@ -89,6 +92,7 @@ export function GuidedStep2Values({ draft, onChange }: {
 
   function applyStageValueToAttorneyFees() {
     if (!activeStage) return;
+    if (combinedStageValue === null || (hasClaimChange && !safeMoneyInteger(initialValue))) { setSyncMsg('소가 입력을 확인하세요. 공란·잘못된 금액을 0원으로 반영하지 않습니다.'); return; }
     const valStr = String(combinedStageValue);
     onChange(old => {
       const changeSummary = [
@@ -114,67 +118,42 @@ export function GuidedStep2Values({ draft, onChange }: {
   }
 
   function getRow(partyId: string): PartyRowVal {
-    return matrix[partyId] || { primary: '', preliminary: '', absorbed: '' };
+    return matrix[activeStage?.id || '']?.[partyId] || { primary: '', preliminary: '', absorbed: '' };
   }
 
   function setRow(partyId: string, patch: Partial<PartyRowVal>) {
-    setMatrix(prev => ({
-      ...prev,
-      [partyId]: { ...getRow(partyId), ...patch },
-    }));
+    const stageId = activeStage?.id || '';
+    setMatrix(prev => ({ ...prev, [stageId]: { ...prev[stageId], [partyId]: { ...(prev[stageId]?.[partyId] || { primary: '', preliminary: '', absorbed: '' }), ...patch } } }));
   }
 
-  const matrixTotals = draft.parties.reduce((acc, p) => {
+  const matrixRows = draft.parties.map(p => {
     const row = getRow(p.id);
-    const pri = row.primary && amount(row.primary) !== null ? BigInt(row.primary) : BigInt(0);
-    const pre = row.preliminary && amount(row.preliminary) !== null ? BigInt(row.preliminary) : BigInt(0);
-    const abs = row.absorbed && amount(row.absorbed) !== null ? BigInt(row.absorbed) : BigInt(0);
-    const gross = pri + pre;
-    const net = gross > abs ? gross - abs : BigInt(0);
-    return {
-      grossTotal: acc.grossTotal + gross,
-      netTotal: acc.netTotal + net,
-    };
-  }, { grossTotal: BigInt(0), netTotal: BigInt(0) });
+    return { party: p, result: allocationWeightInput(row.primary, row.preliminary, row.absorbed) };
+  });
+  const matrixTotals = matrixRows.every(r => r.result.status === 'ready') ? matrixRows.reduce((acc, row) => {
+    if (row.result.status !== 'ready') return acc;
+    return { grossTotal: acc.grossTotal + BigInt(row.result.gross!), netTotal: acc.netTotal + BigInt(row.result.amount) };
+  }, { grossTotal: BigInt(0), netTotal: BigInt(0) }) : null;
 
   function applyMatrixToCalculationValues() {
-    const stageId = activeStage?.id || draft.stages[0]?.id || '';
+    const stageId = activeStage?.id || '';
     const claimId = mainClaim?.id || '';
     if (!stageId || !claimId) return;
+    if (draft.parties.some(p => draft.calculation.values.filter(v => v.stageId === stageId && v.claimId === claimId && v.partyId === p.id && v.purpose === '배분 가중치').length > 1)) { setSyncMsg('같은 당사자·청구·심급에 여러 가중치가 있습니다. 계산용 가액에서 개별 검토하세요.'); return; }
+    const invalid = matrixRows.find(row => row.result.status === 'blocked');
+    if (invalid) { setSyncMsg(`${invalid.party.name || invalid.party.id}: 소가·중복 제외액을 확인하세요. 과다 제외나 잘못된 입력은 반영하지 않습니다.`); return; }
+    const additions = matrixRows.map(row => ({ partyId: row.party.id, label: `${row.party.name || row.party.id} 안분 기준 소가`, amount: row.result.status === 'ready' ? row.result.amount : '', id: crypto.randomUUID() }));
     onChange(old => {
       const nextValues = [...old.calculation.values];
-      for (const p of old.parties) {
-        const row = getRow(p.id);
-        const pri = row.primary && amount(row.primary) !== null ? BigInt(row.primary) : BigInt(0);
-        const pre = row.preliminary && amount(row.preliminary) !== null ? BigInt(row.preliminary) : BigInt(0);
-        const abs = row.absorbed && amount(row.absorbed) !== null ? BigInt(row.absorbed) : BigInt(0);
-        const net = pri + pre > abs ? pri + pre - abs : BigInt(0);
-        if (net <= BigInt(0)) continue;
-        const label = `${p.name || p.id} 안분 기준 소가`;
-        const existing = nextValues.find(v => v.stageId === stageId && v.partyId === p.id && v.purpose === '배분 가중치');
-        if (existing) {
-          existing.amount = String(net);
-          existing.label = label;
-        } else {
-          nextValues.push({
-            id: crypto.randomUUID(),
-            label,
-            stageId,
-            claimId,
-            partyId: p.id,
-            opponentId: '',
-            purpose: '배분 가중치',
-            kind: '청구',
-            amount: String(net),
-          });
-        }
+      for (const row of additions) {
+        const index = nextValues.findIndex(v => v.stageId === stageId && v.claimId === claimId && v.partyId === row.partyId && v.purpose === '배분 가중치');
+        if (index >= 0) nextValues[index] = { ...nextValues[index], amount: row.amount, label: row.label };
+        else nextValues.push({ id: row.id, label: row.label, stageId, claimId, partyId: row.partyId, opponentId: '', purpose: '배분 가중치', kind: '청구', amount: row.amount });
       }
-      return {
-        ...old,
-        calculation: { ...old.calculation, values: nextValues },
-      };
+      if (nextValues.length > 500) return old;
+      return { ...old, calculation: { ...old.calculation, values: nextValues } };
     });
-    setSyncMsg('당사자별 안분 기준 소가를 계산용 배분 가중치 가액에 반영했습니다.');
+    setSyncMsg('당사자별 안분 기준 소가를 반영했습니다. 0원도 저장하며 가중치 합계가 0이면 계산을 보류합니다.');
   }
 
   return (
@@ -278,7 +257,7 @@ export function GuidedStep2Values({ draft, onChange }: {
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3">
           <p className="text-xs text-slate-600">
-            산정 기준 소가 합계: <strong className="font-bold text-slate-950">{combinedStageValue.toLocaleString('ko-KR')}원</strong>
+            산정 기준 소가 합계: <strong className="font-bold text-slate-950">{combinedStageValue === null ? '입력 확인 필요' : `${combinedStageValue.toLocaleString('ko-KR')}원`}</strong>
           </p>
           <button type="button" className={secondary} onClick={applyStageValueToAttorneyFees}>
             선택 심급 변호사보수 소가에 반영
@@ -322,10 +301,7 @@ export function GuidedStep2Values({ draft, onChange }: {
                   <tbody>
                     {draft.parties.map(p => {
                       const row = getRow(p.id);
-                      const pri = row.primary && amount(row.primary) !== null ? BigInt(row.primary) : BigInt(0);
-                      const pre = row.preliminary && amount(row.preliminary) !== null ? BigInt(row.preliminary) : BigInt(0);
-                      const abs = row.absorbed && amount(row.absorbed) !== null ? BigInt(row.absorbed) : BigInt(0);
-                      const net = pri + pre > abs ? pri + pre - abs : BigInt(0);
+                      const calculated = allocationWeightInput(row.primary, row.preliminary, row.absorbed);
                       return (
                         <tr key={p.id} className="border-b border-slate-100">
                           <td className="p-2 font-medium text-slate-800">{p.name || '미입력'} ({p.mainRole}·{p.applicationRole})</td>
@@ -360,7 +336,7 @@ export function GuidedStep2Values({ draft, onChange }: {
                             />
                           </td>
                           <td className="p-2 text-right font-semibold tabular-nums text-blue-900">
-                            {net.toLocaleString('ko-KR')}원
+                            {calculated.status === 'ready' ? `${BigInt(calculated.amount).toLocaleString('ko-KR')}원` : '입력 확인 필요'}
                           </td>
                         </tr>
                       );
@@ -370,8 +346,8 @@ export function GuidedStep2Values({ draft, onChange }: {
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-slate-50 px-3.5 py-2.5 text-xs">
                 <div className="space-x-4">
-                  <span>전체 소가 합계: <strong className="font-bold text-slate-900">{matrixTotals.grossTotal.toLocaleString('ko-KR')}원</strong></span>
-                  <span>안분 기준 총소가 (중복 제외): <strong className="font-bold text-blue-900">{matrixTotals.netTotal.toLocaleString('ko-KR')}원</strong></span>
+                  <span>전체 소가 합계: <strong className="font-bold text-slate-900">{matrixTotals ? `${matrixTotals.grossTotal.toLocaleString('ko-KR')}원` : '입력 확인 필요'}</strong></span>
+                  <span>안분 기준 총소가 (중복 제외): <strong className="font-bold text-blue-900">{matrixTotals ? `${matrixTotals.netTotal.toLocaleString('ko-KR')}원` : '입력 확인 필요'}</strong></span>
                 </div>
                 <button type="button" className={primary} onClick={applyMatrixToCalculationValues}>
                   배분 가중치 가액에 일괄 적용

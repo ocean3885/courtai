@@ -61,3 +61,6 @@ next-env.d.ts
 
 /venv/
 /deploy/
+# Python validation artifacts
+__pycache__/
+*.py[cod]

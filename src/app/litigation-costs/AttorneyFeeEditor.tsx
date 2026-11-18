@@ -1,8 +1,9 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId } from 'react';
+import { sumMoneyInputs } from '@/lib/litigation-costs-money-input';
 import { getCostRecognition } from '@/lib/litigation-costs-attorney-fee';
-import { amount, type Cost } from '@/lib/litigation-costs-draft';
+import { type Cost } from '@/lib/litigation-costs-draft';
 import { Field, Select } from './form-controls';
 
 const digits = (v: string) => v.replace(/[,\s]/g, '');
@@ -11,25 +12,14 @@ export function AttorneyFeeEditor({ cost, stageName, initialValue, onChange }: {
   cost: Cost; stageName: string; initialValue: string; onChange: (patch: Partial<Cost>) => void;
 }) {
   const outputId = useId();
-  const [retainer, setRetainer] = useState('');
-  const [paidSuccess, setPaidSuccess] = useState('');
-  const [promisedSuccess, setPromisedSuccess] = useState('');
+  const { retainer = '', paidSuccess = '', promisedSuccess = '' } = cost.attorneyFee?.components || {};
   const result = getCostRecognition(cost);
 
   function updateBreakdown(nextRetainer: string, nextPaid: string, nextPromised: string) {
-    const r = digits(nextRetainer), p = digits(nextPaid), pr = digits(nextPromised);
-    setRetainer(r); setPaidSuccess(p); setPromisedSuccess(pr);
-    if (!r && !p && !pr) return;
-    const nums = [r, p, pr].map(x => (x && amount(x) !== null ? BigInt(x) : BigInt(0)));
-    const total = nums[0] + nums[1] + nums[2];
-    const parts: string[] = [];
-    if (nums[0] > BigInt(0)) parts.push(`착수금 ${nums[0].toLocaleString('ko-KR')}원`);
-    if (nums[1] > BigInt(0)) parts.push(`기지급 성공보수 ${nums[1].toLocaleString('ko-KR')}원`);
-    if (nums[2] > BigInt(0)) parts.push(`지급예정 성공보수 ${nums[2].toLocaleString('ko-KR')}원`);
-    onChange({
-      claimed: String(total),
-      note: parts.length ? `보수 내역: ${parts.join(' + ')}` : cost.note,
-    });
+    if (!cost.attorneyFee) return;
+    const components = { retainer: digits(nextRetainer), paidSuccess: digits(nextPaid), promisedSuccess: digits(nextPromised) };
+    const total = sumMoneyInputs(Object.values(components), true);
+    onChange({ claimed: total.status === 'ready' ? total.amount : '', attorneyFee: { ...cost.attorneyFee, components } });
   }
 
   const badgeText = result.status === 'ready' && result.attorneyFee
@@ -51,7 +41,7 @@ export function AttorneyFeeEditor({ cost, stageName, initialValue, onChange }: {
     {cost.attorneyFee && <>
       <div className="grid gap-4 sm:grid-cols-3">
         <Field label="심급별 보수 산정 소가 (원)" type="money" value={cost.attorneyFee.litigationValue} onChange={litigationValue => onChange({ attorneyFee: { ...cost.attorneyFee!, litigationValue: digits(litigationValue) } })} />
-        <Field label="변호사보수 실비 (원)" type="money" value={cost.claimed} onChange={claimed => onChange({ claimed: digits(claimed) })} hint="착수금·성공보수 합계를 직접 입력하거나 아래 세부 내역으로 합산합니다." />
+        <Field label="변호사보수 실비 (원)" type="money" value={cost.claimed} onChange={claimed => onChange({ claimed: digits(claimed), attorneyFee: { ...cost.attorneyFee!, components: undefined } })} hint="합계를 직접 입력하면 아래 세부 입력은 초기화됩니다. 세부 합산 입력은 초안에 함께 저장됩니다." />
         <Field label="보수 환급액 (원)" type="money" value={cost.refund} onChange={refund => onChange({ refund: digits(refund) })} hint="환급 반영 순액을 실비로 입력했다면 0원을 입력합니다." />
       </div>
       <div className="rounded-lg border border-slate-200 bg-white/80 p-3">
