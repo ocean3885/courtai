@@ -11,6 +11,7 @@ export type Member = {
   value: string;
   valueType?: MemberValueType;
   counterRole: string;
+  counterValue?: string;
 };
 export type Cost = {
   id: string;
@@ -39,7 +40,7 @@ export type Rule = {
   leftMethod: string;
   rightMethod: string;
 };
-export type RecordedValue = { id: string; ids: string[]; amount: string };
+export type RecordedValue = { id: string; side?: PartySide; ids: string[]; amount: string };
 export type Stage = {
   mainValues?: RecordedValue[];
   counterValues?: RecordedValue[];
@@ -50,9 +51,13 @@ export type Stage = {
   opponentValueMode?: ValueMode;
   number: string;
   value: string;
+  mainValueTarget?: PartySide;
+  useIndividualValues?: boolean;
   members: Record<string, Member>;
   counter: string;
   counterValue: string;
+  useCounterIndividualValues?: boolean;
+  counterValueMode?: ValueMode;
   counterNumber?: string;
   costs: Cost[];
   rules: Rule[];

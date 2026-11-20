@@ -235,7 +235,7 @@ export function CostReview({ parties, stages, reviews, applicationCosts, label }
                 </p>
                 {totalApplicationExpense !== null && totalApplicationExpense > BigInt(0) && (
                   <p className="text-xs tabular-nums text-slate-600">
-                    확정신청 비용 실지출 합산 참고 (전액 산입 가정 시):{' '}
+                    소송비용액확정신청 실지출 합산 참고 (전액 산입 가정 시){' '}
                     <strong className="text-slate-900">
                       {(
                         (combinedFloor / BigInt(roundingUnit)) * BigInt(roundingUnit) +
@@ -254,7 +254,7 @@ export function CostReview({ parties, stages, reviews, applicationCosts, label }
       )}
       {!!applicationCosts.length && (
         <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
-          <h3 className={heading}>확정신청 비용 · 실지출 소계</h3>
+          <h3 className={heading}>소송비용액확정신청 · 실지출 소계</h3>
           <div className="space-y-1 text-sm">
             {applicants.map((p) => {
               const costs = applicationCosts.filter((c) => c.payer === p.id);

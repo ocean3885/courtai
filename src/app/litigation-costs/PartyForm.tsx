@@ -19,7 +19,14 @@ import {
   type Reviews,
 } from './caseInput';
 import { CostReview } from './CostReview';
-import { resolveFeeBasisValue } from './costReview';
+import {
+  allocationMemberValue,
+  counterEffectiveValue,
+  resolveFeeBasisValue,
+  sideValueMode,
+  stageEffectiveValue,
+  stageMemberValue,
+} from './costReview';
 
 const roleOptionsByLevel: Record<Level, readonly string[]> = {
   '1심': ['원고', '피고'],
@@ -27,6 +34,10 @@ const roleOptionsByLevel: Record<Level, readonly string[]> = {
   상고심: ['상고인', '피상고인', '상고인 겸 피상고인'],
 };
 const splitOptions = ['균분', '안분'] as const;
+const valueTargetLabels: Record<PartySide, string> = {
+  신청인측: '신청인 측',
+  피신청인측: '피신청인 측',
+};
 const initialParties: Party[] = [
   { id: 'a', name: '', group: '신청인' },
   { id: 'b', name: '', group: '피신청인' },
@@ -40,6 +51,7 @@ const stage = (id: string, level: Level = '1심'): Stage => ({
   opponentValueMode: '합산',
   number: '',
   value: '',
+  useIndividualValues: false,
   members: {},
   counter: '',
   counterValue: '',
@@ -55,7 +67,9 @@ const uid = () => crypto.randomUUID();
 const button =
   'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40';
 const input =
-  'mt-1 block w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600';
+  'mt-1 block h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600';
+const stageCheckbox =
+  'inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border px-3.5 text-sm font-semibold';
 const grid = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3';
 const box = 'space-y-3 rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs';
 const partyBox = 'space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3.5';
@@ -63,44 +77,70 @@ const small = 'text-sm text-slate-600';
 
 const natural = (v: string) => (/^\d{1,16}$/.test(v) ? BigInt(v) : null);
 const won = (v: bigint) => v.toLocaleString('ko-KR') + '원';
+const normalizeNumericInput = (value: string) => (/^[\d,\s]+$/.test(value) ? value.replace(/[,\s]/g, '') : value);
+const formatClaimValue = (value: string) =>
+  /^\d{1,16}$/.test(value) ? value.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : value;
+
+function changeClaimValue(element: HTMLInputElement, change: (value: string) => void) {
+  const raw = element.value;
+  const value = normalizeNumericInput(raw);
+  const formatted = formatClaimValue(value);
+  if (formatted !== raw) {
+    let digitsBeforeCursor = raw.slice(0, element.selectionStart ?? raw.length).replace(/\D/g, '').length;
+    let cursor = 0;
+    while (digitsBeforeCursor > 0 && cursor < formatted.length) {
+      if (formatted[cursor] !== ',') digitsBeforeCursor--;
+      cursor++;
+    }
+    element.value = formatted;
+    element.setSelectionRange(cursor, cursor);
+  }
+  change(value);
+}
 
 function Field({
   label,
   value,
   change,
   numeric = false,
+  claimValue = false,
+  showAmountPreview = false,
 }: {
   label: string;
   value: string;
-  change: (v: string) => void;
+  change?: (v: string) => void;
   numeric?: boolean;
+  claimValue?: boolean;
+  showAmountPreview?: boolean;
 }) {
-  const parsed = numeric && value !== '' ? natural(value) : null;
-  const isMoneyField = numeric && label.includes('(원)');
+  const isNumeric = numeric || claimValue;
+  const parsed = isNumeric && value !== '' ? natural(value) : null;
+  const invalid = !!change && isNumeric && value !== '' && parsed === null;
   return (
     <label className="block text-sm font-medium text-slate-800">
       <span className="flex items-baseline justify-between gap-1">
         <span>{label}</span>
-        {isMoneyField && parsed !== null && parsed > BigInt(0) && (
+        {showAmountPreview && parsed !== null && parsed > BigInt(0) && (
           <span className="text-xs font-semibold tabular-nums text-blue-700">{won(parsed)}</span>
         )}
       </span>
       <input
-        className={input}
-        value={value}
+        className={claimValue ? `${input} text-right tabular-nums read-only:bg-slate-50` : input}
+        value={claimValue ? formatClaimValue(value) : value}
         aria-label={label}
-        inputMode={numeric ? 'numeric' : 'text'}
-        aria-invalid={numeric && value !== '' && parsed === null}
-        onChange={(e) => {
-          const raw = e.target.value;
-          if (numeric && /^[\d,\s]+$/.test(raw)) {
-            change(raw.replace(/[,\s]/g, ''));
+        inputMode={isNumeric ? 'numeric' : 'text'}
+        aria-invalid={invalid}
+        readOnly={!change}
+        onChange={change && ((e) => {
+          if (claimValue) {
+            changeClaimValue(e.currentTarget, change);
           } else {
-            change(raw);
+            const raw = e.currentTarget.value;
+            change(numeric ? normalizeNumericInput(raw) : raw);
           }
-        }}
+        })}
       />
-      {numeric && value !== '' && parsed === null && (
+      {invalid && (
         <span className="mt-1 block text-xs text-red-700">
           0 이상의 정수를 입력하세요 (최대 16자리).
         </span>
@@ -163,6 +203,14 @@ function Section({
     </details>
   );
 }
+type CheckChoice = {
+  id: string;
+  label: string;
+  side?: PartySide;
+  disabled?: boolean;
+  title?: string;
+};
+
 function Checks({
   title,
   choices,
@@ -170,41 +218,63 @@ function Checks({
   change,
 }: {
   title: string;
-  choices: { id: string; label: string }[];
+  choices: CheckChoice[];
   selected: string[];
   change: (ids: string[]) => void;
 }) {
+  const renderChip = (p: CheckChoice) => (
+    <label
+      key={p.id}
+      title={p.title}
+      className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
+        p.disabled
+          ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 opacity-60'
+          : selected.includes(p.id)
+            ? 'cursor-pointer border-blue-400 bg-blue-50 font-semibold text-blue-950'
+            : 'cursor-pointer border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+      }`}
+    >
+      <input
+        type="checkbox"
+        className="accent-blue-700"
+        disabled={p.disabled}
+        checked={selected.includes(p.id)}
+        onChange={(e) => {
+          if (p.disabled) return;
+          change(e.target.checked ? [...selected, p.id] : selected.filter((id) => id !== p.id));
+        }}
+      />{' '}
+      {p.label}
+    </label>
+  );
+
+  const hasSideGrouping = choices.some((c) => c.side !== undefined);
+  const applicantChoices = hasSideGrouping ? choices.filter((c) => c.side === '신청인측') : [];
+  const opponentChoices = hasSideGrouping ? choices.filter((c) => c.side !== '신청인측') : [];
+
   return (
     <fieldset>
-      <legend className="text-sm font-medium text-slate-800">{title}</legend>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {choices.map((p) => (
-          <label
-            key={p.id}
-            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm ${
-              selected.includes(p.id)
-                ? 'border-blue-300 bg-blue-50 font-medium text-blue-950'
-                : 'border-slate-200 bg-white text-slate-600'
-            }`}
-          >
-            <input
-              type="checkbox"
-              className="accent-blue-700"
-              checked={selected.includes(p.id)}
-              onChange={(e) =>
-                change(e.target.checked ? [...selected, p.id] : selected.filter((id) => id !== p.id))
-              }
-            />{' '}
-            {p.label}
-          </label>
-        ))}
-      </div>
+      <legend className="text-sm font-semibold text-slate-800">{title}</legend>
+      {hasSideGrouping && applicantChoices.length > 0 && opponentChoices.length > 0 ? (
+        <div className="mt-2 grid gap-2.5 sm:grid-cols-2">
+          <div className="rounded-lg border border-blue-200/80 bg-blue-50/35 p-2.5">
+            <span className="mb-1.5 block text-xs font-bold text-blue-950">신청인 측</span>
+            <div className="flex flex-wrap gap-1.5">{applicantChoices.map(renderChip)}</div>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-white/80 p-2.5">
+            <span className="mb-1.5 block text-xs font-bold text-slate-800">피신청인 측</span>
+            <div className="flex flex-wrap gap-1.5">{opponentChoices.map(renderChip)}</div>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-2 flex flex-wrap gap-2">{choices.map(renderChip)}</div>
+      )}
     </fieldset>
   );
 }
 
 function memberHasEntries(m: Member) {
-  return Boolean(m.role || m.number || m.value || m.counterRole);
+  return Boolean(m.role || m.number || m.value || m.counterRole || m.counterValue);
 }
 
 function hasStageData(s: Stage): boolean {
@@ -357,75 +427,288 @@ export default function PartyForm() {
     };
   }
 
-  function valueEditor(s: Stage, counter: boolean) {
-    const claim = counter ? '반소' : '본소';
-    const rows = (counter ? s.counterValues : s.mainValues) || [];
-    const choices = parties.filter(p => s.members[p.id]).map(p => {
-      const m = s.members[p.id];
-      return { id: p.id, label: [m.role, m.number, counter && m.counterRole, label(p)].filter(Boolean).join(' · ') };
-    });
-    function changeRows(next: RecordedValue[]) {
-      if (counter) {
-        patchStage(s.id, { counterValues: next });
-        return;
-      }
-      // Only a recorded individual amount supplies an existing per-party weight.
-      const members = { ...s.members };
-      for (const [id, m] of Object.entries(members)) {
-        const individual = next.filter(row => row.ids.length === 1 && row.ids[0] === id);
-        members[id] = { ...m, value: individual.length === 1 ? individual[0].amount : '' };
-      }
-      patchStage(s.id, { mainValues: next, members });
+  function formatPartyTargetsShort(ids: string[]): string {
+    const selectedParties = parties.filter((p) => ids.includes(p.id));
+    if (selectedParties.length === 0) return '';
+    const grouped = new Map<string, number[]>();
+    for (const p of selectedParties) {
+      const bucket = parties.filter(
+        (q) => q.group === p.group && (p.group !== '신청외' || isApplicantSideParty(q) === isApplicantSideParty(p))
+      );
+      const groupText =
+        p.group === '신청외' ? (isApplicantSideParty(p) ? '신청인측 신청외' : '피신청인측 신청외') : p.group;
+      const idx = bucket.findIndex((q) => q.id === p.id) + 1;
+      grouped.set(groupText, [...(grouped.get(groupText) || []), idx]);
     }
-    return <div className={box}>
-      <Field numeric label={claim+' 전체 소가 (원)'} value={counter ? s.counterValue : s.value}
-        change={amount => patchStage(s.id, counter ? { counterValue: amount } : { value: amount })} />
-      {rows.map((row,i) => {
-        const edit = (patch: Partial<RecordedValue>) => changeRows(rows.map(r => r.id === row.id ? {...r,...patch} : r));
-        const targets = choices.filter(p => row.ids.includes(p.id)).map(p => p.label).join(' 및 ');
-        return <div key={row.id} className="grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_13rem_auto] md:items-end">
-          <details className="min-w-0"><summary className="cursor-pointer text-sm font-medium">{targets || '대상 당사자 선택'}</summary>
-            <Checks title={claim+' 소가 내역 '+(i+1)+'의 대상'} choices={choices} selected={row.ids} change={ids => edit({ ids })} />
-          </details>
-          <Field numeric label={row.ids.length > 1 ? row.ids.length+'명 공통 소가 (원)' : '기록상 소가 (원)'} value={row.amount} change={amount => edit({ amount })} />
-          <button type="button" className={button} aria-label={claim+' 소가 내역 '+(i+1)+' 삭제'} onClick={() => changeRows(rows.filter(r=>r.id!==row.id))}>삭제</button>
-        </div>;
-      })}
-      <button type="button" className={button} disabled={!choices.length} onClick={()=>changeRows([...rows,{id:uid(),ids:[],amount:''}])}>+ 일부 당사자에 관한 소가 추가</button>
-    </div>;
+    return Array.from(grouped.entries())
+      .map(([g, nums]) => `${g} ${nums.join(',')}`)
+      .join(' · ');
   }
 
-  function renderMemberRow(s: Stage, sLevel: Level, p: Party) {
-    const changeMember = (patch: Partial<Member>) =>
-      patchStage(s.id, { members: { ...s.members, [p.id]: { ...s.members[p.id], ...patch } } });
+  function isApplicantBundle(row: RecordedValue): boolean {
+    if (row.side) return row.side === '신청인측';
+    const firstParty = parties.find((p) => row.ids.includes(p.id));
+    return firstParty ? isApplicantSideParty(firstParty) : true;
+  }
+
+  function renderSidePartySection(s: Stage, sLevel: Level, sidePeople: Party[], isAppSide: boolean) {
+    const sideTitle = isAppSide ? '신청인 측 당사자' : '피신청인 측 당사자';
+    const hasMainValue = s.mainValueTarget
+      ? (s.mainValueTarget === '신청인측') === isAppSide
+      : sLevel !== '1심';
+    const hasCounterValue = Boolean(s.counter && s.mainValueTarget && !hasMainValue);
+    const hasClaimValue = hasMainValue || hasCounterValue;
+    const claimName = hasCounterValue ? '반소 소가' : '소가';
+    const currentMode = sideValueMode(s, isAppSide, hasCounterValue);
+    const bundleKey = hasCounterValue ? 'counterValues' : 'mainValues';
+    const allBundles = s[bundleKey] || [];
+    const sideBundles = hasClaimValue ? allBundles.filter((row) => isApplicantBundle(row) === isAppSide) : [];
+    const individualValuesEnabled = hasClaimValue && (hasCounterValue ? s.useCounterIndividualValues === true : s.useIndividualValues !== false);
+    const columnLayout = s.counter
+      ? hasClaimValue
+        ? 'grid-cols-[minmax(80px,1fr)_86px_50px_84px_minmax(120px,1.3fr)]'
+        : 'grid-cols-[minmax(80px,1fr)_86px_50px_84px]'
+      : hasClaimValue
+        ? 'grid-cols-[minmax(88px,1.1fr)_94px_56px_minmax(130px,1.5fr)]'
+        : 'grid-cols-[minmax(88px,1fr)_94px_56px]';
+    const compactControl =
+      'block w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600';
+
+    function addCommonBundle() {
+      patchStage(s.id, {
+        [bundleKey]: [...allBundles, { id: uid(), side: isAppSide ? '신청인측' : '피신청인측', ids: [], amount: '' }],
+      });
+    }
+
+    function patchBundle(bundleId: string, patch: Partial<RecordedValue>) {
+      patchStage(s.id, { [bundleKey]: allBundles.map((r) => (r.id === bundleId ? { ...r, ...patch } : r)) });
+    }
+
+    function removeBundle(bundleId: string) {
+      patchStage(s.id, { [bundleKey]: allBundles.filter((r) => r.id !== bundleId) });
+    }
+
+    const changeMember = (partyId: string, patch: Partial<Member>) =>
+      patchStage(s.id, {
+        members: { ...s.members, [partyId]: { ...s.members[partyId], ...patch } },
+      });
 
     return (
-      <div key={p.id} className={box}>
-        <span className="text-sm font-bold text-slate-900">{label(p)}</span>
-        <div className="grid grid-cols-2 gap-2.5">
-          <Pick
-            label="지위"
-            value={s.members[p.id].role}
-            options={roleOptionsByLevel[sLevel]}
-            change={(role) => changeMember({ role })}
-          />
-          <Field
-            numeric
-            label="번호"
-            value={s.members[p.id].number}
-            change={(number) => changeMember({ number })}
-          />
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className={`text-sm font-bold ${isAppSide ? 'text-blue-950' : 'text-slate-900'}`}>
+            {sideTitle} ({sidePeople.length}명)
+          </span>
+          {individualValuesEnabled && sidePeople.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <div className="flex items-center gap-1">
+                {(['합산', '흡수'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() =>
+                      patchStage(
+                        s.id,
+                        hasCounterValue ? { counterValueMode: m } : isAppSide ? { applicantValueMode: m } : { opponentValueMode: m }
+                      )
+                    }
+                    className={`rounded border px-2 py-0.5 text-xs font-medium ${
+                      currentMode === m
+                        ? isAppSide
+                          ? 'border-blue-600 bg-blue-700 text-white'
+                          : 'border-slate-800 bg-slate-900 text-white'
+                        : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {m === '합산' ? '합산' : '다액흡수'}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={addCommonBundle}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {hasCounterValue ? '+ 반소 공통소가 묶기' : '+ 공통소가 묶기'}
+              </button>
+            </div>
+          )}
         </div>
-        {s.counter && (
-          <div className="max-w-[180px]">
-            <Pick
-              label="반소 지위"
-              value={s.members[p.id].counterRole}
-              options={['반소원고', '반소피고']}
-              change={(counterRole) => changeMember({ counterRole })}
-            />
+
+        {sidePeople.length === 0 ? (
+          <p className={small}>참여 중인 {isAppSide ? '신청인' : '피신청인'}이 없습니다.</p>
+        ) : (
+          <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs">
+            {/* 컴팩트 1줄 표 헤더 */}
+            <div
+              className={`grid items-center gap-2 border-b border-slate-100 px-1 pb-1.5 text-xs font-semibold text-slate-500 ${columnLayout}`}
+            >
+              <span>당사자</span>
+              <span>지위</span>
+              <span>번호</span>
+              {s.counter && <span>반소 지위</span>}
+              {hasClaimValue && <span>{claimName} (원)</span>}
+            </div>
+
+            {/* 당사자 1인 1줄 행 */}
+            <div className="divide-y divide-slate-100">
+              {sidePeople.map((p) => {
+                const m = s.members[p.id];
+                const bundle = sideBundles.find((row) => row.ids.includes(p.id));
+                const bundleShort = bundle ? formatPartyTargetsShort(bundle.ids) : '';
+                const bundleValue = bundle ? stageMemberValue(s, p.id, hasCounterValue) : null;
+                const value = hasCounterValue ? m.counterValue || '' : m.value;
+                return (
+                  <div
+                    key={p.id}
+                    className={`grid items-center gap-2 py-1.5 ${columnLayout}`}
+                  >
+                    <span className="truncate px-1 text-sm font-bold text-slate-900" title={label(p)}>
+                      {label(p)}
+                    </span>
+                    <select
+                      aria-label={label(p) + ' 지위'}
+                      className={compactControl}
+                      value={m.role}
+                      onChange={(e) => changeMember(p.id, { role: e.target.value })}
+                    >
+                      <option value="">선택</option>
+                      {roleOptionsByLevel[sLevel].map((opt) => (
+                        <option key={opt} value={opt}>
+                          {opt}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      aria-label={label(p) + ' 번호'}
+                      inputMode="numeric"
+                      placeholder="번호"
+                      className={compactControl}
+                      value={m.number}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        changeMember(p.id, {
+                          number: /^[\d,\s]+$/.test(raw) ? raw.replace(/[,\s]/g, '') : raw,
+                        });
+                      }}
+                    />
+                    {s.counter && (
+                      <select
+                        aria-label={label(p) + ' 반소 지위'}
+                        className={compactControl}
+                        value={m.counterRole}
+                        onChange={(e) => changeMember(p.id, { counterRole: e.target.value })}
+                      >
+                        <option value="">선택</option>
+                        {['반소원고', '반소피고'].map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {bundle ? (
+                      <div
+                        title={`${bundleShort} 공통 소가로 묶여 있습니다.`}
+                        className={`flex items-center justify-between gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold ${
+                          isAppSide
+                            ? 'border-blue-200 bg-blue-50/70 text-blue-950'
+                            : 'border-slate-300 bg-slate-100 text-slate-800'
+                        }`}
+                      >
+                        <span className="truncate">{bundleShort} 공통</span>
+                        <span className="shrink-0 tabular-nums text-blue-700">
+                          {bundleValue !== null ? won(bundleValue) : '아래 입력'}
+                        </span>
+                      </div>
+                    ) : hasClaimValue && (
+                      <input
+                        aria-label={label(p) + ` ${claimName} (원)`}
+                        inputMode="numeric"
+                        placeholder="개별 소가 입력"
+                        disabled={!individualValuesEnabled}
+                        aria-invalid={individualValuesEnabled && value !== '' && natural(value) === null}
+                        className={`${compactControl} text-right tabular-nums disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
+                        value={formatClaimValue(value)}
+                        onChange={(e) => changeClaimValue(e.currentTarget, (amount) =>
+                          changeMember(p.id, hasCounterValue ? { counterValue: amount } : { value: amount })
+                        )}
+                      />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
+
+        {/* 공통소가 묶음 목록 (`+ 공통소가 묶기` 클릭 시 추가됨) */}
+        {sideBundles.map((row, idx) => {
+          const otherBundledIds = new Set(
+            sideBundles.filter((other) => other.id !== row.id).flatMap((other) => other.ids)
+          );
+          const targetShort = formatPartyTargetsShort(row.ids);
+          const amountLabel = [targetShort, hasCounterValue ? '반소 공통 소가 (원)' : '공통 소가 (원)'].filter(Boolean).join(' ');
+          return (
+            <div
+              key={row.id}
+              className={`space-y-2 rounded-lg border bg-white p-2.5 shadow-2xs ${
+                isAppSide ? 'border-blue-200' : 'border-slate-200'
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="mr-0.5 text-xs font-bold text-slate-700">
+                    {hasCounterValue ? '반소 공통소가 묶음' : '공통소가 묶음'} {idx + 1}:
+                  </span>
+                  {sidePeople.map((p) => {
+                    const selected = row.ids.includes(p.id);
+                    const disabled = otherBundledIds.has(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        disabled={disabled}
+                        aria-pressed={selected}
+                        title={disabled ? '이미 다른 공통소가 묶음에 포함된 당사자입니다.' : undefined}
+                        onClick={() => {
+                          if (disabled) return;
+                          const nextIds = selected
+                            ? row.ids.filter((id) => id !== p.id)
+                            : [...row.ids, p.id];
+                          patchBundle(row.id, { ids: nextIds });
+                        }}
+                        className={`rounded-md border px-2 py-1 text-xs font-medium transition-colors ${
+                          selected
+                            ? isAppSide
+                              ? 'border-blue-600 bg-blue-700 font-semibold text-white'
+                              : 'border-slate-800 bg-slate-900 font-semibold text-white'
+                            : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40'
+                        }`}
+                      >
+                        {selected ? '✓ ' : ''}
+                        {label(p)}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeBundle(row.id)}
+                  className="rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+                >
+                  묶음 해제
+                </button>
+              </div>
+              <Field
+                claimValue
+                label={amountLabel}
+                value={row.amount}
+                change={(amount) => patchBundle(row.id, { amount })}
+              />
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -442,9 +725,11 @@ export default function PartyForm() {
       : parties.filter(side);
     const owners = (c.shared ? c.ids : [c.payer]).filter(Boolean);
     const normalizedMethod = c.method === '소가 비율' ? '안분' : c.method;
-    const weights = owners.map((id) =>
-      normalizedMethod === '균분' ? BigInt(1) : natural(s?.members[id]?.value || '')
-    );
+    const weights = owners.map((id) => {
+      if (normalizedMethod === '균분') return BigInt(1);
+      const party = parties.find((p) => p.id === id);
+      return s && party ? allocationMemberValue(s, party) : null;
+    });
     const sum = weights.reduce<bigint>((total, w) => total + (w ?? BigInt(0)), BigInt(0));
     const feeBasis = s && c.kind === '변호사보수' ? resolveFeeBasisValue(c, s, parties) : null;
     const feeLimit = feeBasis !== null ? ordinaryFeeLimit(feeBasis) : null;
@@ -498,7 +783,7 @@ export default function PartyForm() {
             <strong className="text-sm font-bold text-slate-900">{c.kind}</strong>
             {eligible.length === 1 && owners.length === 1 && (
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                배분 대상 · {label(eligible[0])}
+                부담대상 · {label(eligible[0])}
               </span>
             )}
             {c.paid !== '' && (
@@ -528,7 +813,7 @@ export default function PartyForm() {
           <div className="rounded-md bg-slate-50 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-xs font-semibold text-slate-600">이 비용의 배분 대상</span>
+                <span className="mr-1 text-xs font-semibold text-slate-600">부담대상</span>
                 {eligible.map((p) => {
                   const selected = owners.includes(p.id);
                   const disabled = otherFeeTakenIds.has(p.id);
@@ -586,7 +871,6 @@ export default function PartyForm() {
               )}
             </div>
 
-            {owners.length === 0 && <p className={small}>배분 대상을 선택하세요.</p>}
             {s && owners.length > 1 && <p className="mt-2 text-sm font-semibold">{targetCounts}, 총 {owners.length}명{normalizedMethod === '균분' ? '에게 균분' : normalizedMethod === '안분' ? '에게 소가 비율 안분' : ' 선택'}</p>}
             {s && owners.length > 1 && normalizedMethod === '안분' && (
               <p className="mt-2 text-xs text-slate-600">
@@ -595,6 +879,8 @@ export default function PartyForm() {
                   const who = [m?.role, m?.number, label(parties.find(p=>p.id===id)!)].filter(Boolean).join(' ');
                   return who + ' · ' + (weights[i] === null ? '기준 확인 필요' : won(weights[i]!));
                 }).join(' / ')}
+                {weights.some((w) => w === null) &&
+                  ' · 안분 대상의 공통소가를 입력하거나 해당 청구의 개별소가 항목을 체크하세요.'}
                 {weights.every(w=>w !== null) && !sum && ' · 기준 소가 합계 확인 필요'}
               </p>
             )}
@@ -615,12 +901,19 @@ export default function PartyForm() {
           )}
           <Field
             numeric
+            showAmountPreview
             label={c.kind === '변호사보수' ? '실지급 보수 (원)' : '납부액 (원)'}
             value={c.paid}
             change={(paid) => update({ paid })}
           />
           {allowsRefund && (
-            <Field numeric label="환급액 (원)" value={c.refund} change={(refund) => update({ refund })} />
+            <Field
+              numeric
+              showAmountPreview
+              label="환급액 (원)"
+              value={c.refund}
+              change={(refund) => update({ refund })}
+            />
           )}
         </div>
 
@@ -927,16 +1220,24 @@ export default function PartyForm() {
         const isVisible = showAllStages || stages.length === 1 || currentActiveLevel === sLevel;
         if (!isVisible) return null;
 
+        const useCalculatedValue = s.useIndividualValues === true;
+        const displayedValue = useCalculatedValue ? stageEffectiveValue(s, parties)?.toLocaleString('ko-KR') ?? '' : s.value;
+        const useCalculatedCounterValue = s.useCounterIndividualValues === true;
+        const displayedCounterValue = useCalculatedCounterValue
+          ? counterEffectiveValue(s, parties)?.toLocaleString('ko-KR') ?? ''
+          : s.counterValue;
+        const canEditMainIndividualValues = sLevel !== '1심' || Boolean(s.mainValueTarget);
+        const counterTarget = s.mainValueTarget === '신청인측' ? '피신청인측' : '신청인측';
         const people = parties.filter((p) => s.members[p.id]);
         const applicantPeople = people.filter((p) => isApplicantSideParty(p));
         const opponentPeople = people.filter((p) => !isApplicantSideParty(p));
         const applicantCosts = s.costs.filter((c) => isApplicantCost(c));
         const opponentCosts = s.costs.filter((c) => !isApplicantCost(c));
-        const choices = people.map((p) => ({
+        const choices: CheckChoice[] = people.map((p) => ({
           id: p.id,
+          side: isApplicantSideParty(p) ? '신청인측' : '피신청인측',
           label: [label(p), s.members[p.id].role, s.members[p.id].number].filter(Boolean).join(' '),
         }));
-        const priorCounter = stages.slice(0, index).some((t) => t.counter) || (sLevel !== '1심' && index === 0);
         const showParticipantChecks = sLevel !== '1심' || stages.length > 1 || parties.length > 2;
         const assignedFeePartyIds = new Set(
           s.costs
@@ -953,55 +1254,130 @@ export default function PartyForm() {
             {sLevel !== '1심' && !people.length && (
               <p className={small}>{sLevel} 판결문에 기재된 참여 당사자를 선택하세요.</p>
             )}
-            <div className="grid items-end gap-3 sm:grid-cols-2">
-              <Field
-                label={sLevel + ' 사건번호'}
-                value={s.number}
-                change={(number) => patchStage(s.id, { number })}
-              />
-              <Pick
-                label="이 심급의 반소"
-                value={s.counter}
-                options={priorCounter ? ['기존 반소 심판 대상', '이 심급에서 제기'] : ['이 심급에서 제기']}
-                change={(counter) => {
-                  if (
-                    !counter &&
-                    (s.rules.some((r) => r.claim) ||
-                      s.counterValue || s.counterValues?.length ||
-                      s.counterNumber ||
-                      people.some((p) => s.members[p.id].counterRole) ||
-                      stages.slice(index + 1).some((t) => t.counter === '기존 반소 심판 대상'))
-                  ) {
-                    setNotice('반소 소가·당사자·부담 관계 및 후속 심급 연결을 먼저 확인하세요.');
-                    return;
-                  }
-                  setNotice('');
-                  patchStage(s.id, { counter });
-                }}
-              />
-            </div>
-            {valueEditor(s, false)}
-            {s.counter && (
-              <div className="grid gap-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3 sm:grid-cols-2">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="min-w-[200px] flex-1 sm:max-w-xs">
                 <Field
-                  label="반소 사건번호"
-                  value={s.counterNumber || ''}
-                  change={(counterNumber) => patchStage(s.id, { counterNumber })}
+                  label={sLevel + ' 사건번호'}
+                  value={s.number}
+                  change={(number) => patchStage(s.id, { number })}
                 />
-                {valueEditor(s, true)}
+              </div>
+              {(sLevel === '1심' || s.counter || s.mainValueTarget) && (
+                <div className="min-w-[180px] flex-1 sm:max-w-xs">
+                  <Pick
+                    label={sLevel + ' 소가 대상'}
+                    value={s.mainValueTarget || ''}
+                    options={['신청인측', '피신청인측']}
+                    names={valueTargetLabels}
+                    change={(target) => {
+                      if (target === '신청인측' || target === '피신청인측') {
+                        patchStage(s.id, { mainValueTarget: target });
+                      } else {
+                        patchStage(s.id, { mainValueTarget: undefined, useIndividualValues: false, useCounterIndividualValues: false });
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              <div className="min-w-[220px] flex-1 sm:max-w-xs">
+                <Field
+                  claimValue
+                  label={sLevel + ' 소가 (원)'}
+                  value={displayedValue}
+                  change={useCalculatedValue ? undefined : (value) => patchStage(s.id, { value })}
+                />
+              </div>
+              <label className={`${stageCheckbox} border-slate-300 bg-white text-slate-700 has-disabled:cursor-not-allowed has-disabled:text-slate-500`}>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-blue-700"
+                  checked={s.useIndividualValues !== false}
+                  disabled={!canEditMainIndividualValues}
+                  onChange={(e) => patchStage(s.id, { useIndividualValues: e.currentTarget.checked })}
+                />
+                개별소가
+              </label>
+              <label
+                className={`${stageCheckbox} transition-colors ${
+                  s.counter
+                    ? 'border-blue-600 bg-blue-50 text-blue-950'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 accent-blue-700"
+                  checked={Boolean(s.counter)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    if (
+                      !checked &&
+                      (s.rules.some((r) => r.claim) ||
+                        s.counterValue ||
+                        s.counterValues?.length ||
+                        s.counterNumber ||
+                        people.some((p) => s.members[p.id].counterRole || s.members[p.id].counterValue))
+                    ) {
+                      setNotice('반소 사건번호·소가·반소 지위·부담 관계 입력을 먼저 비운 뒤 반소 선택을 해제하세요.');
+                      return;
+                    }
+                    setNotice('');
+                    patchStage(s.id, checked ? { counter: '반소' } : { counter: '', useCounterIndividualValues: false });
+                  }}
+                />
+                반소
+              </label>
+            </div>
+            {s.counter && (
+              <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
+                <p className="text-sm text-slate-800" aria-live="polite">
+                  <span className="font-semibold">반소 대상</span>{' '}
+                  {s.mainValueTarget ? valueTargetLabels[counterTarget] : `${sLevel} 소가 대상을 선택하세요.`}
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <div className="min-w-[200px] flex-1 sm:max-w-xs">
+                    <Field
+                      label="반소 사건번호"
+                      value={s.counterNumber || ''}
+                      change={(counterNumber) => patchStage(s.id, { counterNumber })}
+                    />
+                  </div>
+                  <div className="min-w-[220px] flex-1 sm:max-w-xs">
+                    <Field
+                      claimValue
+                      label="반소 전체 소가 (원)"
+                      value={displayedCounterValue}
+                      change={useCalculatedCounterValue ? undefined : (counterValue) => patchStage(s.id, { counterValue })}
+                    />
+                  </div>
+                  <label className={`${stageCheckbox} border-slate-300 bg-white text-slate-700 has-disabled:cursor-not-allowed has-disabled:text-slate-500`}>
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-blue-700"
+                      checked={useCalculatedCounterValue}
+                      disabled={!s.mainValueTarget}
+                      onChange={(e) => patchStage(s.id, { useCounterIndividualValues: e.currentTarget.checked })}
+                    />
+                    반소 개별소가
+                  </label>
+                </div>
               </div>
             )}
             {showParticipantChecks && (
               <Checks
                 title={sLevel + ' 참여 당사자'}
-                choices={parties.map((p) => ({ id: p.id, label: label(p) }))}
+                choices={parties.map((p) => ({
+                  id: p.id,
+                  side: isApplicantSideParty(p) ? '신청인측' : '피신청인측',
+                  label: label(p),
+                }))}
                 selected={people.map((p) => p.id)}
                 change={(ids) => {
                   const removed = people.find((p) => !ids.includes(p.id));
                   if (removed) {
                     const id = removed.id;
                     const links = [
-                      ...(s.mainValues || []).flatMap((row,i) => row.ids.includes(id) ? [`본소 소가 내역 ${i+1}`] : []),
+                      ...(s.mainValues || []).flatMap((row,i) => row.ids.includes(id) ? [`공통소가 묶음 ${i+1}`] : []),
                       ...(s.counterValues || []).flatMap((row,i) => row.ids.includes(id) ? [`반소 소가 내역 ${i+1}`] : []),
                       ...s.costs.flatMap((c,i) => c.payer === id || c.ids.includes(id) ? [`비용 ${i+1} (${c.title || c.kind})`] : []),
                       ...s.rules.flatMap((r,i) => [...r.left,...r.right].includes(id) ? [`부담 관계 ${i+1}`] : []),
@@ -1023,20 +1399,7 @@ export default function PartyForm() {
             <div className="grid items-start gap-3.5 lg:grid-cols-2">
               {/* 좌측 컬럼: 신청인 측 */}
               <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/20 p-3.5">
-                <div className="space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-blue-950">
-                        신청인 측 당사자 ({applicantPeople.length}명)
-                      </span>
-                    </div>
-                  </div>
-                  {applicantPeople.length === 0 ? (
-                    <p className={small}>참여 중인 신청인이 없습니다.</p>
-                  ) : (
-                    applicantPeople.map((p) => renderMemberRow(s, sLevel, p))
-                  )}
-                </div>
+                {renderSidePartySection(s, sLevel, applicantPeople, true)}
 
                 <div className="space-y-2.5 border-t border-blue-200/70 pt-3">
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -1079,20 +1442,7 @@ export default function PartyForm() {
 
               {/* 우측 컬럼: 피신청인 측 */}
               <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
-                <div className="space-y-2.5">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-slate-900">
-                        피신청인 측 당사자 ({opponentPeople.length}명)
-                      </span>
-                    </div>
-                  </div>
-                  {opponentPeople.length === 0 ? (
-                    <p className={small}>참여 중인 피신청인이 없습니다.</p>
-                  ) : (
-                    opponentPeople.map((p) => renderMemberRow(s, sLevel, p))
-                  )}
-                </div>
+                {renderSidePartySection(s, sLevel, opponentPeople, false)}
 
                 <div className="space-y-2.5 border-t border-slate-200 pt-3">
                   <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -1278,9 +1628,9 @@ export default function PartyForm() {
         );
       })}
 
-      {/* 4. 확정신청 비용 & 비용자료 제출·상계 검토 (데스크톱 좌우 2열 배치) */}
+      {/* 4. 소송비용액확정신청 및 비용자료 제출·상계 검토 */}
       <div className="grid items-start gap-3.5 lg:grid-cols-2">
-        <Section id="cost-application" title="확정신청 비용" open>
+        <Section id="cost-application" title="소송비용액확정신청" open>
           <div className="flex flex-wrap gap-1.5">
             {['인지대', '기발생 송달료', '결정정본 송달료', '서기료', '서류 발급비', '기타 비용'].map(
               (kind) => (
