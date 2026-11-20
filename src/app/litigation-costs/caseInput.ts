@@ -15,6 +15,7 @@ export type Member = {
 export type Cost = {
   id: string;
   payer: string;
+  side?: PartySide;
   kind: string;
   paid: string;
   recognized?: string;
@@ -38,7 +39,10 @@ export type Rule = {
   leftMethod: string;
   rightMethod: string;
 };
+export type RecordedValue = { id: string; ids: string[]; amount: string };
 export type Stage = {
+  mainValues?: RecordedValue[];
+  counterValues?: RecordedValue[];
   id: string;
   level?: Level;
   valueMode?: ValueMode;

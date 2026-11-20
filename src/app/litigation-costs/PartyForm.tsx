@@ -8,8 +8,7 @@ import {
   stageLevel,
   isApplicantSideParty,
   type Level,
-  type ValueMode,
-  type MemberValueType,
+  type RecordedValue,
   type Group,
   type PartySide,
   type Party,
@@ -20,7 +19,7 @@ import {
   type Reviews,
 } from './caseInput';
 import { CostReview } from './CostReview';
-import { resolveFeeBasisValue, sideEffectiveValue, sideValueMode } from './costReview';
+import { resolveFeeBasisValue } from './costReview';
 
 const roleOptionsByLevel: Record<Level, readonly string[]> = {
   '1심': ['원고', '피고'],
@@ -89,6 +88,7 @@ function Field({
       <input
         className={input}
         value={value}
+        aria-label={label}
         inputMode={numeric ? 'numeric' : 'text'}
         aria-invalid={numeric && value !== '' && parsed === null}
         onChange={(e) => {
@@ -203,14 +203,18 @@ function Checks({
   );
 }
 
+function memberHasEntries(m: Member) {
+  return Boolean(m.role || m.number || m.value || m.counterRole);
+}
+
 function hasStageData(s: Stage): boolean {
   return !!(
     s.number ||
     s.value ||
     s.counter ||
     s.costs.length ||
-    s.rules.length ||
-    Object.values(s.members).some((m) => Object.values(m).some(Boolean))
+    s.rules.length || s.mainValues?.length || s.counterValues?.length ||
+    Object.values(s.members).some(memberHasEntries)
   );
 }
 
@@ -255,7 +259,7 @@ export default function PartyForm() {
       }
       setNotice('');
       setStages((old) => {
-        const defaultMembers = Object.fromEntries(parties.map((p) => [p.id, member()]));
+        const defaultMembers = lv === '1심' ? Object.fromEntries(parties.map((p) => [p.id, member()])) : {};
         return sortStagesByLevel([...old, { ...stage(uid(), lv), members: defaultMembers }]);
       });
       setActiveStageLevel(lv);
@@ -277,11 +281,12 @@ export default function PartyForm() {
     setNotice('');
     setParties((old) => [...old, { id, group, side: resolvedSide, name: '' }]);
     setStages((old) =>
-      old.map((s, i) => (i === 0 ? { ...s, members: { ...s.members, [id]: member() } } : s))
+      old.map((s, i) => (stageLevel(s, i) === '1심' ? { ...s, members: { ...s.members, [id]: member() } } : s))
     );
   }
   function referenced(s: Stage, id: string) {
     return (
+      [...(s.mainValues || []), ...(s.counterValues || [])].some(row => row.ids.includes(id)) ||
       s.costs.some((c) => c.payer === id || c.ids.includes(id)) ||
       s.rules.some((r) => [...r.left, ...r.right].includes(id))
     );
@@ -289,7 +294,7 @@ export default function PartyForm() {
   function dropParty(p: Party) {
     if (
       Object.values(reviews[p.id] || {}).some(Boolean) ||
-      stages.some((s) => referenced(s, p.id) || Object.values(s.members[p.id] || {}).some(Boolean)) ||
+      stages.some((s) => referenced(s, p.id) || (s.members[p.id] && memberHasEntries(s.members[p.id]))) ||
       applicationCosts.some((c) => c.payer === p.id || c.ids.includes(p.id))
     ) {
       setNotice('이 당사자의 심급 정보, 제출·상계 검토 또는 연결된 비용·부담 관계를 먼저 정리하세요.');
@@ -306,6 +311,7 @@ export default function PartyForm() {
   }
 
   function isApplicantCost(c: Cost): boolean {
+    if (c.side) return c.side === '신청인측';
     const firstOwner = (c.shared ? c.ids[0] : c.payer) || c.payer;
     const ownerParty = parties.find((p) => p.id === firstOwner);
     return !ownerParty || isApplicantSideParty(ownerParty);
@@ -316,39 +322,19 @@ export default function PartyForm() {
       (p) =>
         s.members[p.id] && (sideGroup === 'applicant' ? isApplicantSideParty(p) : !isApplicantSideParty(p))
     );
-    const defaultMethod = kind === '변호사보수' || kind === '인지대' ? '안분' : '균분';
-
-    if (kind === '변호사보수') {
-      const takenIds = new Set(
-        s.costs
-          .filter((c) => c.kind === '변호사보수')
-          .flatMap((c) => (c.shared ? c.ids : [c.payer]).filter(Boolean))
-      );
-      const availIds = sidePeople.filter((p) => !takenIds.has(p.id)).map((p) => p.id);
-      return {
-        id: uid(),
-        payer: availIds[0] || '',
-        kind,
-        paid: '',
-        refund: '0',
-        shared: availIds.length > 1,
-        ids: availIds,
-        method: availIds.length > 1 ? defaultMethod : '',
-        evidence: '',
-        title: '',
-      };
-    }
-
-    const allSideIds = sidePeople.map((p) => p.id);
+    const assignedFeeIds = new Set(s.costs.filter(c => c.kind === '변호사보수').flatMap(c => c.shared ? c.ids : [c.payer]));
+    const available = sidePeople.filter(p => kind !== '변호사보수' || !assignedFeeIds.has(p.id));
+    const target = available.length === 1 ? available[0].id : '';
     return {
       id: uid(),
-      payer: allSideIds[0] || '',
+      side: sideGroup === 'applicant' ? '신청인측' : '피신청인측',
+      payer: target,
       kind,
       paid: '',
       refund: '0',
-      shared: allSideIds.length > 1,
-      ids: allSideIds,
-      method: allSideIds.length > 1 ? defaultMethod : '',
+      shared: false,
+      ids: target ? [target] : [],
+      method: '',
       evidence: '',
       title: '',
     };
@@ -356,7 +342,7 @@ export default function PartyForm() {
 
   function createApplicationCost(kind: string): Cost {
     const applicantIds = parties.filter(side).map((p) => p.id);
-    const firstId = applicantIds[0] || '';
+    const firstId = applicantIds.length === 1 ? applicantIds[0] : '';
     return {
       id: uid(),
       payer: firstId,
@@ -371,110 +357,52 @@ export default function PartyForm() {
     };
   }
 
-  function applySideBulkValueType(s: Stage, sidePeers: Party[], bulkType: MemberValueType) {
-    const isApp = sidePeers[0] ? isApplicantSideParty(sidePeers[0]) : true;
-    const nextMode: ValueMode = bulkType === '흡수' ? '흡수' : '합산';
-    const sharedVal =
-      bulkType === '공통'
-        ? sidePeers.map((peer) => s.members[peer.id]?.value).find((v) => v && v.trim() !== '') || ''
-        : null;
-    const nextMembers: Record<string, Member> = { ...s.members };
-    for (const peer of sidePeers) {
-      nextMembers[peer.id] = {
-        ...nextMembers[peer.id],
-        valueType: bulkType,
-        ...(sharedVal !== null && sharedVal !== '' ? { value: sharedVal } : {}),
-      };
-    }
-    patchStage(s.id, {
-      members: nextMembers,
-      ...(isApp ? { applicantValueMode: nextMode } : { opponentValueMode: nextMode }),
+  function valueEditor(s: Stage, counter: boolean) {
+    const claim = counter ? '반소' : '본소';
+    const rows = (counter ? s.counterValues : s.mainValues) || [];
+    const choices = parties.filter(p => s.members[p.id]).map(p => {
+      const m = s.members[p.id];
+      return { id: p.id, label: [m.role, m.number, counter && m.counterRole, label(p)].filter(Boolean).join(' · ') };
     });
+    function changeRows(next: RecordedValue[]) {
+      if (counter) {
+        patchStage(s.id, { counterValues: next });
+        return;
+      }
+      // Only a recorded individual amount supplies an existing per-party weight.
+      const members = { ...s.members };
+      for (const [id, m] of Object.entries(members)) {
+        const individual = next.filter(row => row.ids.length === 1 && row.ids[0] === id);
+        members[id] = { ...m, value: individual.length === 1 ? individual[0].amount : '' };
+      }
+      patchStage(s.id, { mainValues: next, members });
+    }
+    return <div className={box}>
+      <Field numeric label={claim+' 전체 소가 (원)'} value={counter ? s.counterValue : s.value}
+        change={amount => patchStage(s.id, counter ? { counterValue: amount } : { value: amount })} />
+      {rows.map((row,i) => {
+        const edit = (patch: Partial<RecordedValue>) => changeRows(rows.map(r => r.id === row.id ? {...r,...patch} : r));
+        const targets = choices.filter(p => row.ids.includes(p.id)).map(p => p.label).join(' 및 ');
+        return <div key={row.id} className="grid gap-3 rounded-lg bg-slate-50 p-3 md:grid-cols-[minmax(0,1fr)_13rem_auto] md:items-end">
+          <details className="min-w-0"><summary className="cursor-pointer text-sm font-medium">{targets || '대상 당사자 선택'}</summary>
+            <Checks title={claim+' 소가 내역 '+(i+1)+'의 대상'} choices={choices} selected={row.ids} change={ids => edit({ ids })} />
+          </details>
+          <Field numeric label={row.ids.length > 1 ? row.ids.length+'명 공통 소가 (원)' : '기록상 소가 (원)'} value={row.amount} change={amount => edit({ amount })} />
+          <button type="button" className={button} aria-label={claim+' 소가 내역 '+(i+1)+' 삭제'} onClick={() => changeRows(rows.filter(r=>r.id!==row.id))}>삭제</button>
+        </div>;
+      })}
+      <button type="button" className={button} disabled={!choices.length} onClick={()=>changeRows([...rows,{id:uid(),ids:[],amount:''}])}>+ 일부 당사자에 관한 소가 추가</button>
+    </div>;
   }
 
-  function renderMemberRow(s: Stage, sLevel: Level, p: Party, sidePeers: Party[]) {
-    const isApp = isApplicantSideParty(p);
-    const defaultMode = sideValueMode(s, isApp);
-    const currentType: MemberValueType =
-      s.members[p.id].valueType || (defaultMode === '흡수' ? '흡수' : '개별');
-
+  function renderMemberRow(s: Stage, sLevel: Level, p: Party) {
     const changeMember = (patch: Partial<Member>) =>
       patchStage(s.id, { members: { ...s.members, [p.id]: { ...s.members[p.id], ...patch } } });
 
-    function handleValueTypeChange(nextType: MemberValueType) {
-      if (nextType === '공통' || nextType === '공통2') {
-        const existingSharedVal = sidePeers
-          .filter((peer) => peer.id !== p.id)
-          .find((peer) => (s.members[peer.id]?.valueType || '개별') === nextType && s.members[peer.id]?.value)
-          ?.id;
-        const sharedValue = existingSharedVal ? s.members[existingSharedVal].value : s.members[p.id].value;
-        const nextMembers: Record<string, Member> = {
-          ...s.members,
-          [p.id]: { ...s.members[p.id], valueType: nextType, value: sharedValue },
-        };
-        if (sharedValue) {
-          for (const peer of sidePeers) {
-            if ((nextMembers[peer.id]?.valueType || '개별') === nextType) {
-              nextMembers[peer.id] = { ...nextMembers[peer.id], value: sharedValue };
-            }
-          }
-        }
-        patchStage(s.id, { members: nextMembers });
-      } else {
-        changeMember({ valueType: nextType });
-      }
-    }
-
-    function handleValueChange(nextVal: string) {
-      if (currentType === '공통' || currentType === '공통2') {
-        const nextMembers: Record<string, Member> = { ...s.members };
-        for (const peer of sidePeers) {
-          const peerType: MemberValueType | undefined =
-            peer.id === p.id ? currentType : nextMembers[peer.id]?.valueType;
-          if (peer.id === p.id || peerType === currentType) {
-            nextMembers[peer.id] = { ...nextMembers[peer.id], valueType: currentType, value: nextVal };
-          }
-        }
-        patchStage(s.id, { members: nextMembers });
-      } else {
-        changeMember({ value: nextVal });
-      }
-    }
-
     return (
       <div key={p.id} className={box}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="text-sm font-bold text-slate-900">{label(p)}</span>
-          {sidePeers.length > 1 && (
-            <div className="flex flex-wrap items-center gap-1">
-              <span className="mr-0.5 text-xs font-medium text-slate-500">소가 구분:</span>
-              {(
-                [
-                  ['개별', '개별(합산)'],
-                  ['공통', '공통 1'],
-                  ['공통2', '공통 2'],
-                  ['흡수', '흡수'],
-                ] as const
-              ).map(([t, text]) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => handleValueTypeChange(t)}
-                  className={`rounded border px-2 py-0.5 text-xs font-medium transition-colors ${
-                    currentType === t
-                      ? isApp
-                        ? 'border-blue-600 bg-blue-700 text-white'
-                        : 'border-slate-800 bg-slate-900 text-white'
-                      : 'border-slate-300 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  {text}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-[120px_72px_1fr] items-end gap-2.5">
+        <span className="text-sm font-bold text-slate-900">{label(p)}</span>
+        <div className="grid grid-cols-2 gap-2.5">
           <Pick
             label="지위"
             value={s.members[p.id].role}
@@ -486,12 +414,6 @@ export default function PartyForm() {
             label="번호"
             value={s.members[p.id].number}
             change={(number) => changeMember({ number })}
-          />
-          <Field
-            numeric
-            label={currentType === '공통' || currentType === '공통2' ? '공통 소가 (원)' : '소가 (원)'}
-            value={s.members[p.id].value}
-            change={handleValueChange}
           />
         </div>
         {s.counter && (
@@ -542,21 +464,17 @@ export default function PartyForm() {
         : []
     );
 
-    const defaultMethod = c.kind === '변호사보수' || c.kind === '인지대' ? '안분' : '균분';
+    const targetCounts = (['신청인', '피신청인', '신청외'] as const).map(group => {
+      const count = eligible.filter(p => p.group === group && owners.includes(p.id)).length;
+      return count ? group + ' ' + count + '명' : '';
+    }).filter(Boolean).join(' + ');
 
     function setCostOwners(nextIds: string[]) {
-      const validIds = nextIds.filter((id) => !otherFeeTakenIds.has(id));
-      if (validIds.length === 0) return;
-      if (validIds.length === 1) {
-        update({ payer: validIds[0], shared: false, ids: validIds });
-      } else {
-        update({
-          payer: validIds[0],
-          shared: true,
-          ids: validIds,
-          method: c.method || defaultMethod,
-        });
-      }
+      const ids = nextIds.filter(id => !otherFeeTakenIds.has(id));
+      update({
+        payer: ids[0] || '', shared: ids.length > 1, ids,
+        method: ids.length > 1 ? c.method : '',
+      });
     }
 
     function toggleOwnerParty(partyId: string) {
@@ -566,7 +484,7 @@ export default function PartyForm() {
         return;
       }
       if (owners.includes(partyId)) {
-        if (owners.length === 1) return;
+        if (eligible.length === 1) return;
         setCostOwners(owners.filter((id) => id !== partyId));
       } else {
         setCostOwners([...owners, partyId]);
@@ -580,7 +498,7 @@ export default function PartyForm() {
             <strong className="text-sm font-bold text-slate-900">{c.kind}</strong>
             {eligible.length === 1 && owners.length === 1 && (
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                {label(eligible[0])}
+                배분 대상 · {label(eligible[0])}
               </span>
             )}
             {c.paid !== '' && (
@@ -606,11 +524,11 @@ export default function PartyForm() {
         </div>
 
         {/* 해당 측 당사자가 2인 이상일 때만 당사자 선택 칩 & 기준 : [균분] [안분] 노출 */}
-        {eligible.length > 1 && (
+        {(eligible.length > 1 || owners.length === 0) && (
           <div className="rounded-md bg-slate-50 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-xs font-semibold text-slate-600">해당 당사자:</span>
+                <span className="mr-1 text-xs font-semibold text-slate-600">이 비용의 배분 대상</span>
                 {eligible.map((p) => {
                   const selected = owners.includes(p.id);
                   const disabled = otherFeeTakenIds.has(p.id);
@@ -653,6 +571,7 @@ export default function PartyForm() {
                     <button
                       key={opt}
                       type="button"
+                      aria-pressed={normalizedMethod === opt}
                       onClick={() => update({ method: opt })}
                       className={`rounded border px-2.5 py-1 text-sm font-medium ${
                         normalizedMethod === opt
@@ -660,43 +579,23 @@ export default function PartyForm() {
                           : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
                       }`}
                     >
-                      {opt}
+                      {opt === '균분' ? '균분(1/n)' : '소가 비율 안분'}
                     </button>
                   ))}
                 </div>
               )}
             </div>
 
-            {s && owners.length > 1 && (
+            {owners.length === 0 && <p className={small}>배분 대상을 선택하세요.</p>}
+            {s && owners.length > 1 && <p className="mt-2 text-sm font-semibold">{targetCounts}, 총 {owners.length}명{normalizedMethod === '균분' ? '에게 균분' : normalizedMethod === '안분' ? '에게 소가 비율 안분' : ' 선택'}</p>}
+            {s && owners.length > 1 && normalizedMethod === '안분' && (
               <p className="mt-2 text-xs text-slate-600">
-                {!normalizedMethod
-                  ? '기준(균분 / 안분)을 선택하세요.'
-                  : weights.includes(null) || !sum
-                    ? '선택한 당사자들의 소가 (원)를 위 당사자 목록에서 확인하세요.'
-                    : owners
-                        .map((id, i) => {
-                          const weight = weights[i]!;
-                          const basisAmount =
-                            c.kind === '변호사보수' && feeLimit !== null && net !== null
-                              ? feeLimit < net
-                                ? feeLimit
-                                : net
-                              : net;
-                          const share =
-                            basisAmount !== null && (basisAmount * weight) % sum === BigInt(0)
-                              ? ' = ' + won((basisAmount * weight) / sum)
-                              : '';
-                          return (
-                            label(parties.find((p) => p.id === id)!) +
-                            ' ' +
-                            (basisAmount === null ? '' : won(basisAmount) + ' × ') +
-                            weight +
-                            '/' +
-                            sum +
-                            share
-                          );
-                        })
-                        .join(' · ')}
+                {owners.map((id,i) => {
+                  const m = s.members[id];
+                  const who = [m?.role, m?.number, label(parties.find(p=>p.id===id)!)].filter(Boolean).join(' ');
+                  return who + ' · ' + (weights[i] === null ? '기준 확인 필요' : won(weights[i]!));
+                }).join(' / ')}
+                {weights.every(w=>w !== null) && !sum && ' · 기준 소가 합계 확인 필요'}
               </p>
             )}
           </div>
@@ -1039,11 +938,6 @@ export default function PartyForm() {
         }));
         const priorCounter = stages.slice(0, index).some((t) => t.counter) || (sLevel !== '1심' && index === 0);
         const showParticipantChecks = sLevel !== '1심' || stages.length > 1 || parties.length > 2;
-        const appMode: ValueMode = sideValueMode(s, true);
-        const oppMode: ValueMode = sideValueMode(s, false);
-        const appEffectiveVal = sideEffectiveValue(s, parties, true);
-        const oppEffectiveVal = sideEffectiveValue(s, parties, false);
-
         const assignedFeePartyIds = new Set(
           s.costs
             .filter((c) => c.kind === '변호사보수')
@@ -1056,6 +950,9 @@ export default function PartyForm() {
 
         return (
           <Section id={'cost-stage-' + s.id} key={s.id} title={sLevel + ' · 참여자와 비용'} open>
+            {sLevel !== '1심' && !people.length && (
+              <p className={small}>{sLevel} 판결문에 기재된 참여 당사자를 선택하세요.</p>
+            )}
             <div className="grid items-end gap-3 sm:grid-cols-2">
               <Field
                 label={sLevel + ' 사건번호'}
@@ -1070,7 +967,7 @@ export default function PartyForm() {
                   if (
                     !counter &&
                     (s.rules.some((r) => r.claim) ||
-                      s.counterValue ||
+                      s.counterValue || s.counterValues?.length ||
                       s.counterNumber ||
                       people.some((p) => s.members[p.id].counterRole) ||
                       stages.slice(index + 1).some((t) => t.counter === '기존 반소 심판 대상'))
@@ -1083,6 +980,7 @@ export default function PartyForm() {
                 }}
               />
             </div>
+            {valueEditor(s, false)}
             {s.counter && (
               <div className="grid gap-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3 sm:grid-cols-2">
                 <Field
@@ -1090,12 +988,7 @@ export default function PartyForm() {
                   value={s.counterNumber || ''}
                   change={(counterNumber) => patchStage(s.id, { counterNumber })}
                 />
-                <Field
-                  numeric
-                  label="반소 소가 (원)"
-                  value={s.counterValue}
-                  change={(counterValue) => patchStage(s.id, { counterValue })}
-                />
+                {valueEditor(s, true)}
               </div>
             )}
             {showParticipantChecks && (
@@ -1105,12 +998,18 @@ export default function PartyForm() {
                 selected={people.map((p) => p.id)}
                 change={(ids) => {
                   const removed = people.find((p) => !ids.includes(p.id));
-                  if (
-                    removed &&
-                    (referenced(s, removed.id) || Object.values(s.members[removed.id]).some(Boolean))
-                  ) {
-                    setNotice('연결된 심급 정보·비용·부담 관계를 먼저 정리하세요.');
-                    return;
+                  if (removed) {
+                    const id = removed.id;
+                    const links = [
+                      ...(s.mainValues || []).flatMap((row,i) => row.ids.includes(id) ? [`본소 소가 내역 ${i+1}`] : []),
+                      ...(s.counterValues || []).flatMap((row,i) => row.ids.includes(id) ? [`반소 소가 내역 ${i+1}`] : []),
+                      ...s.costs.flatMap((c,i) => c.payer === id || c.ids.includes(id) ? [`비용 ${i+1} (${c.title || c.kind})`] : []),
+                      ...s.rules.flatMap((r,i) => [...r.left,...r.right].includes(id) ? [`부담 관계 ${i+1}`] : []),
+                    ];
+                    if (links.length || memberHasEntries(s.members[id])) {
+                      setNotice(links.length ? `${label(removed)}: ${links.join(', ')}의 연결을 먼저 정리하세요.` : `${label(removed)}의 지위·번호·소가·반소 지위 입력을 먼저 정리하세요.`);
+                      return;
+                    }
                   }
                   setNotice('');
                   patchStage(s.id, {
@@ -1130,47 +1029,12 @@ export default function PartyForm() {
                       <span className="text-sm font-bold text-blue-950">
                         신청인 측 당사자 ({applicantPeople.length}명)
                       </span>
-                      {appEffectiveVal !== null && appEffectiveVal > BigInt(0) && (
-                        <span className="rounded bg-blue-100/80 px-2 py-0.5 text-xs font-semibold tabular-nums text-blue-900">
-                          기준 소가 {won(appEffectiveVal)}
-                        </span>
-                      )}
                     </div>
-                    {applicantPeople.length > 1 && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-xs font-semibold text-slate-600">일괄 :</span>
-                        {(
-                          [
-                            ['개별', '개별합산'],
-                            ['공통', '공통소가'],
-                            ['흡수', '다액흡수'],
-                          ] as const
-                        ).map(([t, labelText]) => {
-                          const allMatch = applicantPeople.every(
-                            (p) => (s.members[p.id].valueType || (appMode === '흡수' ? '흡수' : '개별')) === t
-                          );
-                          return (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => applySideBulkValueType(s, applicantPeople, t)}
-                              className={`rounded border px-2 py-0.5 text-xs font-medium ${
-                                allMatch
-                                  ? 'border-blue-600 bg-blue-700 text-white'
-                                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
-                              }`}
-                            >
-                              {labelText}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                   {applicantPeople.length === 0 ? (
                     <p className={small}>참여 중인 신청인이 없습니다.</p>
                   ) : (
-                    applicantPeople.map((p) => renderMemberRow(s, sLevel, p, applicantPeople))
+                    applicantPeople.map((p) => renderMemberRow(s, sLevel, p))
                   )}
                 </div>
 
@@ -1221,47 +1085,12 @@ export default function PartyForm() {
                       <span className="text-sm font-bold text-slate-900">
                         피신청인 측 당사자 ({opponentPeople.length}명)
                       </span>
-                      {oppEffectiveVal !== null && oppEffectiveVal > BigInt(0) && (
-                        <span className="rounded bg-slate-200/80 px-2 py-0.5 text-xs font-semibold tabular-nums text-slate-800">
-                          기준 소가 {won(oppEffectiveVal)}
-                        </span>
-                      )}
                     </div>
-                    {opponentPeople.length > 1 && (
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="text-xs font-semibold text-slate-600">일괄 :</span>
-                        {(
-                          [
-                            ['개별', '개별합산'],
-                            ['공통', '공통소가'],
-                            ['흡수', '다액흡수'],
-                          ] as const
-                        ).map(([t, labelText]) => {
-                          const allMatch = opponentPeople.every(
-                            (p) => (s.members[p.id].valueType || (oppMode === '흡수' ? '흡수' : '개별')) === t
-                          );
-                          return (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => applySideBulkValueType(s, opponentPeople, t)}
-                              className={`rounded border px-2 py-0.5 text-xs font-medium ${
-                                allMatch
-                                  ? 'border-slate-900 bg-slate-900 text-white'
-                                  : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
-                              }`}
-                            >
-                              {labelText}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                   {opponentPeople.length === 0 ? (
                     <p className={small}>참여 중인 피신청인이 없습니다.</p>
                   ) : (
-                    opponentPeople.map((p) => renderMemberRow(s, sLevel, p, opponentPeople))
+                    opponentPeople.map((p) => renderMemberRow(s, sLevel, p))
                   )}
                 </div>
 
