@@ -11,6 +11,7 @@ import {
   type ValueMode,
 } from './caseInput';
 import { ordinaryFeeLimit } from './ordinaryFee';
+import { relationAmounts } from './relationValues';
 
 export type Amount = { n: bigint; d: bigint };
 const zero = BigInt(0);
@@ -239,22 +240,35 @@ export function expenseNet(c: Cost) {
   if (net < zero) throw Error('환급액이 납부액을 초과합니다.');
   return net;
 }
-function basis(cost: Cost, s: Stage, parties: Party[]) {
+export type ReviewedExpense = {
+  cost: Cost;
+  owners: string[];
+  paid: bigint;
+  refund: bigint;
+  net: bigint;
+  recognized: bigint;
+  feeBasis: bigint | null;
+  feeLimit: bigint | null;
+};
+function reviewExpense(cost: Cost, s: Stage, parties: Party[]): ReviewedExpense {
   const net = expenseNet(cost);
   const feeBasis = cost.kind === '변호사보수' ? resolveFeeBasisValue(cost, s, parties) : null;
+  const feeLimit = feeBasis === null ? null : ordinaryFeeLimit(feeBasis);
   if (cost.kind === '변호사보수' && s.counter && (s.counterFeeMode || cost.claim) && feeBasis === null)
     throw Error('보수 대리 범위에 해당하는 본소·반소 소가와 합산·다액흡수 기준을 확인하세요.');
+  let recognized = net;
   if (cost.recognized) {
     const reviewed = integer(cost.recognized, '검토 인정액');
     if (reviewed > net) throw Error(cost.kind === '변호사보수' ? '검토 인정액이 입력한 변호사보수액을 초과합니다.' : '검토 인정액이 실지출액을 초과합니다.');
-    if (feeBasis !== null && reviewed > ordinaryFeeLimit(feeBasis))
+    if (feeLimit !== null && reviewed > feeLimit)
       throw Error('보수 인정액이 일반 본안 한도를 초과합니다.');
-    return reviewed;
+    recognized = reviewed;
+  } else if (cost.kind === '변호사보수') {
+    if (feeLimit === null) throw Error('당사자 소가 또는 보수의 증빙 검토 인정액을 입력하세요.');
+    recognized = feeLimit < net ? feeLimit : net;
   }
-  if (cost.kind !== '변호사보수') return net;
-  if (feeBasis === null) throw Error('당사자 소가 또는 보수의 증빙 검토 인정액을 입력하세요.');
-  const limit = ordinaryFeeLimit(feeBasis);
-  return limit < net ? limit : net;
+  return { cost, owners: (cost.shared ? cost.ids : [cost.payer]).filter(Boolean),
+    paid: BigInt(cost.paid), refund: BigInt(cost.refund), net, recognized, feeBasis, feeLimit };
 }
 function weights(ids: string[], method: string, s: Stage, parties: Party[]) {
   if (!ids.length || ids.some((id) => !s.members[id])) throw Error('해당 심급의 대상 당사자를 확인하세요.');
@@ -433,6 +447,8 @@ export function opponentAllocationGroups(cost: Cost, stages: Stage[], index: num
   return groups;
 }
 type Line = {
+  costId: string;
+  stageId: string;
   stage: string;
   kind: string;
   owner: string;
@@ -447,6 +463,7 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
   const lines: Line[] = [],
     errors: string[] = [];
   const ownerTotals = new Map<string, Amount>();
+  const expenses: (ReviewedExpense & { stageId: string })[] = [];
   stages.forEach((s, index) => {
     const feeOwners = new Set<string>();
     s.costs.forEach((c) => {
@@ -459,13 +476,16 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
           }
           owners.forEach((id) => feeOwners.add(id));
         }
-        const value = fraction(basis(c, s, parties));
+        const expense = reviewExpense(c, s, parties);
+        const value = fraction(expense.recognized);
         if (c.shared && owners.length < 2) throw Error('공동 지출의 귀속 당사자를 두 명 이상 선택하세요.');
         const shares = weights(owners, c.method, s, parties);
         const portions = claimPortions(c, stages, index, parties);
+        const pending: Line[] = [];
+        const pendingTotals = new Map<string, Amount>();
         for (const [j, owner] of owners.entries()) {
           const owned = product(value, shares[j]);
-          ownerTotals.set(owner, add(ownerTotals.get(owner) ?? nothing, owned));
+          pendingTotals.set(owner, owned);
           for (const portion of portions) {
             const selected = portion.claim === '본소' ? c.mainRuleId || c.ruleId : portion.claim === '반소' ? c.counterRuleId || c.ruleId : c.ruleId;
             const routes = resolveRuleRoutes(stages, index, owner, selected, portion.claim);
@@ -473,16 +493,26 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
             const allZero = routes.every(r => burden(r.rule, r.rule.left.includes(owner)).n === zero);
             if (!allZero && routes.length > 1 && !method)
               throw Error('상대방 전체의 비용 배분 기준(균분/안분)을 선택하세요.');
-            const parts = allZero ? routes.map(() => fraction(one)) : weights(routes.map(r => r.debtor), method || '', s, parties);
+            const counterpartIds = routes.map(r => r.debtor);
+            const ownerParty = parties.find(p => p.id === owner);
+            const counterRelations = portion.claim === '반소' || (!portion.claim && Boolean(s.counter && s.mainValueTarget && ownerParty &&
+              (s.mainValueTarget === '신청인측') !== isApplicantSideParty(ownerParty)));
+            const related = !allZero && method !== '균분' ? relationAmounts(s, parties, owner, counterpartIds, counterRelations) : null;
+            const relatedSum = related?.reduce((sum, n) => sum + n, zero);
+            if (related && !relatedSum) throw Error('안분할 관계별 소가 합계가 0원입니다.');
+            const parts = allZero ? routes.map(() => fraction(one)) : related
+              ? related.map(n => fraction(n, relatedSum!)) : weights(counterpartIds, method || '', s, parties);
             routes.forEach(({ debtor, rule, source }, k) => {
               const rate = burden(rule, rule.left.includes(owner));
               const calculation = calculateSteps(value, [
                 { label: '본소·반소 배분', factor: portion.weight },
                 { label: '공동비용 귀속', factor: shares[j] },
-                { label: '상대방별 배분', factor: parts[k] },
+                { label: related ? '상대방별 배분 (관계별 소가)' : '상대방별 배분', factor: parts[k] },
                 { label: '부담률 적용', factor: rate },
               ], mode);
-              lines.push({
+              pending.push({
+                costId: c.id,
+                stageId: s.id,
                 stage: stageLevel(s, index),
                 kind: (c.title || c.kind) + (portion.label ? ' · ' + portion.label : ''),
                 owner,
@@ -493,6 +523,9 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
             });
           }
         }
+        lines.push(...pending);
+        pendingTotals.forEach((amount, owner) => ownerTotals.set(owner, add(ownerTotals.get(owner) ?? nothing, amount)));
+        expenses.push({ ...expense, stageId: s.id });
       } catch (e) {
         errors.push(
           stageLevel(s, index) +
@@ -509,5 +542,5 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
       }
     });
   });
-  return { lines: errors.length ? [] : lines, errors, ownerTotals };
+  return { lines: errors.length ? [] : lines, errors, ownerTotals, expenses };
 }

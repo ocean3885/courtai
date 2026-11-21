@@ -1,17 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { type ApplicationPolicy, type Cost, type Party, type Reviews, type Stage } from './caseInput';
-import { add, money, nothing, reviewCosts, subtract, type Amount, type CalculationStep } from './costReview';
-import { reviewApplicationCosts } from './applicationCosts';
+import { type Cost, type Party, type Stage } from './caseInput';
+import { money, type Amount, type CalculationStep } from './costReview';
+import { calculateLitigationCosts } from './litigationCalculation';
 import { CostStatementModal } from './CostStatementModal';
 
 type Props = {
   parties: Party[];
   stages: Stage[];
-  reviews: Reviews;
   applicationCosts: Cost[];
-  applicationPolicy?: ApplicationPolicy;
+  applicationCaseNumber?: string;
   label: (p: Party) => string;
 };
 
@@ -36,6 +35,7 @@ function CalculationDetails({ steps, exactAmount, amount }: { steps: Calculation
             <span className="font-medium text-slate-800">{step.label}</span>: {money(step.input)} × {step.factor.n.toString()}/{step.factor.d.toString()}
             {' = '}{money(step.raw)} → <strong className="text-slate-900">{money(step.amount)}</strong>
             <span className="ml-1 text-slate-400 text-[11px]">(10원 미만 버림)</span>
+            <span className="ml-1 text-slate-500">절사액 {money(step.discarded)}</span>
           </div>
         ))}
         {exactAmount.n * amount.d !== amount.n * exactAmount.d && (
@@ -48,77 +48,12 @@ function CalculationDetails({ steps, exactAmount, amount }: { steps: Calculation
   );
 }
 
-export function CostReview({ parties, stages, reviews, applicationCosts, applicationPolicy, label }: Props) {
+export function CostReview({ parties, stages, applicationCosts, applicationCaseNumber, label }: Props) {
   const [showStatementModal, setShowStatementModal] = useState(false);
-  const { lines, errors, ownerTotals } = reviewCosts(stages, parties);
-  const application = reviewApplicationCosts(applicationCosts, parties, stages, applicationPolicy);
-
-  const applicationTotal = (owner: string, debtor: string) =>
-    application.lines
-      .filter((l) => l.owner === owner && l.debtor === debtor)
-      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-  const name = (id: string) => label(parties.find((p) => p.id === id)!);
-  const total = (owner: string, debtor: string) =>
-    lines
-      .filter((l) => l.owner === owner && l.debtor === debtor)
-      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-  const applicants = parties.filter((p) => p.group === '신청인');
-  const pairs = applicants.flatMap((a) =>
-    parties
-      .filter(
-        (b) =>
-          b.group === '피신청인' &&
-          [...lines, ...application.lines].some(
-            (l) => (l.owner === a.id && l.debtor === b.id) || (l.owner === b.id && l.debtor === a.id)
-          )
-      )
-      .map((b) => ({ a, b }))
-  );
-
-  const settlements = pairs.map(({ a, b }) => {
-    const r = reviews[b.id];
-    const forward = total(a.id, b.id);
-    const reverse = total(b.id, a.id);
-    const mutual = r?.treatment === '쌍방 비용 상계';
-    const only = r?.treatment === '신청인 비용만 반영';
-    let missing = '';
-
-    if (!ownerTotals.has(a.id)) missing = '신청인 지출 비용을 확인하세요. 0원이면 금액에 0을 입력하세요.';
-    else if (!['기간 내 제출', '기간 내 미제출'].includes(r?.submission || '') || (!mutual && !only))
-      missing = '피신청인의 비용자료 제출 상태와 상계 방식을 확인하세요.';
-    else if (mutual && r.submission !== '기간 내 제출')
-      missing = '기간 내 미제출 상태에서 쌍방 상계를 적용할 수 있는지 검토하세요.';
-    else if (only && r.submission !== '기간 내 미제출') missing = '신청인 비용만 반영할 근거를 확인하세요.';
-    else if (r.zeroConfirmed && ownerTotals.get(b.id)?.n)
-      missing = '피신청인의 지출 비용과 0원 확인이 일치하지 않습니다.';
-    else if (mutual && !ownerTotals.has(b.id) && !r.zeroConfirmed)
-      missing = '피신청인 비용을 입력하거나 0원임을 확인하세요.';
-
-    const net = subtract(forward, mutual ? reverse : nothing);
-    const negative = net.n < BigInt(0);
-    const applicationAmount = applicationTotal(a.id, b.id);
-    return {
-      a,
-      b,
-      r,
-      forward,
-      reverse,
-      mutual,
-      only,
-      missing,
-      negative,
-      net,
-      applicationAmount,
-      combinedAmount: add(net, applicationAmount),
-    };
-  });
-
-  const allReviewed = settlements.length > 0 && settlements.every((row) => !row.missing && !row.negative);
-  const combined = settlements.reduce((sum, row) => add(sum, row.net), nothing);
-  const applicationSum = application.lines.reduce((sum, l) => add(sum, l.amount), nothing);
-  const primarySettlement = settlements[0];
+  const calculation = calculateLitigationCosts(parties, stages, applicationCosts);
+  const { main, application, settlements } = calculation;
+  const { lines, errors } = main;
+  const name = (id: string) => label(parties.find(p => p.id === id)!);
 
   return (
     <section
@@ -144,6 +79,19 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
           </button>
         )}
       </div>
+
+      {(!!main.expenses.length || !!application.expenses.length) && (
+        <div className="space-y-2 text-sm">
+          <h3 className={heading}>인정 비용 총액 (부담률 적용 전)</h3>
+          {calculation.errors.length ? <p>인정 비용 합계 입력 확인 필요</p> : <>
+            <p>본안비용소계: 신청인 측 {calculation.mainTotals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.mainTotals.respondent.toLocaleString('ko-KR')}원</p>
+            <p>신청비용소계: {calculation.applicationTotal.toLocaleString('ko-KR')}원</p>
+            <p>합계: 신청인 측 {calculation.totals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.totals.respondent.toLocaleString('ko-KR')}원</p>
+          </>}
+          <p className="text-xs text-slate-500">아래 관계별 정산액은 인정 비용에 배분·부담비율과 상계를 적용한 금액입니다.</p>
+          <p className="text-xs text-slate-500">{calculation.roundingDescription}</p>
+        </div>
+      )}
 
       {/* 2. 오류 및 안내 메시지 */}
       {!lines.length && !errors.length && !application.lines.length && (
@@ -174,50 +122,16 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
         </div>
       )}
 
-      {/* 3. [최상단 전진 배치] 최종 상환 결정 금액 하이라이트 카드 (Hero Summary Card) */}
-      {(!!lines.length || !!application.lines.length) && primarySettlement && !errors.length && (
-        <div className="rounded-xl border-2 border-blue-600/30 bg-gradient-to-br from-blue-50/80 to-indigo-50/40 p-5 shadow-xs">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <span className="inline-block rounded-full bg-blue-600 px-2.5 py-0.5 text-xs font-semibold text-white">
-                최종 결정 주문액
-              </span>
-              <h3 className="mt-2 text-base font-semibold text-slate-800">
-                {name(primarySettlement.b.id)}이(가) {name(primarySettlement.a.id)}에게 상환하여야 할 소송비용액
-              </h3>
-              <div className="mt-1 flex items-baseline gap-2">
-                <span className="text-3xl font-extrabold tracking-tight text-blue-950 tabular-nums">
-                  금 {allReviewed ? money(primarySettlement.combinedAmount) : money(add(primarySettlement.net, primarySettlement.applicationAmount))}
-                </span>
-                {primarySettlement.negative && (
-                  <span className="text-xs font-medium text-amber-700 bg-amber-100 px-2 py-0.5 rounded">
-                    역방향 차액 (피신청인 부담 초과)
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:items-end gap-1.5 text-xs">
-              <div className="inline-flex flex-wrap gap-2">
-                <span className="rounded-md border border-blue-200 bg-white px-2.5 py-1 text-slate-700">
-                  본안 정산액: <strong className="text-slate-900">{money(primarySettlement.net)}</strong>
-                </span>
-                {!!applicationCosts.length && (
-                  <span className="rounded-md border border-blue-200 bg-white px-2.5 py-1 text-slate-700">
-                    신청비용: <strong className="text-slate-900">{money(primarySettlement.applicationAmount)}</strong>
-                  </span>
-                )}
-                {primarySettlement.mutual && (
-                  <span className="rounded-md border border-purple-200 bg-purple-50 px-2.5 py-1 text-purple-800">
-                    쌍방 상계 반영됨
-                  </span>
-                )}
-              </div>
-              <span className="text-slate-500 text-[11px]">10원 미만 단계별 절사 적용</span>
-            </div>
-          </div>
+      {settlements.map(row => (
+        <div key={row.a.id + ':' + row.b.id} className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-5">
+          <h3 className="text-base font-semibold text-slate-900">{label(row.a)} ↔ {label(row.b)}</h3>
+          {row.missing ? <p className="text-sm text-amber-800">{row.missing}</p> : <>
+            <p className="text-sm text-slate-700">{label(row.payer)}이(가) {label(row.receiver)}에게 지급할 최종 금액</p>
+            <p className="text-3xl font-extrabold text-blue-950 tabular-nums">{money(row.payable)}</p>
+            <p className="text-xs text-slate-600">본안 정산액 {money(row.net)} + 확정신청비용 {money(row.applicationAmount)} · 단계별 절사 반영</p>
+          </>}
         </div>
-      )}
+      ))}
 
       {/* 4. 본안 소송비용 심급별 부담 내역 테이블 */}
       {!!lines.length && (
@@ -317,17 +231,17 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
               ({
                 a,
                 b,
-                r,
                 forward,
                 reverse,
-                only,
                 missing,
-                negative,
-                net,
                 applicationAmount,
-                combinedAmount,
+                respondentEntered,
+                respondentRecoveryExcluded,
+                applicantEntered,
+                payer,
+                receiver,
+                payable,
               }) => {
-                const absNet = negative ? subtract(nothing, net) : net;
                 return (
                   <div
                     key={a.id + b.id}
@@ -338,20 +252,20 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
                         {name(a.id)} ↔ {name(b.id)}
                       </strong>
                       <span className="text-xs text-slate-500">
-                        {only ? '신청인 비용만 반영' : r?.treatment === '쌍방 비용 상계' ? '쌍방 비용 상계' : '정산 대기'}
+                        {missing ? '입력 확인 필요' : '입력 비용 자동 상계'}
                       </span>
                     </div>
 
                     <div className="space-y-1.5 text-xs text-slate-600">
                       <div className="flex justify-between">
                         <span>(+) 신청인 인정액 ({name(b.id)} → {name(a.id)})</span>
-                        <span className="font-medium text-slate-900 tabular-nums">{money(forward)}</span>
+                        <span className="font-medium text-slate-900 tabular-nums">{applicantEntered ? money(forward) : '비용 미입력'}</span>
                       </div>
                       <div className="flex justify-between">
                         <span>(-) 피신청인 상계액 ({name(a.id)} → {name(b.id)})</span>
                         <span className="font-medium text-slate-900 tabular-nums">
-                          {ownerTotals.has(b.id) || r?.zeroConfirmed ? money(reverse) : '귀속 비용 미확인'}
-                          {only && ' (제외)'}
+                          {respondentEntered || respondentRecoveryExcluded ? money(reverse) : '비용 미입력'}
+                          {respondentRecoveryExcluded && ' (판결 주문상 상환 없음)'}
                         </span>
                       </div>
                       {!!applicationCosts.length && (
@@ -369,16 +283,11 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
                         <p className="font-medium text-amber-800 text-xs">{missing}</p>
                       ) : (
                         <div className="flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900 text-xs">최종 상환 합산액</span>
+                          <span className="font-semibold text-slate-900 text-xs">{label(payer)} → {label(receiver)}</span>
                           <span className="text-base font-bold text-blue-900 tabular-nums">
-                            {money(combinedAmount)}
+                            {money(payable)}
                           </span>
                         </div>
-                      )}
-                      {negative && (
-                        <p className="text-xs text-amber-700 mt-1">
-                          피신청인의 상환 요구액이 더 큽니다. 반대 방향 절차를 검토하세요.
-                        </p>
                       )}
                     </div>
                   </div>
@@ -394,9 +303,9 @@ export function CostReview({ parties, stages, reviews, applicationCosts, applica
         <CostStatementModal
           parties={parties}
           stages={stages}
-          reviews={reviews}
           applicationCosts={applicationCosts}
-          applicationPolicy={applicationPolicy}
+          applicationCaseNumber={applicationCaseNumber}
+          calculation={calculation}
           label={label}
           onClose={() => setShowStatementModal(false)}
         />

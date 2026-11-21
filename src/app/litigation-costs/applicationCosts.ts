@@ -1,5 +1,6 @@
 import { stageLevel, type ApplicationPolicy, type Cost, type Party, type Stage } from './caseInput';
-import { add, burden, calculateSteps, expenseNet, fraction, nothing, product, resolveRuleRoutes, type Amount, type CalculationMode, type CalculationStep } from './costReview';
+import { add, burden, calculateSteps, expenseNet, fraction, nothing, product, resolveRuleRoutes, type Amount, type CalculationMode, type CalculationStep, type ReviewedExpense } from './costReview';
+import { orderIssues } from './burdenOrders';
 
 const natural = (value: string | undefined, label: string) => {
   if (!value || !/^\d{1,16}$/.test(value)) throw Error(label + '을 확인하세요.');
@@ -21,9 +22,67 @@ export type ApplicationLine = {
   exactAmount: Amount; steps: CalculationStep[];
 };
 
+export function reviewAutomaticApplicationCosts(costs: Cost[], parties: Party[], stages: Stage[]) {
+  if (!costs.length) return { lines: [] as ApplicationLine[], errors: [] as string[], ownerTotals: new Map<string, Amount>(), expenses: [] as ReviewedExpense[] };
+  const owners = parties.filter(p => p.group === '신청인').map(p => p.id);
+  const opponents = parties.filter(p => p.group === '피신청인').map(p => p.id);
+  const rates: NonNullable<Cost['application']>['rates'] = {};
+  const bases = new Map<string, string>();
+  try {
+    if (!owners.length || !opponents.length) throw Error('사건·당사자에서 신청인과 피신청인을 입력하세요.');
+    for (const owner of owners) {
+      rates[owner] = {};
+      for (const debtor of opponents) {
+        let found = false;
+        // The application is a new common expense. Reuse the latest entered
+        // order for each relationship, including orders limited to appeal costs.
+        for (let index = stages.length - 1; index >= 0; index--) {
+          const stage = stages[index];
+          const rules = stage.rules.filter(r =>
+            (r.left.includes(owner) && r.right.includes(debtor)) ||
+            (r.right.includes(owner) && r.left.includes(debtor)));
+          if (!rules.length) continue;
+          for (const rule of rules) {
+            const issues = orderIssues(stage, rule, parties);
+            if (issues.length) throw Error(`${stageLevel(stage, index)} 판결 주문을 확인하세요: ${issues.join(' ')}`);
+            if (stage.counter && !['본소', '반소', '본소와 반소'].includes(rule.claim))
+              throw Error('판결 주문 입력에서 본소·반소의 적용 청구를 확인하세요.');
+          }
+          const amounts = rules.map(r => burden(r, r.left.includes(owner)));
+          if (rules.length > 1) {
+            const claims = new Set(rules.map(r => r.claim));
+            if (rules.length !== 2 || !claims.has('본소') || !claims.has('반소'))
+              throw Error('같은 당사자 관계의 판결 주문이 중복되어 있습니다. 판결 주문 입력에서 적용 대상을 정리하세요.');
+            if (amounts.some(rate => rate.n * amounts[0].d !== amounts[0].n * rate.d))
+              throw Error('본소·반소의 부담비율이 달라 신청비용을 자동 계산할 수 없습니다. 판결 주문의 부담 내용을 확인하세요.');
+          }
+          rates[owner][debtor] = { n: String(amounts[0].n), d: String(amounts[0].d) };
+          bases.set(owner + ':' + debtor, `${stageLevel(stage, index)} · ${rules[0].scope} · 판결 주문 자동 적용`);
+          found = true;
+          break;
+        }
+        if (!found) {
+          const applicant = parties.find(p => p.id === owner)!;
+          const respondent = parties.find(p => p.id === debtor)!;
+          const applicantIndex = owners.indexOf(owner) + 1;
+          const respondentIndex = opponents.indexOf(debtor) + 1;
+          throw Error(`신청인 ${applicantIndex}${applicant.name ? ` ${applicant.name}` : ''}–피신청인 ${respondentIndex}${respondent.name ? ` ${respondent.name}` : ''} 사이의 부담 내용이 없습니다. 판결 주문 입력에서 보완하세요.`);
+        }
+      }
+    }
+  } catch (error) {
+    return { lines: [] as ApplicationLine[], errors: [(error as Error).message], ownerTotals: new Map<string, Amount>(), expenses: [] as ReviewedExpense[] };
+  }
+  const normalized = costs.map(c => ({ ...c, payer: owners[0], ids: owners, shared: owners.length > 1, method: '균분',
+    application: { opponentIds: opponents, opponentMethod: '균분' as const, rates } }));
+  const result = reviewApplicationCosts(normalized, parties);
+  return { ...result, lines: result.lines.map(line => ({ ...line, basis: bases.get(line.owner + ':' + line.debtor)! })) };
+}
+
 export function reviewApplicationCosts(costs: Cost[], parties: Party[], stages: Stage[] = [], policy?: ApplicationPolicy, mode: CalculationMode = '단계별10원') {
   const lines: ApplicationLine[] = [], errors: string[] = [];
   const ownerTotals = new Map<string, Amount>();
+  const expenses: ReviewedExpense[] = [];
   for (const c of costs) {
     try {
       const owners = applicationOwners(c);
@@ -70,11 +129,12 @@ export function reviewApplicationCosts(costs: Cost[], parties: Party[], stages: 
         });
       });
       lines.push(...pending);
+      expenses.push({ cost: c, owners, paid: BigInt(c.paid), refund: BigInt(c.refund), net, recognized, feeBasis: null, feeLimit: null });
       owners.forEach((owner, i) => ownerTotals.set(owner, add(ownerTotals.get(owner) || nothing, product(fraction(recognized), ownerShares[i]))));
     } catch (error) {
       errors.push((c.title || c.kind) + ' — ' + (error as Error).message);
     }
   }
-  return { lines: errors.length ? [] : lines, errors, ownerTotals };
+  return { lines: errors.length ? [] : lines, errors, ownerTotals, expenses };
 }
 

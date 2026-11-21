@@ -1,543 +1,206 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { type Party, type Rule, type Stage, stageLevel } from './caseInput';
+import { useRef, useState } from 'react';
+import { isApplicantSideParty, type Party, type Rule, type Stage, stageLevel } from './caseInput';
+import { canSelectOrderParty, conflictingOrderPairs, orderDescription, orderIssues, patchOrder, suggestedOrder, summarizeOrders } from './burdenOrders';
 
 type Props = {
   stages: Stage[];
   parties: Party[];
   label: (p: Party) => string;
   onUpdateStageRules: (stageId: string, rules: Rule[]) => void;
-  onUpdateAllStageRules: (rules: Rule[]) => void;
 };
 
-const uid = () => crypto.randomUUID();
+const modes = [
+  ['2측 전부 부담', '상대방 전부 부담 (100%)'],
+  ['1측 전부 부담', '신청인 전부 부담 (100%)'],
+  ['비율로 분담', '비율로 분담'],
+  ['각자 부담', '각자 부담'],
+] as const;
+const button = 'rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50';
+const input = 'h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900';
 
-export function BurdenOrderSection({
-  stages,
-  parties,
-  label,
-  onUpdateStageRules,
-  onUpdateAllStageRules,
-}: Props) {
-  const applicants = parties.filter((p) => p.group === '신청인');
-  const respondents = parties.filter((p) => p.group === '피신청인');
-
-  const appIds = applicants.map((p) => p.id);
-  const respIds = respondents.map((p) => p.id);
-
-  const applicantNames = applicants.map((p) => label(p)).join(', ') || '신청인';
-  const respondentNames = respondents.map((p) => label(p)).join(', ') || '피신청인';
-
-  // 심급별 주문 분리 여부
-  const [splitByStage, setSplitByStage] = useState<boolean>(() => {
-    if (stages.length <= 1) return false;
-    const firstRule = stages[0]?.rules?.[0];
-    if (!firstRule) return false;
-    // 심급 간 rule이 서로 다르면 true로 시작
-    return stages.some((s) => {
-      const r = s.rules?.[0];
-      if (!r) return false;
-      return r.mode !== firstRule.mode || r.n !== firstRule.n || r.d !== firstRule.d;
-    });
-  });
-
-  // 일괄 적용 모드의 설정 상태
-  const currentFirstRule = stages[0]?.rules?.[0];
-  const initialMode = currentFirstRule?.mode || '2측 전부 부담';
-  const initialN = currentFirstRule?.n || '1';
-  const initialD = currentFirstRule?.d || '1';
-
-  const [globalMode, setGlobalMode] = useState<string>(initialMode);
-  // 비율 입력 방식: 'percent' (백분율) | 'fraction' (분수)
-  const [rateFormat, setRateFormat] = useState<'percent' | 'fraction'>('percent');
-  const [globalPercent, setGlobalPercent] = useState<string>(() => {
-    if (initialD && initialD !== '0' && initialN) {
-      const p = Math.round((Number(initialN) / Number(initialD)) * 100);
-      return isNaN(p) ? '40' : String(p);
-    }
-    return '40';
-  });
-  const [globalN, setGlobalN] = useState<string>(initialN || '1');
-  const [globalD, setGlobalD] = useState<string>(initialD || '2');
-
-  // 개별 심급별 비율 입력 형식
-  const [stageRateFormats, setStageRateFormats] = useState<Record<string, 'percent' | 'fraction'>>({});
-  const [stagePercents, setStagePercents] = useState<Record<string, string>>({});
-
-  // 일괄 적용 모드 업데이트 전파
-  const applyGlobalOrder = (
-    mode: string,
-    format: 'percent' | 'fraction',
-    percentVal: string,
-    nVal: string,
-    dVal: string
-  ) => {
-    let finalN = nVal;
-    let finalD = dVal;
-
-    if (mode === '비율로 분담') {
-      if (format === 'percent') {
-        const p = Math.min(100, Math.max(0, parseInt(percentVal || '0', 10)));
-        finalN = String(p);
-        finalD = '100';
-      } else {
-        finalN = nVal || '1';
-        finalD = dVal || '1';
-      }
-    }
-
-    stages.forEach((s, idx) => {
-      const sLevel = stageLevel(s, idx);
-      const newRule: Rule = {
-        id: s.rules?.[0]?.id || uid(),
-        left: appIds,
-        right: respIds,
-        mode,
-        n: finalN,
-        d: finalD,
-        scope: sLevel === '1심' ? '1심 비용' : '소송총비용',
-        claim: s.counter ? '본소와 반소' : '',
-        leftMethod: '균분',
-        rightMethod: '균분',
-      };
-      onUpdateStageRules(s.id, [newRule]);
-    });
-  };
-
-  const handleGlobalModeChange = (newMode: string) => {
-    setGlobalMode(newMode);
-    applyGlobalOrder(newMode, rateFormat, globalPercent, globalN, globalD);
-  };
-
-  const handleGlobalPercentChange = (val: string) => {
-    const cleaned = val.replace(/\D/g, '');
-    const num = Math.min(100, Math.max(0, parseInt(cleaned || '0', 10)));
-    const str = cleaned === '' ? '' : String(num);
-    setGlobalPercent(str);
-    applyGlobalOrder(globalMode, 'percent', str, globalN, globalD);
-  };
-
-  const handleGlobalFractionChange = (n: string, d: string) => {
-    setGlobalN(n);
-    setGlobalD(d);
-    applyGlobalOrder(globalMode, 'fraction', globalPercent, n, d);
-  };
-
-  // 개별 심급 업데이트
-  const updateSingleStageRule = (
-    stageId: string,
-    sLevel: string,
-    patch: Partial<Rule>,
-    currentRule?: Rule
-  ) => {
-    const existing: Rule = currentRule || {
-      id: uid(),
-      left: appIds,
-      right: respIds,
-      mode: '2측 전부 부담',
-      n: '1',
-      d: '1',
-      scope: sLevel + ' 비용',
-      claim: '',
-      leftMethod: '균분',
-      rightMethod: '균분',
-    };
-    const updated = { ...existing, ...patch };
-    onUpdateStageRules(stageId, [updated]);
-  };
-
+function OrderEditor({ stage, index, rule, parties, label, change }: {
+  stage: Stage; index: number; rule: Rule; parties: Party[];
+  label: Props['label']; change: (patch: Partial<Rule>) => void;
+}) {
+  // Keep the stored fraction exact; switching the display never changes the order.
+  const [format, setFormat] = useState<'percent' | 'fraction'>(rule.d === '100' ? 'percent' : 'fraction');
+  const level = stageLevel(stage, index);
+  const issues = orderIssues(stage, rule, parties);
+  const selectedIds = [...rule.left, ...rule.right];
+  const unused = parties.filter(p => stage.members[p.id] && !selectedIds.includes(p.id));
+  const suggested = suggestedOrder(stage, parties, index, rule.id);
+  const fullSelectionConflicts = conflictingOrderPairs(stage, { ...rule, left: suggested.left, right: suggested.right }).length > 0;
   return (
-    <section
-      id="cost-burden-orders"
-      className="space-y-4 rounded-xl border border-slate-300 bg-white p-5 shadow-sm"
-      aria-label="판결의 소송비용부담 주문"
-    >
-      {/* 1. 섹션 헤더 */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-        <div>
-          <h2 className="text-lg font-bold text-slate-900">판결의 소송비용부담 주문</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            본안 확정 판결문 주문에 기재된 소송비용 부담 내용을 설정합니다. 판결문 문구에 맞춰 바로 선택하실 수 있습니다.
-          </p>
-        </div>
-
-        {stages.length > 1 && (
-          <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition">
-            <input
-              type="checkbox"
-              checked={splitByStage}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setSplitByStage(checked);
-                if (!checked) {
-                  // 일괄 모드로 복귀 시 현재 global 설정으로 전 심급 동기화
-                  applyGlobalOrder(globalMode, rateFormat, globalPercent, globalN, globalD);
-                }
-              }}
-              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            심급별로 판결 주문이 다릅니다 (항소/상고 기각 등)
-          </label>
-        )}
-      </div>
-
-      {/* 2. [모드 1] 전체 심급 일괄 적용 모드 */}
-      {!splitByStage && (
-        <div className="space-y-4 rounded-lg bg-slate-50/70 p-4 border border-slate-200">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-800">
-              최종 확정 판결 주문 (전체 {stages.length}개 심급 일괄 적용)
-            </span>
-            <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-800">
-              일괄 적용
-            </span>
-          </div>
-
-          {/* 부담 방식 빠른 선택 버튼 그룹 */}
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            <button
-              type="button"
-              onClick={() => handleGlobalModeChange('2측 전부 부담')}
-              className={`rounded-lg border p-3 text-left transition-all ${
-                globalMode === '2측 전부 부담'
-                  ? 'border-blue-600 bg-blue-50 text-blue-950 font-bold shadow-xs ring-2 ring-blue-600/20'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <div className="text-sm">상대방 전부 부담 (100%)</div>
-              <div className="mt-1 text-xs font-normal text-slate-500">
-                {respondentNames} 전부 부담
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleGlobalModeChange('1측 전부 부담')}
-              className={`rounded-lg border p-3 text-left transition-all ${
-                globalMode === '1측 전부 부담'
-                  ? 'border-blue-600 bg-blue-50 text-blue-950 font-bold shadow-xs ring-2 ring-blue-600/20'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <div className="text-sm">신청인 전부 부담 (100%)</div>
-              <div className="mt-1 text-xs font-normal text-slate-500">
-                {applicantNames} 전부 부담
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleGlobalModeChange('비율로 분담')}
-              className={`rounded-lg border p-3 text-left transition-all ${
-                globalMode === '비율로 분담'
-                  ? 'border-blue-600 bg-blue-50 text-blue-950 font-bold shadow-xs ring-2 ring-blue-600/20'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <div className="text-sm">비율로 분담 (일부 분담)</div>
-              <div className="mt-1 text-xs font-normal text-slate-500">
-                % 또는 분자/분모로 지정
-              </div>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleGlobalModeChange('각자 부담')}
-              className={`rounded-lg border p-3 text-left transition-all ${
-                globalMode === '각자 부담'
-                  ? 'border-blue-600 bg-blue-50 text-blue-950 font-bold shadow-xs ring-2 ring-blue-600/20'
-                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              <div className="text-sm">각자 부담 (상환 없음)</div>
-              <div className="mt-1 text-xs font-normal text-slate-500">
-                각자 지출한 비용 부담
-              </div>
-            </button>
-          </div>
-
-          {/* 비율로 분담 세부 입력 영역 */}
-          {globalMode === '비율로 분담' && (
-            <div className="mt-3 rounded-lg border border-blue-200 bg-white p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                <span className="text-xs font-bold text-slate-800">분담 비율 입력 방식 선택</span>
-                <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-slate-50 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRateFormat('percent');
-                      applyGlobalOrder(globalMode, 'percent', globalPercent, globalN, globalD);
-                    }}
-                    className={`px-3 py-1 rounded-md font-medium transition ${
-                      rateFormat === 'percent'
-                        ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    % (백분율)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setRateFormat('fraction');
-                      applyGlobalOrder(globalMode, 'fraction', globalPercent, globalN, globalD);
-                    }}
-                    className={`px-3 py-1 rounded-md font-medium transition ${
-                      rateFormat === 'fraction'
-                        ? 'bg-blue-600 text-white shadow-xs font-semibold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    분수 (분모 / 분자)
-                  </button>
-                </div>
-              </div>
-
-              {rateFormat === 'percent' ? (
-                <div className="space-y-2">
-                  <div className="grid gap-3 sm:grid-cols-2 items-center">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        신청인({applicantNames}) 부담 비율
-                      </label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={globalPercent}
-                          onChange={(e) => handleGlobalPercentChange(e.target.value)}
-                          placeholder="예: 40"
-                          className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 pr-8 text-base text-slate-900 focus:border-blue-600 focus:outline-none"
-                        />
-                        <span className="absolute right-3 text-sm font-bold text-slate-500">%</span>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        상대방({respondentNames}) 부담 비율 (자동)
-                      </label>
-                      <div className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 flex items-center text-sm font-bold text-blue-900">
-                        {100 - (parseInt(globalPercent || '0', 10) || 0)} %
-                      </div>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-slate-600 bg-slate-50 rounded p-2">
-                    주문 예시: &ldquo;소송 총비용 중 {globalPercent || 0}%는 {applicantNames}이(가), 나머지는 {respondentNames}이(가) 각 부담한다.&rdquo;
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 items-end">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        신청인 부담 분자
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={globalN}
-                        onChange={(e) => handleGlobalFractionChange(e.target.value.replace(/\D/g, ''), globalD)}
-                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        분모
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={globalD}
-                        onChange={(e) => handleGlobalFractionChange(globalN, e.target.value.replace(/\D/g, ''))}
-                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-base text-slate-900 focus:border-blue-600 focus:outline-none"
-                      />
-                    </div>
-                    <div className="col-span-2 sm:col-span-1">
-                      <div className="h-10 rounded-md border border-slate-200 bg-slate-50 px-3 flex items-center text-xs font-medium text-slate-700">
-                        상대방 부담:{' '}
-                        <strong className="ml-1 text-blue-900 font-bold">
-                          {Number(globalD) > Number(globalN)
-                            ? `${Number(globalD) - Number(globalN)}/${globalD}`
-                            : '0'}
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+    <div className="space-y-3">
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(['left', 'right'] as const).map(side => (
+          <fieldset key={side} className="rounded-lg border border-slate-200 bg-white p-3">
+            <legend className="px-1 text-xs font-semibold text-slate-800">
+              주문 적용 대상 · {side === 'left' ? '신청인 측' : '상대방 측'}
+            </legend>
+            <div className="flex flex-wrap gap-2">
+              {parties.filter(p => (side === 'left' ? isApplicantSideParty(p) : !isApplicantSideParty(p)) &&
+                (stage.members[p.id] || rule[side].includes(p.id))).map(p => {
+                const blocked = !canSelectOrderParty(stage, rule, side, p.id);
+                return <label key={p.id} title={blocked ? '다른 주문에 이미 지정된 신청인–상대방 관계입니다.' : undefined}
+                  className={`inline-flex items-center gap-1.5 rounded border border-slate-200 px-2 py-1.5 text-sm ${blocked ? 'cursor-not-allowed bg-slate-100 text-slate-400' : ''}`}>
+                  <input type="checkbox" checked={rule[side].includes(p.id)}
+                    disabled={blocked}
+                    onChange={e => {
+                      if (e.target.checked && !canSelectOrderParty(stage, rule, side, p.id)) return;
+                      change({ [side]: e.target.checked ? [...rule[side], p.id] : rule[side].filter(id => id !== p.id) });
+                    }} />
+                  {label(p)}{!stage.members[p.id] && <span className="text-red-700">(비참여자)</span>}
+                </label>;
+              })}
+              {!parties.some(p => stage.members[p.id] && (side === 'left' ? isApplicantSideParty(p) : !isApplicantSideParty(p))) &&
+                <p className="text-xs text-slate-500">위 심급 정보에서 참여 당사자를 먼저 선택하세요.</p>}
             </div>
-          )}
+          </fieldset>
+        ))}
+      </div>
+      <p className="text-xs text-slate-500">다른 주문에 지정된 동일한 신청인–상대방 관계는 선택할 수 없습니다. 회색으로 표시된 당사자는 반대쪽 선택을 바꾸면 다시 선택할 수 있습니다.</p>
+      <button type="button" disabled={fullSelectionConflicts}
+        title={fullSelectionConflicts ? '전체를 선택하면 다른 주문의 적용 대상과 중복됩니다.' : undefined}
+        className={`${button} disabled:cursor-not-allowed disabled:opacity-40`}
+        onClick={() => { if (!fullSelectionConflicts) change({ left: suggested.left, right: suggested.right }); }}>
+        해당 심급 참여자 전체 선택
+      </button>
+      {unused.length > 0 && <p className="text-xs text-slate-600">이 주문에 포함되지 않은 참여자: {unused.map(label).join(', ')}. 다른 주문 또는 최종 적용 관계를 확인하세요.</p>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="space-y-1 text-xs font-semibold text-slate-700">
+          <span>주문이 정한 비용 범위</span>
+          <select className={input} value={rule.scope} onChange={e => change({ scope: e.target.value })}>
+            <option value={level + ' 비용'}>{level} 비용만 적용</option>
+            {level !== '1심' && <option value="소송총비용">소송총비용 (종전 심급 비용 포함)</option>}
+          </select>
+        </label>
+        {stage.counter && <label className="space-y-1 text-xs font-semibold text-slate-700">
+          <span>적용 청구</span>
+          <select className={input} value={rule.claim} onChange={e => change({ claim: e.target.value })}>
+            <option value="">청구 선택</option>
+            {['본소와 반소', '본소', '반소'].map(value => <option key={value}
+              disabled={conflictingOrderPairs(stage, { ...rule, claim: value }).length > 0}>{value}</option>)}
+          </select>
+        </label>}
+      </div>
+      {rule.scope === '소송총비용' && <p className="rounded bg-blue-50 p-2 text-xs text-blue-900">
+        선택한 당사자 관계에 대해서만 종전 심급 비용의 부담 주문도 변경합니다. 나머지 관계에는 종전 주문을 유지합니다.
+      </p>}
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {modes.map(([value, title]) => <button key={value} type="button" aria-pressed={rule.mode === value}
+          onClick={() => change({ mode: value })}
+          className={`rounded-lg border p-3 text-left text-sm ${rule.mode === value ? 'border-blue-600 bg-blue-50 font-bold text-blue-950 ring-1 ring-blue-600' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
+          {title}
+        </button>)}
+      </div>
+      {rule.mode === '비율로 분담' && <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-slate-800">신청인 측 부담 비율</span>
+          <div className="flex gap-2">
+            {(['percent', 'fraction'] as const).map(value => <button key={value} type="button" className={button}
+              aria-pressed={format === value} onClick={() => setFormat(value)}>{value === 'percent' ? '% (백분율)' : '분수'}</button>)}
+          </div>
         </div>
-      )}
+        {format === 'percent' ? <label className="block space-y-1 text-xs text-slate-700">
+          <span>신청인 측 부담 (%)</span>
+          <input className={input} type="number" min="0" max="100" step="1"
+            value={rule.d && Number(rule.d) > 0 ? Number(rule.n) / Number(rule.d) * 100 : ''}
+            onChange={e => change({ n: e.target.value === '' ? '' : String(Math.min(100, Math.max(0, Math.round(Number(e.target.value))))), d: '100' })} />
+        </label> : <div className="grid grid-cols-2 gap-3">
+          {(['n', 'd'] as const).map(key => <label key={key} className="space-y-1 text-xs text-slate-700">
+            <span>{key === 'n' ? '신청인 측 부담 분자' : '전체 부담 분모'}</span>
+            <input className={input} type="text" inputMode="numeric" value={rule[key]}
+              onChange={e => change({ [key]: e.target.value.replace(/\D/g, '') })} />
+          </label>)}
+        </div>}
+        {!issues.length && <p className="text-xs text-blue-900">{orderDescription(rule)}</p>}
+      </div>}
+      {issues.map(issue => <p key={issue} role="alert" className="text-xs text-red-700">{issue}</p>)}
+    </div>
+  );
+}
 
-      {/* 3. [모드 2] 심급별 분리 지정 모드 */}
-      {splitByStage && (
-        <div className="space-y-3">
-          {stages.map((s, idx) => {
-            const sLevel = stageLevel(s, idx);
-            const r = s.rules?.[0];
-            const currentMode = r?.mode || '2측 전부 부담';
-            const fmt = stageRateFormats[s.id] || 'percent';
-            const curP = stagePercents[s.id] ?? (r?.d && r?.d !== '0' ? String(Math.round((Number(r.n) / Number(r.d)) * 100)) : '40');
-
-            const handleSinglePercent = (val: string) => {
-              const cleaned = val.replace(/\D/g, '');
-              const num = Math.min(100, Math.max(0, parseInt(cleaned || '0', 10)));
-              const str = cleaned === '' ? '' : String(num);
-              setStagePercents((prev) => ({ ...prev, [s.id]: str }));
-              updateSingleStageRule(s.id, sLevel, { n: str || '0', d: '100', mode: '비율로 분담' }, r);
-            };
-
-            return (
-              <div key={s.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">{sLevel} 판결 주문</span>
-                    {s.number && (
-                      <span className="text-xs text-slate-500">({s.number})</span>
-                    )}
-                  </div>
-                  {sLevel !== '1심' && (
-                    <select
-                      value={r?.scope || (sLevel + ' 비용')}
-                      onChange={(e) => updateSingleStageRule(s.id, sLevel, { scope: e.target.value }, r)}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700"
-                    >
-                      <option value={sLevel + ' 비용'}>{sLevel} 비용만 적용</option>
-                      <option value="소송총비용">소송총비용 주문</option>
-                    </select>
-                  )}
-                </div>
-
-                <div className="grid gap-2 sm:grid-cols-4">
-                  <button
-                    type="button"
-                    onClick={() => updateSingleStageRule(s.id, sLevel, { mode: '2측 전부 부담' }, r)}
-                    className={`rounded border p-2 text-xs text-left transition ${
-                      currentMode === '2측 전부 부담'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold ring-1 ring-blue-600'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    상대방 전부 부담 (100%)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => updateSingleStageRule(s.id, sLevel, { mode: '1측 전부 부담' }, r)}
-                    className={`rounded border p-2 text-xs text-left transition ${
-                      currentMode === '1측 전부 부담'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold ring-1 ring-blue-600'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    신청인 전부 부담 (100%)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => updateSingleStageRule(s.id, sLevel, { mode: '비율로 분담' }, r)}
-                    className={`rounded border p-2 text-xs text-left transition ${
-                      currentMode === '비율로 분담'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold ring-1 ring-blue-600'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    비율로 분담
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => updateSingleStageRule(s.id, sLevel, { mode: '각자 부담' }, r)}
-                    className={`rounded border p-2 text-xs text-left transition ${
-                      currentMode === '각자 부담'
-                        ? 'border-blue-600 bg-blue-50 text-blue-900 font-bold ring-1 ring-blue-600'
-                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    각자 부담
-                  </button>
-                </div>
-
-                {/* 심급별 비율 분담 상세 */}
-                {currentMode === '비율로 분담' && (
-                  <div className="rounded border border-blue-200 bg-white p-3 space-y-2.5">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-                      <span className="text-xs font-semibold text-slate-700">분담 비율 설정</span>
-                      <div className="inline-flex rounded border border-slate-300 p-0.5 bg-slate-50 text-[11px]">
-                        <button
-                          type="button"
-                          onClick={() => setStageRateFormats((prev) => ({ ...prev, [s.id]: 'percent' }))}
-                          className={`px-2 py-0.5 rounded ${
-                            fmt === 'percent' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-600'
-                          }`}
-                        >
-                          %
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setStageRateFormats((prev) => ({ ...prev, [s.id]: 'fraction' }))}
-                          className={`px-2 py-0.5 rounded ${
-                            fmt === 'fraction' ? 'bg-blue-600 text-white font-semibold' : 'text-slate-600'
-                          }`}
-                        >
-                          분수
-                        </button>
-                      </div>
-                    </div>
-
-                    {fmt === 'percent' ? (
-                      <div className="grid grid-cols-2 gap-3 items-center">
-                        <div className="relative flex items-center">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={curP}
-                            onChange={(e) => handleSinglePercent(e.target.value)}
-                            placeholder="신청인 비율"
-                            className="h-9 w-full rounded border border-slate-300 px-2.5 pr-6 text-sm text-slate-900"
-                          />
-                          <span className="absolute right-2 text-xs text-slate-500 font-bold">%</span>
-                        </div>
-                        <div className="text-xs font-medium text-slate-700">
-                          상대방 부담: <strong className="text-blue-900">{100 - (parseInt(curP || '0', 10) || 0)}%</strong>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="grid grid-cols-3 gap-2 items-center">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={r?.n || '1'}
-                          onChange={(e) => updateSingleStageRule(s.id, sLevel, { n: e.target.value.replace(/\D/g, '') }, r)}
-                          placeholder="분자"
-                          className="h-9 rounded border border-slate-300 px-2 text-sm"
-                        />
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={r?.d || '2'}
-                          onChange={(e) => updateSingleStageRule(s.id, sLevel, { d: e.target.value.replace(/\D/g, '') }, r)}
-                          placeholder="분모"
-                          className="h-9 rounded border border-slate-300 px-2 text-sm"
-                        />
-                        <div className="text-xs font-medium text-slate-700">
-                          상대방: <strong className="text-blue-900">
-                            {Number(r?.d) > Number(r?.n) ? `${Number(r?.d) - Number(r?.n)}/${r?.d}` : '0'}
-                          </strong>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules }: Props) {
+  const omittedOrders = useRef<Record<string, Rule[]>>({});
+  const summary = summarizeOrders(stages, parties);
+  const partyName = (id: string) => {
+    const party = parties.find(p => p.id === id);
+    return party ? label(party) : '삭제된 당사자';
+  };
+  return (
+    <section id="cost-burden-orders" className="space-y-4 rounded-xl border border-slate-300 bg-white p-5 shadow-sm" aria-label="판결의 소송비용부담 주문">
+      <div className="space-y-1 border-b border-slate-200 pb-3">
+        <h2 className="text-lg font-bold text-slate-900">판결의 소송비용부담 주문</h2>
+        <p className="text-xs text-slate-600">각 심급 판결문에 기재된 주문의 적용 당사자와 비용 범위를 설정하세요. 심급별 참여자는 위에서 별도로 관리합니다.</p>
+        <p className="text-xs text-slate-600">상급심 소송총비용 주문이 종전 심급의 비용 전체를 정하면 종전 주문 입력을 생략할 수 있습니다. 일부 당사자에게만 적용되는 경우에는 나머지 관계에 필요한 종전 주문을 입력하세요.</p>
+      </div>
+      {stages.length > 1 && <details className="rounded-lg border border-slate-200 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">입력한 모든 주문의 부담 방식 한 번에 변경</summary>
+        <p className="my-2 text-xs text-slate-600">입력한 주문의 적용 당사자·비용 범위·분담 비율은 유지하고 부담 방식만 변경합니다. 입력을 생략한 주문은 추가하지 않습니다.</p>
+        <div className="flex flex-wrap gap-2">{modes.map(([mode, title]) => <button key={mode} type="button" className={button} onClick={() => {
+          stages.filter(s => s.rules.length).forEach(s => onUpdateStageRules(s.id,
+            s.rules.map(r => ({ ...r, mode }))));
+        }}>{title}</button>)}</div>
+      </details>}
+      {stages.map((stage, index) => {
+        const level = stageLevel(stage, index);
+        const canOmit = index < stages.length - 1;
+        const omitted = canOmit && stage.rules.length === 0;
+        const orders = stage.rules.length ? stage.rules : [suggestedOrder(stage, parties, index, stage.id + '-order')];
+        return <div key={stage.id} className="space-y-4 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+          <h3 className="text-sm font-bold text-slate-900">{level} 판결 주문 {stage.number && <span className="font-normal text-slate-500">({stage.number})</span>}</h3>
+          {canOmit && <label className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <input type="checkbox" checked={omitted} onChange={e => {
+              if (e.target.checked) {
+                omittedOrders.current[stage.id] = stage.rules;
+                onUpdateStageRules(stage.id, []);
+              } else {
+                onUpdateStageRules(stage.id, omittedOrders.current[stage.id]?.length
+                  ? omittedOrders.current[stage.id]
+                  : [suggestedOrder(stage, parties, index, crypto.randomUUID())]);
+              }
+            }} />
+            {level} 주문 입력 생략 (상급심 소송총비용 주문 적용)
+          </label>}
+          {omitted && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
+            {level} 참여자와 지출 비용은 그대로 사용합니다. 상급심 주문의 비용 범위를 ‘소송총비용’으로 지정하고, 이 심급 비용에 필요한 당사자 관계를 모두 포함하세요. 아래 최종 적용 주문에서 확인할 수 있습니다.
+          </p>}
+          {!omitted && orders.map((rule, orderIndex) => <div key={rule.id} className="space-y-3 border-t border-slate-200 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs font-bold text-slate-700">주문 {orderIndex + 1}</h4>
+              {stage.rules.length > 0 && <button type="button" className={button}
+                onClick={() => onUpdateStageRules(stage.id, stage.rules.filter(r => r.id !== rule.id))}>주문 {orderIndex + 1} 삭제</button>}
+            </div>
+            <OrderEditor stage={stage} index={index} rule={rule} parties={parties} label={label}
+              change={patch => onUpdateStageRules(stage.id, patchOrder(stage, rule, patch))} />
+            {!stage.rules.length && <button type="button" className={button}
+              onClick={() => onUpdateStageRules(stage.id, [rule])}>이 주문 확인·반영</button>}
+          </div>)}
+          {stage.rules.length > 0 && <button type="button" className={button} onClick={() => {
+            const next = suggestedOrder(stage, parties, index, crypto.randomUUID());
+            onUpdateStageRules(stage.id, [...stage.rules, { ...next, left: [], right: [] }]);
+          }}>+ 적용 대상이 다른 주문 추가</button>}
+        </div>;
+      })}
+      <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/30 p-4">
+        <h3 className="text-sm font-bold text-slate-900">당사자 관계별 최종 적용 주문</h3>
+        <p className="text-xs text-slate-600">비용이 발생한 심급별로 적용할 주문입니다. 종전 비용의 배분 대상은 유지하고, 소송총비용 주문이 있는 관계만 상급심 주문으로 변경합니다.</p>
+        {summary.issues.map(issue => <p key={issue} role="alert" className="text-xs text-red-700">{issue}</p>)}
+        {summary.rows.length > 0 && <div className="overflow-x-auto"><table className="w-full text-left text-xs">
+          <thead><tr className="border-b border-slate-200 text-slate-600">
+            {['비용 발생 심급', '당사자 관계', '최종 적용 주문', '부담 내용'].map(title => <th key={title} className="p-2">{title}</th>)}
+          </tr></thead>
+          <tbody>{summary.rows.map((row, i) => <tr key={i} className="border-b border-slate-100">
+            <td className="p-2">{stageLevel(stages[row.stage], row.stage)}{row.claim && ` · ${row.claim}`}</td>
+            <td className="p-2">{partyName(row.owner)} ↔ {partyName(row.opponent)}</td>
+            <td className="p-2">{stageLevel(stages[row.source], row.source)} · {row.rule.scope}</td>
+            <td className="p-2">{orderDescription(row.rule)}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      </div>
     </section>
   );
 }

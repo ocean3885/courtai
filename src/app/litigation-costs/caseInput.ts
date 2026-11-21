@@ -14,6 +14,8 @@ export type Member = {
   valueType?: MemberValueType;
   counterRole: string;
   counterValue?: string;
+  relationValues?: Record<string, string>;
+  counterRelationValues?: Record<string, string>;
 };
 export type DeliveryDetail = {
   incurred?: string;
@@ -90,7 +92,6 @@ export type Stage = {
   costs: Cost[];
   rules: Rule[];
 };
-export type Reviews = Record<string, { submission?: string; treatment?: string; zeroConfirmed?: boolean }>;
 
 export function stageLevel(s: { level?: string }, index: number): Level {
   if (s.level === '1심' || s.level === '항소심' || s.level === '상고심') return s.level;

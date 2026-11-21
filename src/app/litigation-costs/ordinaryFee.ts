@@ -18,3 +18,11 @@ export function ordinaryFeeLimit(value: bigint): bigint {
   }
   return BigInt(300000);
 }
+
+export function ordinaryFeeFormula(value: bigint): string {
+  const won = (n: bigint | number) => n.toLocaleString('ko-KR');
+  for (const [start, base, rate] of brackets) {
+    if (value > BigInt(start)) return `${won(base)}＋(${won(value)}－${won(start)})×${rate / 1000}`;
+  }
+  return '300,000';
+}

@@ -123,7 +123,7 @@ test('공통 부담기준 사용 시 비용별 신청인 귀속 비율을 유지
   assert.deepEqual(r.lines.map(l => money(l.amount)), ['360원', '180원']);
 });
 
-function renderReview({ costs = [cost()], mainPaid = '100', submission = '기간 내 미제출', mainRules = true, policy } = {}) {
+function renderReview({ costs = [cost()], mainPaid = '100', respondentPaid = '0', mainRules = true, policy } = {}) {
   const fs = require('node:fs');
   const vm = require('node:vm');
   const ts = require('typescript');
@@ -132,33 +132,37 @@ function renderReview({ costs = [cost()], mainPaid = '100', submission = '기간
   const source = ts.transpileModule(fs.readFileSync(require('node:path').join(__dirname, '../src/app/litigation-costs/CostReview.tsx'), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX } }).outputText;
   const mod = { exports: {} };
   vm.runInThisContext('(function(require,module,exports){' + source + '\n})')(name => {
-    if (name === 'react') return { ...React, useState: () => [10, () => {}] };
+    if (name === 'react') return React;
+    if (name === './CostStatementModal') return { CostStatementModal: () => null };
     if (name.startsWith('./')) return load('src/app/litigation-costs/' + name.slice(2) + '.ts');
     return require(name);
   }, mod, mod.exports);
-  const stage = { id: 'first', level: '1심', members: { a: {}, b: {} }, costs: mainPaid === null ? [] : [{ ...cost(mainPaid), application: undefined }], rules: mainRules ? [{ id: 'r', left: ['a'], right: ['b'], scope: '1심 비용', mode: '2측 전부 부담' }] : [] };
-  return renderToStaticMarkup(React.createElement(mod.exports.CostReview, { parties: [parties[0], parties[2]], stages: [stage], applicationCosts: costs, applicationPolicy: policy, reviews: { b: { submission, treatment: '신청인 비용만 반영' } }, label: p => p.name }));
+  const stage = { id: 'first', level: '1심', members: { a: {}, b: {} }, costs: [...(mainPaid === null ? [] : [{ ...cost(mainPaid), application: undefined }]), ...(respondentPaid === null ? [] : [{ ...cost(respondentPaid), id: 'respondent-cost', payer: 'b', ids: ['b'], application: undefined }])], rules: mainRules ? [{ id: 'r', left: ['a'], right: ['b'], scope: '1심 비용', mode: '2측 전부 부담' }] : [] };
+  return renderToStaticMarkup(React.createElement(mod.exports.CostReview, { parties: [parties[0], parties[2]], stages: [stage], applicationCosts: costs, applicationPolicy: policy, label: p => p.name }));
 }
 
-test('화면도 공통 기준을 사용하고 연결할 주문이 사라지면 합계 표시 차단', () => {
+test('화면은 입력한 판결 주문을 자동 사용하고 주문이 사라지면 합계 표시 차단', () => {
   const c = cost('900'); delete c.application.rates;
   const policy = { mode: '판결 기준', stageId: 'first' };
   assert(renderReview({ costs: [c], policy }).includes('1,000원'));
   const html = renderReview({ costs: [c], policy, mainRules: false });
   assert(html.includes('신청비용 입력 확인'));
-  assert(!html.includes('본안 차액 + 신청비용 부담액 합계'));
+  assert(!html.includes('에게 지급할 최종 금액'));
 });
 
 test('화면은 단계별 절사액을 합산하고 미확인 상태에는 합계 차단', () => {
   const c = cost('1'); c.application.rates.a.b = { n: '1', d: '2' };
   const markup = renderReview({ costs: [c], mainPaid: '105' });
-  assert(markup.includes('본안 차액 + 신청비용　105원')); // 원비용105원 유지 + 신청비용 1÷2 → 0원
+  assert(markup.includes('에게 지급할 최종 금액'));
+  assert(markup.includes('106원')); // 본안105원 + 판결 주문상 전액 부담인 신청비용1원
   assert(markup.includes('단계별 절사 반영'));
   assert(!markup.includes('전액 산입 가정'));
-  delete c.application.rates;
-  for (const props of [{ costs: [c] }, { submission: '' }, { mainRules: false }, { mainPaid: null }]) {
+  assert(renderReview({ respondentPaid: null }).includes('에게 지급할 최종 금액'));
+  assert(renderReview({ respondentPaid: null }).includes('판결 주문상 상환 없음'));
+  c.paid = '';
+  for (const props of [{ costs: [c] }, { mainRules: false }, { mainPaid: null }]) {
     const html = renderReview(props);
     assert(!html.includes('본안 차액 + 신청비용 부담액 합계'));
-    assert(!html.includes('본안 차액 + 신청비용　'));
+    assert(!html.includes('에게 지급할 최종 금액'));
   }
 });

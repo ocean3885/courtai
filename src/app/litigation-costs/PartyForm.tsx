@@ -13,18 +13,15 @@ import {
   type PartySide,
   type Party,
   type Member,
-  type Rule,
   type Stage,
   type Cost,
   type CostClaim,
   type ClaimSplit,
-  type Reviews,
-  type ApplicationPolicy,
 } from './caseInput';
 import { CostReview } from './CostReview';
-import { ApplicationCostAllocation } from './ApplicationCostAllocation';
-import { ApplicationBurdenPolicy } from './ApplicationBurdenPolicy';
+import { RelationValueInput } from './RelationValueInput';
 import { BurdenOrderSection } from './BurdenOrderSection';
+import { orderDescription } from './burdenOrders';
 import {
   allocationMemberValue,
   counterEffectiveValue,
@@ -65,7 +62,7 @@ const stage = (id: string, level: Level = '1심'): Stage => ({
   counter: '',
   counterValue: '',
   costs: [],
-  rules: [
+  rules: level === '1심' ? [
     {
       id: uid(),
       left: ['a'],
@@ -78,7 +75,7 @@ const stage = (id: string, level: Level = '1심'): Stage => ({
       leftMethod: '균분',
       rightMethod: '균분',
     },
-  ],
+  ] : [],
 });
 const sortStagesByLevel = (list: Stage[]): Stage[] =>
   [...list].sort(
@@ -94,7 +91,6 @@ const stageCheckbox =
   'inline-flex h-11 cursor-pointer items-center gap-2 rounded-lg border px-3.5 text-sm font-semibold';
 const grid = 'grid gap-3 sm:grid-cols-2 lg:grid-cols-3';
 const box = 'space-y-3 rounded-lg border border-slate-200 bg-white p-3.5 shadow-2xs';
-const partyBox = 'space-y-3 rounded-lg border border-slate-200 bg-slate-50/70 p-3.5';
 const small = 'text-sm text-slate-600';
 
 const natural = (v: string) => (/^\d{1,16}$/.test(v) ? BigInt(v) : null);
@@ -296,7 +292,7 @@ function Checks({
 }
 
 function memberHasEntries(m: Member) {
-  return Boolean(m.role || m.number || m.value || m.counterRole || m.counterValue);
+  return Boolean(m.role || m.number || m.value || m.counterRole || m.counterValue || m.relationValues || m.counterRelationValues);
 }
 
 function hasStageData(s: Stage): boolean {
@@ -323,8 +319,6 @@ export default function PartyForm() {
   const [applicationCosts, setApplicationCosts] = useState<Cost[]>([]);
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryInputs, setDeliveryInputs] = useState({ incurred: '', decision: '5640', mobile: '' });
-  const [applicationPolicy, setApplicationPolicy] = useState<ApplicationPolicy>({ mode: '판결 기준', stageId: 'first' });
-  const [reviews, setReviews] = useState<Reviews>({});
   const [notice, setNotice] = useState('');
   const [fullyOpen, setFullyOpen] = useState(false);
 
@@ -382,17 +376,16 @@ export default function PartyForm() {
     return (
       [...(s.mainValues || []), ...(s.counterValues || [])].some(row => row.ids.includes(id)) ||
       s.costs.some((c) => c.payer === id || c.ids.includes(id)) ||
-      s.rules.some((r) => [...r.left, ...r.right].includes(id))
+      s.rules.some((r) => [...r.left, ...r.right].includes(id)) ||
+      Object.values(s.members).some(m => Object.hasOwn(m.relationValues || {}, id) || Object.hasOwn(m.counterRelationValues || {}, id))
     );
   }
   function dropParty(p: Party) {
     if (
-      Object.values(reviews[p.id] || {}).some(Boolean) ||
       stages.some((s) => referenced(s, p.id) || (s.members[p.id] && memberHasEntries(s.members[p.id]))) ||
-      applicationCosts.some((c) => c.payer === p.id || c.ids.includes(p.id) || c.application?.opponentIds.includes(p.id)) ||
-      applicationPolicy.allocation?.opponentIds.includes(p.id)
+      applicationCosts.some((c) => c.payer === p.id || c.ids.includes(p.id) || c.application?.opponentIds.includes(p.id))
     ) {
-      setNotice('이 당사자의 심급 정보, 제출·상계 검토 또는 연결된 비용·부담 관계를 먼저 정리하세요.');
+      setNotice('이 당사자의 심급 정보 또는 연결된 관계별 소가·비용·부담 관계를 먼저 정리하세요.');
       return;
     }
     setNotice('');
@@ -442,18 +435,18 @@ export default function PartyForm() {
   ): Cost {
     const applicantIds = parties.filter(p => p.group === '신청인').map((p) => p.id);
     const opponentIds = parties.filter(p => p.group === '피신청인').map(p => p.id);
-    const firstId = applicantIds.length === 1 ? applicantIds[0] : '';
+    const firstId = applicantIds[0] || '';
     return {
       id: uid(),
-      application: { opponentIds: opponentIds.length === 1 ? opponentIds : [] },
+      application: { opponentIds },
       payer: firstId,
       kind,
       deliveryDetail,
       paid: paidAmount !== undefined ? paidAmount : '',
       refund: '0',
-      shared: false,
-      ids: firstId ? [firstId] : [],
-      method: '',
+      shared: applicantIds.length > 1,
+      ids: applicantIds,
+      method: '균분',
       evidence: '',
       title: '',
     };
@@ -500,10 +493,10 @@ export default function PartyForm() {
     const individualValuesEnabled = hasClaimValue && (hasCounterValue ? s.useCounterIndividualValues === true : s.useIndividualValues !== false);
     const columnLayout = s.counter
       ? hasClaimValue
-        ? 'grid-cols-[minmax(80px,1fr)_86px_50px_84px_minmax(120px,1.3fr)]'
-        : 'grid-cols-[minmax(80px,1fr)_86px_50px_84px]'
+        ? 'min-w-[470px] grid-cols-[minmax(80px,1fr)_86px_50px_84px_minmax(120px,1.3fr)]'
+        : 'min-w-[350px] grid-cols-[minmax(80px,1fr)_86px_50px_84px]'
       : hasClaimValue
-        ? 'grid-cols-[minmax(88px,1.1fr)_94px_56px_minmax(130px,1.5fr)]'
+        ? 'min-w-[400px] grid-cols-[minmax(88px,1.1fr)_94px_56px_minmax(130px,1.5fr)]'
         : 'grid-cols-[minmax(88px,1fr)_94px_56px]';
     const compactControl =
       'block w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600';
@@ -572,7 +565,7 @@ export default function PartyForm() {
         {sidePeople.length === 0 ? (
           <p className={small}>참여 중인 {isAppSide ? '신청인' : '피신청인'}이 없습니다.</p>
         ) : (
-          <div className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs">
+          <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2.5 shadow-2xs">
             {/* 컴팩트 1줄 표 헤더 */}
             <div
               className={`grid items-center gap-2 border-b border-slate-100 px-1 pb-1.5 text-xs font-semibold text-slate-500 ${columnLayout}`}
@@ -656,18 +649,22 @@ export default function PartyForm() {
                         </span>
                       </div>
                     ) : hasClaimValue && (
-                      <input
-                        aria-label={label(p) + ` ${claimName} (원)`}
-                        inputMode="numeric"
-                        placeholder="개별 소가 입력"
-                        disabled={!individualValuesEnabled}
-                        aria-invalid={individualValuesEnabled && value !== '' && natural(value) === null}
-                        className={`${compactControl} text-right tabular-nums disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
-                        value={formatClaimValue(value)}
-                        onChange={(e) => changeClaimValue(e.currentTarget, (amount) =>
-                          changeMember(p.id, hasCounterValue ? { counterValue: amount } : { value: amount })
-                        )}
-                      />
+                      <div>
+                        <input
+                          aria-label={label(p) + ` ${claimName} (원)`}
+                          inputMode="numeric"
+                          placeholder="개별 소가 입력"
+                          disabled={!individualValuesEnabled}
+                          aria-invalid={individualValuesEnabled && value !== '' && natural(value) === null}
+                          className={`${compactControl} text-right tabular-nums disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
+                          value={formatClaimValue(value)}
+                          onChange={(e) => changeClaimValue(e.currentTarget, (amount) =>
+                            changeMember(p.id, hasCounterValue ? { counterValue: amount } : { value: amount })
+                          )}
+                        />
+                        <RelationValueInput stage={s} party={p} parties={parties} counter={hasCounterValue}
+                          enabled={individualValuesEnabled} label={label} change={patch => changeMember(p.id, patch)} />
+                      </div>
                     )}
                   </div>
                 );
@@ -757,7 +754,7 @@ export default function PartyForm() {
           (p) => s.members[p.id] && (costIsApplicant ? isApplicantSideParty(p) : !isApplicantSideParty(p))
         )
       : parties.filter(p => p.group === '신청인');
-    const owners = (c.shared ? c.ids : [c.payer]).filter(Boolean);
+    const owners = s ? (c.shared ? c.ids : [c.payer]).filter(Boolean) : eligible.map(p => p.id);
     const normalizedMethod = c.method === '소가 비율' ? '안분' : c.method;
     const weights = owners.map((id) => {
       if (normalizedMethod === '균분') return BigInt(1);
@@ -776,7 +773,7 @@ export default function PartyForm() {
           (!separateClaims || costClaim === '공통' || r.claim === costClaim || r.claim === '본소와 반소')
       ) || [];
     const opponentGroups = s ? opponentAllocationGroups(c, stages, stages.findIndex(v => v.id === s.id), parties) : [];
-    const showOpponentAllocation = Boolean(c.opponentMethod || opponentGroups.some(g => g.ids.length > 1 && (g.multipleRules || g.laterOrder)));
+    const showOpponentAllocation = Boolean(c.opponentMethod || opponentGroups.some(g => g.ids.length > 1 && (g.multipleRules || g.laterOrder || s?.members[g.owner]?.relationValues || s?.members[g.owner]?.counterRelationValues)));
     const automaticMethods = new Set(opponentGroups.map(g => g.method));
     const automaticOpponentMethod = automaticMethods.size === 1 ? opponentGroups[0]?.method || '' : '';
     const allowsRefund =
@@ -847,7 +844,7 @@ export default function PartyForm() {
         </div>
 
         {/* 해당 측 당사자가 2인 이상일 때만 당사자 선택 칩 & 기준 : [균분] [안분] 노출 */}
-        {(eligible.length > 1 || owners.length === 0) && (
+        {s && (eligible.length > 1 || owners.length === 0) && (
           <div className="rounded-md bg-slate-50 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -1010,7 +1007,6 @@ export default function PartyForm() {
           )}
         </div>
 
-        {!s && <ApplicationCostAllocation cost={c} parties={parties} label={label} update={update} />}
         {showClaim && (
           <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
             <Pick
@@ -1084,7 +1080,7 @@ export default function PartyForm() {
               label="상대방 전체 비용 배분 기준"
               value={c.opponentMethod || automaticOpponentMethod}
               options={['균분', '안분']}
-              names={{ 균분: '균분 — 전체 상대방 수 기준', 안분: '안분 — 전체 상대방 소가 비율' }}
+              names={{ 균분: '균분 — 전체 상대방 수 기준', 안분: '안분 — 관계별 소가 또는 상대방 소가 비율' }}
               change={value => update({ opponentMethod: (value || undefined) as Cost['opponentMethod'] })}
             />
             {opponentGroups.map((g, i) => (
@@ -1139,7 +1135,6 @@ export default function PartyForm() {
           })}
           {[
             ['cost-application', '신청 비용'],
-            ['cost-submission', '제출·상계'],
             ['cost-review', '검산'],
           ].map(([id, title]) => (
             <a
@@ -1393,11 +1388,6 @@ export default function PartyForm() {
         const opponentPeople = people.filter((p) => !isApplicantSideParty(p));
         const applicantCosts = s.costs.filter((c) => isApplicantCost(c));
         const opponentCosts = s.costs.filter((c) => !isApplicantCost(c));
-        const choices: CheckChoice[] = people.map((p) => ({
-          id: p.id,
-          side: isApplicantSideParty(p) ? '신청인측' : '피신청인측',
-          label: [label(p), s.members[p.id].role, s.members[p.id].number].filter(Boolean).join(' '),
-        }));
         const showParticipantChecks = sLevel !== '1심' || stages.length > 1 || parties.length > 2;
         const assignedFeePartyIds = new Set(
           s.costs
@@ -1565,6 +1555,7 @@ export default function PartyForm() {
                       ...(s.counterValues || []).flatMap((row,i) => row.ids.includes(id) ? [`반소 소가 내역 ${i+1}`] : []),
                       ...s.costs.flatMap((c,i) => c.payer === id || c.ids.includes(id) ? [`비용 ${i+1} (${c.title || c.kind})`] : []),
                       ...s.rules.flatMap((r,i) => [...r.left,...r.right].includes(id) ? [`부담 관계 ${i+1}`] : []),
+                      ...Object.entries(s.members).flatMap(([owner, m]) => Object.hasOwn(m.relationValues || {}, id) || Object.hasOwn(m.counterRelationValues || {}, id) ? [`관계별 소가 (${label(parties.find(p => p.id === owner)!)})`] : []),
                     ];
                     if (links.length || memberHasEntries(s.members[id])) {
                       setNotice(links.length ? `${label(removed)}: ${links.join(', ')}의 연결을 먼저 정리하세요.` : `${label(removed)}의 지위·번호·소가·반소 지위 입력을 먼저 정리하세요.`);
@@ -1633,6 +1624,7 @@ export default function PartyForm() {
                     <span className="text-sm font-bold text-slate-900">
                       피신청인 측 지출 비용 ({opponentCosts.length}건)
                     </span>
+                      <p className="text-xs text-slate-500">정산에 반영할 금액을 입력하세요. 판결 주문상 피신청인이 상환받을 비용이 없으면 입력을 생략할 수 있습니다. 그 외 반영할 비용이 없으면 비용 항목에 0원을 입력하세요.</p>
                     <div className="flex flex-wrap gap-1.5">
                       {['변호사보수', '인지대', '송달료', '기타 비용'].map((kind) => (
                         <button
@@ -1673,13 +1665,7 @@ export default function PartyForm() {
               <span>
                 현재 {sLevel}에 적용 중인 판결 주문:{' '}
                 <strong className="text-slate-900 font-semibold">
-                  {s.rules[0]?.mode === '2측 전부 부담'
-                    ? '상대방 전부 부담 (100%)'
-                    : s.rules[0]?.mode === '1측 전부 부담'
-                    ? '신청인 전부 부담 (100%)'
-                    : s.rules[0]?.mode === '비율로 분담'
-                    ? `${s.rules[0]?.n}/${s.rules[0]?.d} 비율 분담`
-                    : s.rules[0]?.mode || '상대방 전부 부담 (100%)'}
+                  {s.rules.length ? s.rules.map(orderDescription).join(' / ') : stages.indexOf(s) < stages.length - 1 ? '입력 생략 · 상급심 소송총비용 주문 적용 여부 확인' : '주문 확인·반영 필요'}
                 </strong>
               </span>
               <span className="text-blue-600 font-medium">아래 &apos;판결의 소송비용부담 주문&apos; 섹션에서 통합 관리</span>
@@ -1694,15 +1680,12 @@ export default function PartyForm() {
         parties={parties}
         label={label}
         onUpdateStageRules={(stageId, rules) => patchStage(stageId, { rules })}
-        onUpdateAllStageRules={(rules) => {
-          setStages((old) => old.map((s) => ({ ...s, rules })));
-        }}
       />
 
-      {/* 4. 소송비용액확정신청 및 비용자료 제출·상계 검토 */}
-      <div className="grid items-start gap-3.5 lg:grid-cols-2">
+      {/* 4. 소송비용액확정신청 */}
+      <div className="space-y-3.5">
         <Section id="cost-application" title="소송비용액확정신청" open>
-          <ApplicationBurdenPolicy policy={applicationPolicy} stages={stages} parties={parties} label={label} change={setApplicationPolicy} />
+          <p className="rounded-lg border border-blue-200 bg-blue-50/40 p-3 text-sm text-slate-700">신청인 균분 · 피신청인 균분 · 판결 주문 기준으로 자동 계산합니다. 당사자별로 입력한 판결의 부담비율을 적용합니다.</p>
           <div className="flex flex-wrap gap-1.5">
             {['인지대', '송달료', '서기료', '서류 발급비', '기타 비용'].map(
               (kind) => (
@@ -1824,61 +1807,13 @@ export default function PartyForm() {
           </div>
         )}
 
-        <Section id="cost-submission" title="비용자료 제출·상계 검토" open>
-          {parties
-            .filter((p) => p.group === '피신청인')
-            .map((p) => (
-              <div key={p.id} className={partyBox}>
-                <strong className="block text-sm font-bold text-slate-900">{label(p)}</strong>
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  <Pick
-                    label="비용자료 제출"
-                    options={['기간 내 제출', '기간 내 미제출', '추가 확인 필요']}
-                    value={reviews[p.id]?.submission || ''}
-                    change={(submission) =>
-                      setReviews({ ...reviews, [p.id]: { ...reviews[p.id], submission } })
-                    }
-                  />
-                  <Pick
-                    label="상계 검토"
-                    options={['쌍방 비용 상계', '신청인 비용만 반영', '추가 확인 필요']}
-                    value={reviews[p.id]?.treatment || ''}
-                    change={(treatment) =>
-                      setReviews({ ...reviews, [p.id]: { ...reviews[p.id], treatment } })
-                    }
-                  />
-                  <label className="col-span-full flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-800">
-                    <input
-                      type="checkbox"
-                      className="accent-blue-700"
-                      checked={!!reviews[p.id]?.zeroConfirmed}
-                      onChange={(e) =>
-                        setReviews({
-                          ...reviews,
-                          [p.id]: { ...reviews[p.id], zeroConfirmed: e.target.checked },
-                        })
-                      }
-                    />{' '}
-                    본안 귀속 비용 0원 확인
-                  </label>
-                  {reviews[p.id]?.submission === '기간 내 미제출' &&
-                    reviews[p.id]?.treatment === '쌍방 비용 상계' && (
-                      <p className="col-span-full rounded-md bg-amber-50 p-2.5 text-sm text-amber-900">
-                        기간 내 미제출 상태입니다. 상계 적용 근거를 다시 확인하세요.
-                      </p>
-                    )}
-                </div>
-              </div>
-            ))}
-        </Section>
       </div>
 
       <CostReview
         parties={parties}
         stages={stages}
-        reviews={reviews}
         applicationCosts={applicationCosts}
-        applicationPolicy={applicationPolicy}
+        applicationCaseNumber={caseNumber}
         label={label}
       />
       {notice && (

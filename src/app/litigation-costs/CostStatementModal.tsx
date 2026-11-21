@@ -2,114 +2,66 @@
 
 import React, { useState } from 'react';
 import {
-  type ApplicationPolicy,
   type Cost,
   type Party,
-  type Reviews,
   type Stage,
   stageLevel,
 } from './caseInput';
-import {
-  money,
-  reviewCosts,
-  subtract,
-  add,
-  nothing,
-  type Amount,
-  fraction,
-} from './costReview';
-import { reviewApplicationCosts } from './applicationCosts';
-import { ordinaryFeeLimit } from './ordinaryFee';
+import { money } from './costReview';
+import { isApplicantSideParty } from './caseInput';
+import { calculateLitigationCosts, describeOrder, expenseRemark, type LitigationCalculation } from './litigationCalculation';
 
 type Props = {
   parties: Party[];
   stages: Stage[];
-  reviews: Reviews;
   applicationCosts: Cost[];
-  applicationPolicy?: ApplicationPolicy;
+  applicationCaseNumber?: string;
   label: (p: Party) => string;
   onClose: () => void;
+  calculation?: LitigationCalculation;
 };
 
 function formatWon(n: bigint | number): string {
   return BigInt(n).toLocaleString('ko-KR');
 }
 
-function lawyerFeeFormula(value: bigint): string {
-  if (value > 500000000n) {
-    return `13,400,000＋(${formatWon(value)}－500,000,000)×0.005`;
-  } else if (value > 200000000n) {
-    return `10,400,000＋(${formatWon(value)}－200,000,000)×0.01`;
-  } else if (value > 150000000n) {
-    return `9,400,000＋(${formatWon(value)}－150,000,000)×0.02`;
-  } else if (value > 100000000n) {
-    return `7,400,000＋(${formatWon(value)}－100,000,000)×0.04`;
-  } else if (value > 50000000n) {
-    return `4,400,000＋(${formatWon(value)}－50,000,000)×0.06`;
-  } else if (value > 20000000n) {
-    return `2,000,000＋(${formatWon(value)}－20,000,000)×0.08`;
-  } else if (value > 3000000n) {
-    return `300,000＋(${formatWon(value)}－3,000,000)×0.10`;
-  }
-  return '300,000';
-}
-
 export function CostStatementModal({
   parties,
   stages,
-  reviews,
   applicationCosts,
-  applicationPolicy,
+  applicationCaseNumber,
   label,
   onClose,
+  calculation: suppliedCalculation,
 }: Props) {
-  const [caseNumber, setCaseNumber] = useState<string>('2026카확');
+  const [caseNumberOverride, setCaseNumber] = useState<string | null>(null);
+  const caseNumber = caseNumberOverride ?? applicationCaseNumber ?? '';
   const [isEditingCaseNumber, setIsEditingCaseNumber] = useState(false);
 
-  const { lines, errors, ownerTotals } = reviewCosts(stages, parties);
-  const application = reviewApplicationCosts(applicationCosts, parties, stages, applicationPolicy);
-
-  const applicants = parties.filter((p) => p.group === '신청인');
-  const respondents = parties.filter((p) => p.group === '피신청인');
-
-  const mainApplicant = applicants[0];
-  const mainRespondent = respondents[0];
-
-  // 피신청인 지출 비용 유무 판단 (쌍방 비용 테이블 여부)
-  const hasRespondentCosts = respondents.some((resp) => {
-    const total = ownerTotals.get(resp.id);
-    return total && total.n > 0n;
-  });
-
-  // 상환액 계산
-  const total = (owner: string, debtor: string) =>
-    lines
-      .filter((l) => l.owner === owner && l.debtor === debtor)
-      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-  const applicationTotal = (owner: string, debtor: string) =>
-    application.lines
-      .filter((l) => l.owner === owner && l.debtor === debtor)
-      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-  const settlements = applicants.flatMap((a) =>
-    respondents.map((b) => {
-      const r = reviews[b.id];
-      const forward = total(a.id, b.id);
-      const reverse = total(b.id, a.id);
-      const mutual = r?.treatment === '쌍방 비용 상계';
-      const appAmount = applicationTotal(a.id, b.id);
-      const net = subtract(forward, mutual ? reverse : nothing);
-      const combined = add(net, appAmount);
-      return { a, b, forward, reverse, mutual, net, appAmount, combined };
-    })
+  const calculation = suppliedCalculation ?? calculateLitigationCosts(parties, stages, applicationCosts);
+  const { main, application, settlements, stageResults } = calculation;
+  const applicants = parties.filter(p => p.group === '신청인');
+  const respondents = parties.filter(p => p.group === '피신청인');
+  const others = parties.filter(p => p.group === '신청외');
+  const name = (id: string) => { const p = parties.find(p => p.id === id); return p ? label(p) : '당사자 확인 필요'; };
+  const invalid = calculation.errors.length > 0;
+  const printBlocked = invalid || !settlements.length || settlements.some(row => row.missing);
+  const cell = 'border border-black p-1.5';
+  const totalRow = (title: string, applicant: bigint, respondent: bigint, remark = '') => (
+    <tr className="bg-slate-50 font-bold">
+      <td colSpan={2} className={cell}>{title}</td>
+      <td className={cell + ' text-right'}>{invalid ? '확인 필요' : formatWon(applicant)}</td>
+      <td className={cell + ' text-right'}>{invalid ? '확인 필요' : formatWon(respondent)}</td>
+      <td className={cell + ' text-xs font-normal'}>{remark}</td>
+    </tr>
   );
-
-  const activeSettlement = settlements[0];
 
   // 사건번호 모음
   const mainCaseNumbers = stages
-    .map((s) => s.number?.trim())
+    .flatMap((s) => [
+      s.number?.trim() ? `${s.number.trim()}${s.counter ? '(본소)' : ''}` : '',
+      s.counter && s.counterNumber?.trim() ? `${s.counterNumber.trim()}(반소)` : '',
+    ])
     .filter(Boolean)
     .join(', ');
 
@@ -125,16 +77,29 @@ export function CostStatementModal({
           body * {
             visibility: hidden;
           }
+          body *:not(:has(#cost-statement-printable)):not(#cost-statement-printable):not(#cost-statement-printable *) {
+            display: none !important;
+          }
+          body *:has(#cost-statement-printable) {
+            display: block !important;
+            position: static !important;
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+          }
           #cost-statement-printable, #cost-statement-printable * {
             visibility: visible;
           }
           #cost-statement-printable {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
+            position: static;
+            width: auto;
+            max-width: none;
+            min-height: 0;
             margin: 0;
-            padding: 15mm;
+            padding: 0;
             background: white !important;
             color: black !important;
             box-shadow: none !important;
@@ -142,6 +107,12 @@ export function CostStatementModal({
           }
           .no-print {
             display: none !important;
+          }
+          #cost-statement-printable tr {
+            break-inside: avoid;
+          }
+          .calculation-trace[open] {
+            break-before: page;
           }
           @page {
             size: A4;
@@ -161,6 +132,8 @@ export function CostStatementModal({
             <button
               type="button"
               onClick={handlePrint}
+              disabled={printBlocked}
+              title={printBlocked ? '비용과 부담 주문의 입력을 완료하세요.' : undefined}
               className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-blue-700 transition"
             >
               🖨️ PDF 인쇄 / 저장
@@ -223,30 +196,31 @@ export function CostStatementModal({
               <div>
                 <span className="font-semibold">신청인 : </span>
                 <span>
-                  {mainApplicant ? label(mainApplicant) : '신청인'}
+                  {applicants.map(label).join(', ') || '신청인'}
                   {mainCaseNumbers && ` (${mainCaseNumbers})`}
                 </span>
               </div>
 
-              {mainRespondent && (
+              {respondents.length > 0 && (
                 <div>
                   <span className="font-semibold">피신청인 : </span>
-                  <span>{label(mainRespondent)}</span>
+                  <span>{respondents.map(label).join(', ')}</span>
                 </div>
               )}
 
+              {!!others.length && <div>신청외 : {others.map(label).join(', ')}</div>}
+
               {/* 심급별 소가 */}
               <div className="pt-1">
-                {stages.map((s, idx) => {
-                  const sLevel = stageLevel(s, idx);
-                  const soga = s.value ? BigInt(s.value) : 0n;
-                  const counterSoga = s.counter && s.counterValue ? BigInt(s.counterValue) : 0n;
+                {stageResults.map(({ stage: s, level: sLevel, mainValue: soga, counterValue: counterSoga, value: combined }, idx) => {
+                  const printedLevel = { '1심': '제1심', '항소심': '제2심', '상고심': '제3심' }[sLevel];
                   return (
                     <span key={s.id} className="mr-3">
-                      제{sLevel} 소가 : {formatWon(soga + counterSoga)}원
-                      {counterSoga > 0n && (
+                      {printedLevel} 소가 : {combined === null ? '입력 확인 필요' : `${formatWon(combined)}원`}
+                      {s.counter && (
                         <span className="text-xs text-slate-600">
-                          (본소 {formatWon(soga)} + 반소 {formatWon(counterSoga)})
+                          {' '}(본소 {soga === null ? '미입력' : formatWon(soga)} / 반소 {counterSoga === null ? '미입력' : formatWon(counterSoga)}
+                          {s.counterFeeMode && ` · ${s.counterFeeMode === '흡수' ? '다액흡수' : '합산'}`})
                         </span>
                       )}
                       {idx < stages.length - 1 && ', '}
@@ -261,20 +235,7 @@ export function CostStatementModal({
                   const sLevel = stageLevel(s, idx);
                   const rules = s.rules || [];
                   return rules.map((r, rIdx) => {
-                    let desc = '';
-                    if (r.mode === '2측 전부 부담') {
-                      desc = `${sLevel} 비용은 피신청인(상대방)이 전부 부담한다.`;
-                    } else if (r.mode === '1측 전부 부담') {
-                      desc = `${sLevel} 비용은 신청인이 전부 부담한다.`;
-                    } else if (r.mode === '비율로 분담') {
-                      if (r.d === '100') {
-                        desc = `${r.scope || sLevel}은 그중 ${r.n}%는 신청인이, 나머지는 피신청인이 각 부담한다.`;
-                      } else {
-                        desc = `${r.scope || sLevel}은 ${r.n}/${r.d} 비율로 분담한다.`;
-                      }
-                    } else {
-                      desc = `${r.scope || sLevel}은 ${r.mode}`;
-                    }
+                    const desc = sLevel + ' · ' + describeOrder(r, parties, label);
                     return (
                       <div key={`${s.id}-${rIdx}`} className="text-slate-800">
                         • &ldquo;{desc}&rdquo;
@@ -285,280 +246,74 @@ export function CostStatementModal({
               </div>
             </div>
 
-            {/* 3. 1. 총 소송비용 표 */}
+            {!!calculation.errors.length && <div role="alert" className="mb-4 border border-amber-400 p-3 text-sm">
+              <p>입력 확인 필요</p>
+              {calculation.errors.map((error, index) => <p key={index}>{error}</p>)}
+            </div>}
+
             <div className="mb-6">
-              <div className="flex justify-between items-baseline mb-1 text-xs">
-                <span className="font-bold text-sm">1. 총 소송비용</span>
-                <span className="text-slate-600">(단위 : 원, 원 미만 버림)</span>
-              </div>
-
-              <table className="w-full border-collapse border border-black text-xs">
-                <thead>
-                  <tr className="bg-slate-50 text-center font-bold">
-                    <th className="border border-black p-1.5 w-14">심급</th>
-                    <th className="border border-black p-1.5 w-24">비목</th>
-                    {hasRespondentCosts ? (
-                      <>
-                        <th className="border border-black p-1.5 w-28">비용액 (신청인)</th>
-                        <th className="border border-black p-1.5 w-28">비용액 (피신청인)</th>
-                      </>
-                    ) : (
-                      <th className="border border-black p-1.5 w-32">비용액</th>
-                    )}
-                    <th className="border border-black p-1.5">비고</th>
-                  </tr>
-                </thead>
+              <h2 className="font-bold text-sm">1. 총 소송비용 (인정액 · 부담률 적용 전)</h2>
+              <p className="mb-2 text-xs">단위: 원. 비용별 인정액의 합계이며, 배분·부담률·상계 적용 결과는 아래 관계별 정산액에 표시합니다.</p>
+              <table className="w-full border-collapse border border-black text-xs" aria-label="인정 비용 총액">
+                <thead><tr className="bg-slate-50">
+                  {['심급', '비목', '신청인 측', '상대방 측', '산출 근거·귀속 당사자'].map(title => <th key={title} className={cell}>{title}</th>)}
+                </tr></thead>
                 <tbody>
-                  {stages.map((s, idx) => {
-                    const sLevel = stageLevel(s, idx);
-                    const stageCosts = s.costs || [];
-                    const soga = s.value ? BigInt(s.value) : 0n;
-
-                    let stageAppTotal = 0n;
-                    let stageRespTotal = 0n;
-
-                    return (
-                      <React.Fragment key={s.id}>
-                        {stageCosts.map((c, cIdx) => {
-                          const isFee = c.kind === '변호사보수';
-                          const paidAmount = BigInt(c.paid || '0');
-                          const refundAmount = BigInt(c.refund || '0');
-                          const netAmount = paidAmount - refundAmount;
-
-                          // 변호사보수 법정한도
-                          const feeLimit = isFee && soga > 0n ? ordinaryFeeLimit(soga) : netAmount;
-                          const recognizedAmount = isFee ? (netAmount < feeLimit ? netAmount : feeLimit) : netAmount;
-
-                          const isApplicantOwner = c.payer === mainApplicant?.id || (c.ids || []).includes(mainApplicant?.id || '');
-
-                          if (isApplicantOwner) {
-                            stageAppTotal += recognizedAmount;
-                          } else {
-                            stageRespTotal += recognizedAmount;
-                          }
-
-                          let remark = '';
-                          if (isFee) {
-                            remark = `변호사보수의 소송비용산입에 관한 규칙 제3조에 의거 산정하면 ${lawyerFeeFormula(soga)}`;
-                          } else if (c.refund && c.refund !== '0') {
-                            remark = `실제 지출비용 산입(환급액 ${formatWon(refundAmount)} 제외)`;
-                          } else if (c.evidence) {
-                            remark = c.evidence;
-                          }
-
-                          return (
-                            <tr key={c.id}>
-                              {cIdx === 0 && (
-                                <td
-                                  rowSpan={stageCosts.length + 1}
-                                  className="border border-black p-1.5 text-center font-bold align-middle bg-white"
-                                >
-                                  {sLevel}
-                                </td>
-                              )}
-                              <td className="border border-black p-1.5 text-center font-medium">
-                                {c.title || c.kind}
-                              </td>
-                              {hasRespondentCosts ? (
-                                <>
-                                  <td className="border border-black p-1.5 text-right tabular-nums">
-                                    {isApplicantOwner ? formatWon(recognizedAmount) : ''}
-                                  </td>
-                                  <td className="border border-black p-1.5 text-right tabular-nums">
-                                    {!isApplicantOwner ? formatWon(recognizedAmount) : ''}
-                                  </td>
-                                </>
-                              ) : (
-                                <td className="border border-black p-1.5 text-right tabular-nums font-medium">
-                                  {formatWon(recognizedAmount)}
-                                </td>
-                              )}
-                              <td className="border border-black p-1.5 text-left text-[11px] leading-tight text-slate-700">
-                                {remark}
-                              </td>
-                            </tr>
-                          );
-                        })}
-
-                        {/* 심급 소계 */}
-                        <tr className="bg-slate-50/50 font-semibold">
-                          <td className="border border-black p-1.5 text-center">소계</td>
-                          {hasRespondentCosts ? (
-                            <>
-                              <td className="border border-black p-1.5 text-right tabular-nums">
-                                {formatWon(stageAppTotal)}
-                              </td>
-                              <td className="border border-black p-1.5 text-right tabular-nums">
-                                {formatWon(stageRespTotal)}
-                              </td>
-                            </>
-                          ) : (
-                            <td className="border border-black p-1.5 text-right tabular-nums">
-                              {formatWon(stageAppTotal)}
-                            </td>
-                          )}
-                          <td className="border border-black p-1.5 text-left text-[11px]"></td>
-                        </tr>
-                      </React.Fragment>
-                    );
-                  })}
-
-                  {/* 본안비용소계 */}
-                  {(() => {
-                    const applicantMainTotal = lines
-                      .filter((l) => l.owner === mainApplicant?.id)
-                      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-                    const respondentMainTotal = lines
-                      .filter((l) => l.owner === mainRespondent?.id)
-                      .reduce((sum, l) => add(sum, l.amount), nothing);
-
-                    return (
-                      <tr className="bg-slate-100 font-bold">
-                        <td colSpan={2} className="border border-black p-1.5 text-center">
-                          본안비용소계
-                        </td>
-                        {hasRespondentCosts ? (
-                          <>
-                            <td className="border border-black p-1.5 text-right tabular-nums">
-                              {formatWon(applicantMainTotal.n / (applicantMainTotal.d || 1n))}
-                            </td>
-                            <td className="border border-black p-1.5 text-right tabular-nums">
-                              {formatWon(respondentMainTotal.n / (respondentMainTotal.d || 1n))}
-                            </td>
-                          </>
-                        ) : (
-                          <td className="border border-black p-1.5 text-right tabular-nums">
-                            {formatWon(applicantMainTotal.n / (applicantMainTotal.d || 1n))}
-                          </td>
-                        )}
-                        <td className="border border-black p-1.5 text-left text-[11px]">
-                          {stages.map((s, idx) => stageLevel(s, idx)).join(' + ')}
-                        </td>
-                      </tr>
-                    );
-                  })()}
-
-                  {/* 소송비용확정신청 비용 */}
-                  {applicationCosts.length > 0 && (
-                    <>
-                      {applicationCosts.map((ac, acIdx) => {
-                        const paidAmount = BigInt(ac.paid || '0');
-                        let remark = '';
-                        if (ac.kind.includes('송달료')) {
-                          if (ac.deliveryDetail && (ac.deliveryDetail.incurred || ac.deliveryDetail.decision || ac.deliveryDetail.mobile)) {
-                            const inc = ac.deliveryDetail.incurred ? `기발생 ${formatWon(BigInt(ac.deliveryDetail.incurred))}` : '';
-                            const dec = ac.deliveryDetail.decision ? `결정정본 ${formatWon(BigInt(ac.deliveryDetail.decision))}` : '';
-                            const mob = ac.deliveryDetail.mobile ? `모바일단문메시지 ${formatWon(BigInt(ac.deliveryDetail.mobile))}` : '';
-                            const parts = [inc, dec, mob].filter(Boolean).join(' + ');
-                            remark = `${parts} (잔액은 확정 후 자동 환급)`;
-                          } else {
-                            remark = '기발생 + 결정정본 송달료 등 (잔액은 확정 후 환급)';
-                          }
-                        } else if (ac.kind.includes('발급비')) {
-                          remark = ac.title || '법인등기사항증명서 또는 제증명 발급';
-                        }
-                        return (
-                          <tr key={ac.id}>
-                            {acIdx === 0 && (
-                              <td
-                                rowSpan={applicationCosts.length + 1}
-                                className="border border-black p-1.5 text-center font-bold align-middle bg-white"
-                              >
-                                소송비용<br />확정신청
-                              </td>
-                            )}
-                            <td className="border border-black p-1.5 text-center font-medium">
-                              {ac.title || ac.kind}
-                            </td>
-                            {hasRespondentCosts ? (
-                              <>
-                                <td className="border border-black p-1.5 text-right tabular-nums">
-                                  {formatWon(paidAmount)}
-                                </td>
-                                <td className="border border-black p-1.5 text-right tabular-nums">-</td>
-                              </>
-                            ) : (
-                              <td className="border border-black p-1.5 text-right tabular-nums">
-                                {formatWon(paidAmount)}
-                              </td>
-                            )}
-                            <td className="border border-black p-1.5 text-left text-[11px] text-slate-700">
-                              {remark}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      <tr className="bg-slate-50/50 font-semibold">
-                        <td className="border border-black p-1.5 text-center">신청비용소계</td>
-                        {hasRespondentCosts ? (
-                          <>
-                            <td className="border border-black p-1.5 text-right tabular-nums">
-                              {formatWon(application.lines.reduce((s, l) => add(s, l.amount), nothing).n)}
-                            </td>
-                            <td className="border border-black p-1.5 text-right tabular-nums">-</td>
-                          </>
-                        ) : (
-                          <td className="border border-black p-1.5 text-right tabular-nums">
-                            {formatWon(application.lines.reduce((s, l) => add(s, l.amount), nothing).n)}
-                          </td>
-                        )}
-                        <td className="border border-black p-1.5 text-left text-[11px]"></td>
-                      </tr>
-                    </>
-                  )}
-
-                  {/* 총 합계 */}
-                  {(() => {
-                    const appGrand = activeSettlement
-                      ? add(activeSettlement.forward, activeSettlement.appAmount)
-                      : nothing;
-                    const respGrand = activeSettlement ? activeSettlement.reverse : nothing;
-
-                    return (
-                      <tr className="bg-slate-200/80 font-bold text-sm">
-                        <td colSpan={2} className="border border-black p-2 text-center">
-                          합계
-                        </td>
-                        {hasRespondentCosts ? (
-                          <>
-                            <td className="border border-black p-2 text-right tabular-nums">
-                              {formatWon(appGrand.n / (appGrand.d || 1n))}
-                            </td>
-                            <td className="border border-black p-2 text-right tabular-nums">
-                              {formatWon(respGrand.n / (respGrand.d || 1n))}
-                            </td>
-                          </>
-                        ) : (
-                          <td className="border border-black p-2 text-right tabular-nums">
-                            {formatWon(appGrand.n / (appGrand.d || 1n))}
-                          </td>
-                        )}
-                        <td className="border border-black p-2 text-left text-xs font-normal">
-                          본안비용 ＋ 신청비용
-                        </td>
-                      </tr>
-                    );
-                  })()}
+                  {stageResults.map(({ stage, level, expenses, totals }) => <React.Fragment key={stage.id}>
+                    {expenses.map(expense => {
+                      const applicantSide = expense.owners.some(id => parties.some(p => p.id === id && isApplicantSideParty(p)));
+                      return <tr key={expense.cost.id}>
+                        <td className={cell}>{level}</td>
+                        <td className={cell}>{expense.cost.title || expense.cost.kind}</td>
+                        <td className={cell + ' text-right'}>{applicantSide ? formatWon(expense.recognized) : ''}</td>
+                        <td className={cell + ' text-right'}>{!applicantSide ? formatWon(expense.recognized) : ''}</td>
+                        <td className={cell}><div>{expense.owners.map(name).join(', ')}</div>{expenseRemark(expense)}</td>
+                      </tr>;
+                    })}
+                    {totalRow(level + ' 소계', totals.applicant, totals.respondent)}
+                  </React.Fragment>)}
+                  {totalRow('본안비용소계', calculation.mainTotals.applicant, calculation.mainTotals.respondent)}
+                  {application.expenses.map(expense => <tr key={expense.cost.id}>
+                    <td className={cell}>소송비용 확정신청</td>
+                    <td className={cell}>{expense.cost.title || expense.cost.kind}</td>
+                    <td className={cell + ' text-right'}>{formatWon(expense.recognized)}</td>
+                    <td className={cell}>-</td>
+                    <td className={cell}><div>{expense.owners.map(name).join(', ')}</div>{expenseRemark(expense)}</td>
+                  </tr>)}
+                  {totalRow('신청비용소계', calculation.applicationTotal, BigInt(0))}
+                  {totalRow('합계', calculation.totals.applicant, calculation.totals.respondent, '본안비용 ＋ 신청비용')}
                 </tbody>
               </table>
             </div>
 
-            {/* 4. 2. 피신청인이 신청인에게 상환하여야 할 소송비용액 */}
-            <div className="border border-black p-4 mb-8 bg-slate-50/60">
-              <h2 className="text-base font-bold text-black mb-1">
-                2. {mainRespondent ? label(mainRespondent) : '피신청인'}이{' '}
-                {mainApplicant ? label(mainApplicant) : '신청인'}에게 상환하여야 할 소송비용액
-              </h2>
-              <div className="text-lg font-bold text-black pl-4">
-                금 {activeSettlement ? money(activeSettlement.combined) : '0원'}
-                {activeSettlement && activeSettlement.mutual && (
-                  <span className="block text-xs font-normal text-slate-600 mt-1">
-                    (= 신청인 인정액 {money(add(activeSettlement.forward, activeSettlement.appAmount))} - 피신청인 상계액 {money(activeSettlement.reverse)})
-                  </span>
-                )}
-              </div>
+            <div className="border border-black p-4 mb-8 bg-slate-50/60 space-y-4">
+              <h2 className="text-base font-bold text-black">2. 당사자별 최종 정산액</h2>
+              {!settlements.length && <p>비용과 부담 주문의 입력을 확인하세요.</p>}
+              {settlements.map(row => <div key={row.a.id + ':' + row.b.id}>
+                <h3 className="text-sm font-bold">{label(row.a)} ↔ {label(row.b)}</h3>
+                {row.missing ? <p className="text-sm">최종 정산액 입력 확인 필요: {row.missing}</p> : <>
+                  <p className="text-sm">{label(row.payer)}이(가) {label(row.receiver)}에게 지급할 금액</p>
+                  <p className="text-lg font-bold">금 {money(row.payable)}</p>
+                  <p className="text-xs">신청인 본안 회수액 {money(row.forward)} − 피신청인 본안 회수액 {money(row.reverse)} = 본안 정산액 {money(row.net)}</p>
+                  <p className="text-xs">본안 정산액 {money(row.net)} + 확정신청비용 {money(row.applicationAmount)} = {money(row.combinedAmount)}</p>
+                </>}
+              </div>)}
             </div>
+
+            <details className="calculation-trace mb-6 text-xs">
+              <summary className="cursor-pointer font-bold">3. 배분·절사 산출 근거 (펼쳐서 인쇄 가능)</summary>
+              <p className="my-2">{calculation.roundingDescription}</p>
+              {[...main.lines.map(line => ({ ...line, basis: line.stage + ' 발생 비용 · ' + line.order + ' 적용' })), ...application.lines].map((line, index) => (
+                <div key={index} className="mb-3 break-inside-avoid border-b border-slate-200 pb-2">
+                  <strong>{line.kind} · {line.basis} · {name(line.owner)} → {name(line.debtor)}: {money(line.amount)}</strong>
+                  {!line.steps.length && <p>배분 및 부담률 1 · {money(line.amount)}</p>}
+                  {line.steps.map((step, i) => <p key={i}>
+                    {step.label}: {money(step.input)} × {String(step.factor.n)}/{String(step.factor.d)} = {money(step.raw)} → {money(step.amount)} (절사액 {money(step.discarded)})
+                  </p>)}
+                  <p>절사 전 정밀값 {money(line.exactAmount)}</p>
+                </div>
+              ))}
+            </details>
 
             {/* 5. 각주 (Footnotes) */}
             <div className="border-t border-slate-300 pt-3 text-[11px] text-slate-600 leading-relaxed space-y-1">
