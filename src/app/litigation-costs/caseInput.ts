@@ -1,6 +1,8 @@
 export const levels = ['1심', '항소심', '상고심'] as const;
 export type Level = (typeof levels)[number];
 export type ValueMode = '합산' | '흡수';
+export type CostClaim = '본소' | '반소' | '공통';
+export type ClaimSplit = '소가 비율' | '균분';
 export type MemberValueType = '개별' | '공통' | '공통2' | '흡수';
 export type Group = '신청인' | '피신청인' | '신청외';
 export type PartySide = '신청인측' | '피신청인측';
@@ -14,6 +16,14 @@ export type Member = {
   counterValue?: string;
 };
 export type Cost = {
+  application?: {
+    useCommon?: boolean;
+    ownerWeights?: Record<string, string>;
+    opponentIds: string[];
+    opponentMethod?: '균분' | '직접 비율';
+    opponentWeights?: Record<string, string>;
+    rates?: Record<string, Record<string, { n: string; d: string }>>;
+  };
   id: string;
   payer: string;
   side?: PartySide;
@@ -21,12 +31,23 @@ export type Cost = {
   paid: string;
   recognized?: string;
   ruleId?: string;
+  claim?: CostClaim;
+  claimSplit?: ClaimSplit;
+  mainRuleId?: string;
+  counterRuleId?: string;
+  opponentMethod?: '균분' | '안분';
   refund: string;
   shared: boolean;
   ids: string[];
   method: string;
   evidence: string;
   title: string;
+};
+export type ApplicationPolicy = {
+  mode: '판결 기준' | '별도 기준';
+  stageId?: string;
+  claim?: '본소' | '반소';
+  allocation?: Cost['application'];
 };
 export type Rule = {
   id: string;
@@ -58,6 +79,7 @@ export type Stage = {
   counterValue: string;
   useCounterIndividualValues?: boolean;
   counterValueMode?: ValueMode;
+  counterFeeMode?: ValueMode;
   counterNumber?: string;
   costs: Cost[];
   rules: Rule[];

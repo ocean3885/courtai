@@ -16,12 +16,20 @@ import {
   type Rule,
   type Stage,
   type Cost,
+  type CostClaim,
+  type ClaimSplit,
   type Reviews,
+  type ApplicationPolicy,
 } from './caseInput';
 import { CostReview } from './CostReview';
+import { ApplicationCostAllocation } from './ApplicationCostAllocation';
+import { ApplicationBurdenPolicy } from './ApplicationBurdenPolicy';
 import {
   allocationMemberValue,
   counterEffectiveValue,
+  inferredCostClaim,
+  needsClaimAllocation,
+  opponentAllocationGroups,
   resolveFeeBasisValue,
   sideValueMode,
   stageEffectiveValue,
@@ -299,6 +307,7 @@ export default function PartyForm() {
   const [activeStageLevel, setActiveStageLevel] = useState<Level>('1심');
   const [showAllStages, setShowAllStages] = useState(false);
   const [applicationCosts, setApplicationCosts] = useState<Cost[]>([]);
+  const [applicationPolicy, setApplicationPolicy] = useState<ApplicationPolicy>({ mode: '판결 기준', stageId: 'first' });
   const [reviews, setReviews] = useState<Reviews>({});
   const [notice, setNotice] = useState('');
   const [fullyOpen, setFullyOpen] = useState(false);
@@ -311,7 +320,6 @@ export default function PartyForm() {
       p.group === '신청외' ? (isApplicantSideParty(p) ? '신청인측 신청외' : '피신청인측 신청외') : p.group;
     return [groupText, bucket.findIndex((q) => q.id === p.id) + 1, p.name].filter(Boolean).join(' ');
   };
-  const side = (p: Party) => p.group === '신청인';
   const presentLevels = stages.map((s, i) => stageLevel(s, i));
   const currentActiveLevel: Level = presentLevels.includes(activeStageLevel)
     ? activeStageLevel
@@ -365,7 +373,8 @@ export default function PartyForm() {
     if (
       Object.values(reviews[p.id] || {}).some(Boolean) ||
       stages.some((s) => referenced(s, p.id) || (s.members[p.id] && memberHasEntries(s.members[p.id]))) ||
-      applicationCosts.some((c) => c.payer === p.id || c.ids.includes(p.id))
+      applicationCosts.some((c) => c.payer === p.id || c.ids.includes(p.id) || c.application?.opponentIds.includes(p.id)) ||
+      applicationPolicy.allocation?.opponentIds.includes(p.id)
     ) {
       setNotice('이 당사자의 심급 정보, 제출·상계 검토 또는 연결된 비용·부담 관계를 먼저 정리하세요.');
       return;
@@ -411,10 +420,12 @@ export default function PartyForm() {
   }
 
   function createApplicationCost(kind: string): Cost {
-    const applicantIds = parties.filter(side).map((p) => p.id);
+    const applicantIds = parties.filter(p => p.group === '신청인').map((p) => p.id);
+    const opponentIds = parties.filter(p => p.group === '피신청인').map(p => p.id);
     const firstId = applicantIds.length === 1 ? applicantIds[0] : '';
     return {
       id: uid(),
+      application: { opponentIds: opponentIds.length === 1 ? opponentIds : [] },
       payer: firstId,
       kind,
       paid: '',
@@ -453,9 +464,11 @@ export default function PartyForm() {
 
   function renderSidePartySection(s: Stage, sLevel: Level, sidePeople: Party[], isAppSide: boolean) {
     const sideTitle = isAppSide ? '신청인 측 당사자' : '피신청인 측 당사자';
-    const hasMainValue = s.mainValueTarget
-      ? (s.mainValueTarget === '신청인측') === isAppSide
-      : sLevel !== '1심';
+    const hasMainValue = !s.counter
+      ? Boolean(s.mainValueTarget) || sLevel !== '1심'
+      : s.mainValueTarget
+        ? (s.mainValueTarget === '신청인측') === isAppSide
+        : sLevel !== '1심';
     const hasCounterValue = Boolean(s.counter && s.mainValueTarget && !hasMainValue);
     const hasClaimValue = hasMainValue || hasCounterValue;
     const claimName = hasCounterValue ? '반소 소가' : '소가';
@@ -722,7 +735,7 @@ export default function PartyForm() {
       ? parties.filter(
           (p) => s.members[p.id] && (costIsApplicant ? isApplicantSideParty(p) : !isApplicantSideParty(p))
         )
-      : parties.filter(side);
+      : parties.filter(p => p.group === '신청인');
     const owners = (c.shared ? c.ids : [c.payer]).filter(Boolean);
     const normalizedMethod = c.method === '소가 비율' ? '안분' : c.method;
     const weights = owners.map((id) => {
@@ -733,10 +746,18 @@ export default function PartyForm() {
     const sum = weights.reduce<bigint>((total, w) => total + (w ?? BigInt(0)), BigInt(0));
     const feeBasis = s && c.kind === '변호사보수' ? resolveFeeBasisValue(c, s, parties) : null;
     const feeLimit = feeBasis !== null ? ordinaryFeeLimit(feeBasis) : null;
+    const separateClaims = Boolean(s?.counter && needsClaimAllocation(stages, stages.findIndex(v => v.id === s.id), owners));
+    const costClaim = s ? inferredCostClaim(c, s, parties) : undefined;
+    const showClaim = Boolean(s?.counter && (c.kind === '변호사보수' || separateClaims || c.claim || c.claimSplit || c.mainRuleId || c.counterRuleId));
     const candidateRules =
       s?.rules.filter(
-        (r) => owners.length && owners.every((id) => r.left.includes(id) || r.right.includes(id))
+        (r) => owners.length && owners.every((id) => r.left.includes(id) || r.right.includes(id)) &&
+          (!separateClaims || costClaim === '공통' || r.claim === costClaim || r.claim === '본소와 반소')
       ) || [];
+    const opponentGroups = s ? opponentAllocationGroups(c, stages, stages.findIndex(v => v.id === s.id), parties) : [];
+    const showOpponentAllocation = Boolean(c.opponentMethod || opponentGroups.some(g => g.ids.length > 1 && (g.multipleRules || g.laterOrder)));
+    const automaticMethods = new Set(opponentGroups.map(g => g.method));
+    const automaticOpponentMethod = automaticMethods.size === 1 ? opponentGroups[0]?.method || '' : '';
     const allowsRefund =
       c.kind !== '변호사보수' &&
       (c.kind.endsWith('송달료') || c.kind === '인지대' || c.kind === '기타 비용' || c.refund !== '0');
@@ -764,10 +785,6 @@ export default function PartyForm() {
 
     function toggleOwnerParty(partyId: string) {
       if (otherFeeTakenIds.has(partyId)) return;
-      if (!s) {
-        setCostOwners([partyId]);
-        return;
-      }
       if (owners.includes(partyId)) {
         if (eligible.length === 1) return;
         setCostOwners(owners.filter((id) => id !== partyId));
@@ -783,7 +800,7 @@ export default function PartyForm() {
             <strong className="text-sm font-bold text-slate-900">{c.kind}</strong>
             {eligible.length === 1 && owners.length === 1 && (
               <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700">
-                부담대상 · {label(eligible[0])}
+                {s ? '부담대상' : '비용 귀속자'} · {label(eligible[0])}
               </span>
             )}
             {c.paid !== '' && (
@@ -792,7 +809,7 @@ export default function PartyForm() {
                   <span className="font-medium text-amber-800">금액 확인</span>
                 ) : (
                   <span>
-                    실지출 <strong className="font-semibold text-slate-900">{won(net)}</strong>
+                    {c.kind === '변호사보수' ? '입력 보수' : '실지출'} <strong className="font-semibold text-slate-900">{won(net)}</strong>
                   </span>
                 )}
               </span>
@@ -813,7 +830,7 @@ export default function PartyForm() {
           <div className="rounded-md bg-slate-50 p-2.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="mr-1 text-xs font-semibold text-slate-600">부담대상</span>
+                <span className="mr-1 text-xs font-semibold text-slate-600">{s ? '부담대상' : '비용 귀속자'}</span>
                 {eligible.map((p) => {
                   const selected = owners.includes(p.id);
                   const disabled = otherFeeTakenIds.has(p.id);
@@ -902,7 +919,7 @@ export default function PartyForm() {
           <Field
             numeric
             showAmountPreview
-            label={c.kind === '변호사보수' ? '실지급 보수 (원)' : '납부액 (원)'}
+            label={c.kind === '변호사보수' ? '변호사보수액 (원)' : '납부액 (원)'}
             value={c.paid}
             change={(paid) => update({ paid })}
           />
@@ -917,24 +934,91 @@ export default function PartyForm() {
           )}
         </div>
 
-        {s && (candidateRules.length > 1 || c.ruleId) && (
+        {!s && <ApplicationCostAllocation cost={c} parties={parties} label={label} update={update} />}
+        {showClaim && (
+          <div className="space-y-2 rounded-md border border-blue-100 bg-blue-50/40 p-3">
+            <Pick
+              label={c.kind === '변호사보수' ? '보수 대리 범위' : '비용 발생 범위'}
+              value={costClaim || ''}
+              options={['본소', '반소', '공통']}
+              names={{ 공통: '본소·반소 공통' }}
+              change={(value) => update({
+                claim: (value || undefined) as CostClaim | undefined,
+                claimSplit: undefined,
+                ruleId: undefined, mainRuleId: undefined, counterRuleId: undefined,
+              })}
+            />
+            {c.kind === '인지대' && !c.claim && costClaim && (
+              <p className="text-xs text-slate-600">제기한 측의 지위·소가 대상에 따라 {costClaim} 비용으로 연결했습니다. 다른 청구의 비용이면 변경하세요.</p>
+            )}
+            {!separateClaims && (c.claimSplit || c.mainRuleId || c.counterRuleId) && (
+              <button type="button" className={button} onClick={() => update({ claimSplit: undefined, mainRuleId: undefined, counterRuleId: undefined })}>청구별 배분 설정 해제</button>
+            )}
+            {separateClaims && costClaim === '공통' && (
+              <>
+                <Pick
+                  label="공통비용의 본소·반소 배분 기준"
+                  value={c.claimSplit || (c.kind === '변호사보수' ? '소가 비율' : '균분')}
+                  options={['소가 비율', '균분']}
+                  change={(value) => update({ claimSplit: (value || undefined) as ClaimSplit | undefined })}
+                />
+                <p className="text-xs text-slate-600">본소·반소별 부담 주문을 적용하기 위한 구분입니다. 당사자 사이의 균분·안분과는 별도로 계산합니다.</p>
+                {c.ruleId && <button type="button" className={button} onClick={() => update({ ruleId: undefined })}>기존 전액 부담 관계 해제</button>}
+                {(['본소', '반소'] as const).map(claim => {
+                  const key = claim === '본소' ? 'mainRuleId' : 'counterRuleId';
+                  const candidates = candidateRules.filter(r => r.claim === claim || r.claim === '본소와 반소');
+                  if (candidates.length <= 1 && !c[key]) return null;
+                  return (
+                    <label key={claim} className="block text-sm font-medium text-slate-800">
+                      {claim} 부분의 부담 관계
+                      <select className={input} value={c[key] || ''} onChange={e => update({ [key]: e.target.value || undefined, ruleId: undefined })}>
+                        <option value="">해당 청구의 상대방별로 자동 적용</option>
+                        {candidates.map(r => <option key={r.id} value={r.id}>관계 {s!.rules.indexOf(r) + 1}만 적용 · {r.right.concat(r.left).map(id => label(parties.find(p => p.id === id)!)).join(', ')}</option>)}
+                      </select>
+                    </label>
+                  );
+                })}
+              </>
+            )}
+          </div>
+        )}
+
+        {s && !(separateClaims && costClaim === '공통') && (candidateRules.length > 1 || c.ruleId) && (
           <label className="block text-sm font-medium text-slate-800">
-            이 비용 전액에 적용할 부담 관계
+            비용의 부담 관계 적용
             <select
               className={input}
               value={c.ruleId || ''}
               onChange={(e) => update({ ruleId: e.target.value })}
             >
-              <option value="">당사자 범위로 확인</option>
+              <option value="">해당 상대방별로 자동 적용</option>
               {candidateRules.map((r) => (
                 <option key={r.id} value={r.id}>
-                  관계 {s.rules.indexOf(r) + 1} ·{' '}
+                  관계 {s.rules.indexOf(r) + 1}만 적용 ·{' '}
                   {r.left.map((id) => label(parties.find((p) => p.id === id)!)).join(', ')} /{' '}
                   {r.right.map((id) => label(parties.find((p) => p.id === id)!)).join(', ')}
                 </option>
               ))}
             </select>
           </label>
+        )}
+        {s && showOpponentAllocation && (
+          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Pick
+              label="상대방 전체 비용 배분 기준"
+              value={c.opponentMethod || automaticOpponentMethod}
+              options={['균분', '안분']}
+              names={{ 균분: '균분 — 전체 상대방 수 기준', 안분: '안분 — 전체 상대방 소가 비율' }}
+              change={value => update({ opponentMethod: (value || undefined) as Cost['opponentMethod'] })}
+            />
+            {opponentGroups.map((g, i) => (
+              <p key={i} className="text-xs text-slate-700">
+                {label(parties.find(p => p.id === g.owner)!)}의 {g.claim ? g.claim + ' ' : ''}비용 →{' '}
+                {g.ids.map(id => label(parties.find(p => p.id === id)!)).join(', ')} · 전체 {g.ids.length}명
+              </p>
+            ))}
+            <p className="text-xs text-slate-600">전체 상대방에게 비용을 먼저 배분한 뒤 각자의 부담비율을 적용합니다. 상소에 참여하지 않은 상대방의 몫도 원래 심급의 분모에 유지합니다.</p>
+          </div>
         )}
       </div>
     );
@@ -1316,18 +1400,22 @@ export default function PartyForm() {
                         s.counterValue ||
                         s.counterValues?.length ||
                         s.counterNumber ||
-                        people.some((p) => s.members[p.id].counterRole || s.members[p.id].counterValue))
+                        people.some((p) => s.members[p.id].counterRole || s.members[p.id].counterValue) ||
+                        s.costs.some(c => c.claim || c.claimSplit || c.mainRuleId || c.counterRuleId))
                     ) {
-                      setNotice('반소 사건번호·소가·반소 지위·부담 관계 입력을 먼저 비운 뒤 반소 선택을 해제하세요.');
+                      setNotice('반소 사건번호·소가·반소 지위·부담 관계·비용 구분 입력을 먼저 비운 뒤 반소 선택을 해제하세요.');
                       return;
                     }
                     setNotice('');
-                    patchStage(s.id, checked ? { counter: '반소' } : { counter: '', useCounterIndividualValues: false });
+                    patchStage(s.id, checked ? { counter: '반소', counterFeeMode: '합산' } : { counter: '', useCounterIndividualValues: false, counterFeeMode: undefined });
                   }}
                 />
                 반소
               </label>
             </div>
+            {!s.counter && s.mainValueTarget && (
+              <p className="text-xs text-slate-600">개별소가를 선택하면 양측 당사자별 가액을 입력할 수 있습니다. 각 보수는 해당 보수에 선택한 당사자의 가액을 합산·흡수해 한도를 계산하고, 비용 안분에는 각자의 가액을 사용합니다. 위 소가는 선택한 소가 대상 측을 기준으로 표시합니다.</p>
+            )}
             {s.counter && (
               <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
                 <p className="text-sm text-slate-800" aria-live="polite">
@@ -1361,6 +1449,26 @@ export default function PartyForm() {
                     반소 개별소가
                   </label>
                 </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Pick
+                    label="보수 산정 시 본소·반소 소가 적용"
+                    value={s.counterFeeMode || ''}
+                    options={['합산', '흡수']}
+                    names={{ 합산: '합산 — 본소 + 반소', 흡수: '다액흡수 — 둘 중 큰 소가' }}
+                    change={(value) => {
+                      if (value === '합산' || value === '흡수') patchStage(s.id, { counterFeeMode: value });
+                    }}
+                  />
+                  <div className="self-end rounded-md border border-blue-200 bg-white p-3 text-sm text-blue-950" aria-live="polite">
+                    {(() => {
+                      const main = stageEffectiveValue(s, parties), counter = counterEffectiveValue(s, parties);
+                      if (main === null || counter === null || !s.counterFeeMode) return '본소·반소 소가와 보수 산정 기준을 선택하세요.';
+                      const basis = s.counterFeeMode === '합산' ? main + counter : main > counter ? main : counter;
+                      return <>양 청구 전체 기준 소가 <strong>{won(basis)}</strong><br />일반 본안 보수 한도 <strong>{won(ordinaryFeeLimit(basis))}</strong></>;
+                    })()}
+                  </div>
+                </div>
+                <p className="text-xs text-slate-600">본소·반소를 함께 대리한 양측 보수에 적용합니다. 대리 범위가 다르면 각 보수에서 지정하세요. 인지대 입력액과 당사자별 소가 합산·흡수 설정은 바뀌지 않습니다.</p>
               </div>
             )}
             {showParticipantChecks && (
@@ -1488,7 +1596,7 @@ export default function PartyForm() {
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3.5">
               <div>
                 <h3 className="text-base font-bold text-slate-900">판결의 비용 부담</h3>
-                <p className={small}>적용할 당사자와 분담비율을 입력하세요.</p>
+                <p className={small}>적용할 당사자와 분담비율을 입력하세요. 상대방이 겹치지 않는 여러 관계는 비용을 중복 입력하지 않고 함께 적용합니다.</p>
               </div>
               <button
                 className={button}
@@ -1505,7 +1613,7 @@ export default function PartyForm() {
                         n: '',
                         d: '',
                         scope: sLevel + ' 비용',
-                        claim: '',
+                        claim: s.counter ? '본소와 반소' : '',
                         leftMethod: '',
                         rightMethod: '',
                       },
@@ -1532,7 +1640,7 @@ export default function PartyForm() {
                         <button
                           className={button}
                           onClick={() => {
-                            if (s.costs.some((c) => c.ruleId === r.id)) {
+                            if (s.costs.some((c) => c.ruleId === r.id || c.mainRuleId === r.id || c.counterRuleId === r.id)) {
                               setNotice('비용에 지정된 부담 관계를 먼저 해제하세요.');
                               return;
                             }
@@ -1631,6 +1739,7 @@ export default function PartyForm() {
       {/* 4. 소송비용액확정신청 및 비용자료 제출·상계 검토 */}
       <div className="grid items-start gap-3.5 lg:grid-cols-2">
         <Section id="cost-application" title="소송비용액확정신청" open>
+          <ApplicationBurdenPolicy policy={applicationPolicy} stages={stages} parties={parties} label={label} change={setApplicationPolicy} />
           <div className="flex flex-wrap gap-1.5">
             {['인지대', '기발생 송달료', '결정정본 송달료', '서기료', '서류 발급비', '기타 비용'].map(
               (kind) => (
@@ -1712,6 +1821,7 @@ export default function PartyForm() {
         stages={stages}
         reviews={reviews}
         applicationCosts={applicationCosts}
+        applicationPolicy={applicationPolicy}
         label={label}
       />
       {notice && (

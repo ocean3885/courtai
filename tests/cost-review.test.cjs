@@ -147,9 +147,15 @@ test('원고 1 피고 4 중 신청외 몫 보존, 한 명의 항소비용만 별
     ]
   );
   appeal.rules[0].scope = '소송총비용';
-  assert.equal(reviewCosts([first, appeal], people).lines.length, 0);
+  appeal.rules[0].mode = '비율로 분담';
+  appeal.rules[0].n = '2'; appeal.rules[0].d = '5';
+  const partialTotal = reviewCosts([first, appeal], people);
+  assert.deepEqual(partialTotal.errors, []);
+  assert.deepEqual(partialTotal.lines.map(l => [l.debtor, l.amount.n]), [
+    ['b', 30000n], ['c', 18000n], ['d', 30000n], ['e', 30000n], ['c', 12000n],
+  ]);
 });
-test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 분수를 유지', () => {
+test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 단계별 절사', () => {
   const r = reviewCosts(
     [
       stage(parties, [cost('a', '110000')], [rule(['b'], '2측 전부 부담')]),
@@ -159,8 +165,9 @@ test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 �
   );
   assert.deepEqual(
     r.lines.map((l) => money(l.amount)),
-    ['220,000/3원', '40,000/3원']
+    ['73,330원', '13,330원']
   );
+  assert.deepEqual(r.lines.map(l => money(l.exactAmount)), ['220,000/3원', '40,000/3원']);
 });
 test('소가 안분과 인정액, 공란과 명시적 0원', () => {
   const first = stage(
@@ -178,7 +185,7 @@ test('소가 안분과 인정액, 공란과 명시적 0원', () => {
   first.costs[0].paid = '';
   assert.ok(reviewCosts([first], parties).errors.length);
 });
-test('비용별로 적용 당사자가 다른 경우 선택한 관계로만 배분', () => {
+test('겹치지 않는 상대방별 관계를 함께 적용하고 한 관계만 지정할 수도 있음', () => {
   const people = [...parties, party('c', '피신청인')];
   const s = stage(
     people,
@@ -188,7 +195,9 @@ test('비용별로 적용 당사자가 다른 경우 선택한 관계로만 배�
       { ...rule(['c'], '각자 부담'), id: 'two' },
     ]
   );
-  assert.ok(reviewCosts([s], people).errors.length);
+  const automatic = reviewCosts([s], people);
+  assert.deepEqual(automatic.errors, []);
+  assert.deepEqual(automatic.lines.map(l => [l.debtor, l.amount.n]), [['b', 60n], ['c', 0n]]);
   s.costs[0].ruleId = 'one';
   assert.deepEqual(
     reviewCosts([s], people).lines.map((l) => [l.debtor, l.amount.n]),
