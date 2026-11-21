@@ -24,6 +24,7 @@ import {
 import { CostReview } from './CostReview';
 import { ApplicationCostAllocation } from './ApplicationCostAllocation';
 import { ApplicationBurdenPolicy } from './ApplicationBurdenPolicy';
+import { BurdenOrderSection } from './BurdenOrderSection';
 import {
   allocationMemberValue,
   counterEffectiveValue,
@@ -64,7 +65,20 @@ const stage = (id: string, level: Level = '1심'): Stage => ({
   counter: '',
   counterValue: '',
   costs: [],
-  rules: [],
+  rules: [
+    {
+      id: uid(),
+      left: ['a'],
+      right: ['b'],
+      mode: '2측 전부 부담',
+      n: '1',
+      d: '1',
+      scope: level === '1심' ? '1심 비용' : '소송총비용',
+      claim: '',
+      leftMethod: '균분',
+      rightMethod: '균분',
+    },
+  ],
 });
 const sortStagesByLevel = (list: Stage[]): Stage[] =>
   [...list].sort(
@@ -307,6 +321,8 @@ export default function PartyForm() {
   const [activeStageLevel, setActiveStageLevel] = useState<Level>('1심');
   const [showAllStages, setShowAllStages] = useState(false);
   const [applicationCosts, setApplicationCosts] = useState<Cost[]>([]);
+  const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
+  const [deliveryInputs, setDeliveryInputs] = useState({ incurred: '', decision: '5640', mobile: '' });
   const [applicationPolicy, setApplicationPolicy] = useState<ApplicationPolicy>({ mode: '판결 기준', stageId: 'first' });
   const [reviews, setReviews] = useState<Reviews>({});
   const [notice, setNotice] = useState('');
@@ -419,7 +435,11 @@ export default function PartyForm() {
     };
   }
 
-  function createApplicationCost(kind: string): Cost {
+  function createApplicationCost(
+    kind: string,
+    deliveryDetail?: { incurred?: string; decision?: string; mobile?: string },
+    paidAmount?: string
+  ): Cost {
     const applicantIds = parties.filter(p => p.group === '신청인').map((p) => p.id);
     const opponentIds = parties.filter(p => p.group === '피신청인').map(p => p.id);
     const firstId = applicantIds.length === 1 ? applicantIds[0] : '';
@@ -428,7 +448,8 @@ export default function PartyForm() {
       application: { opponentIds: opponentIds.length === 1 ? opponentIds : [] },
       payer: firstId,
       kind,
-      paid: '',
+      deliveryDetail,
+      paid: paidAmount !== undefined ? paidAmount : '',
       refund: '0',
       shared: false,
       ids: firstId ? [firstId] : [],
@@ -901,6 +922,61 @@ export default function PartyForm() {
                 {weights.every(w=>w !== null) && !sum && ' · 기준 소가 합계 확인 필요'}
               </p>
             )}
+          </div>
+        )}
+
+        {/* 송달료 세부 구성 (기발생 + 결정정본 + 모바일단문) */}
+        {!s && (c.kind.includes('송달료') || !!c.deliveryDetail) && (
+          <div className="rounded-md border border-blue-100 bg-blue-50/40 p-3 space-y-2">
+            <span className="text-xs font-bold text-blue-950 block">송달료 세부 항목 (기발생 + 결정정본 + 모바일단문)</span>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Field
+                numeric
+                showAmountPreview
+                label="기발생 송달료 (원)"
+                value={c.deliveryDetail?.incurred || ''}
+                change={(v) => {
+                  const detail = {
+                    incurred: v,
+                    decision: c.deliveryDetail?.decision ?? '5640',
+                    mobile: c.deliveryDetail?.mobile || '',
+                  };
+                  const total = BigInt(detail.incurred || '0') + BigInt(detail.decision || '0') + BigInt(detail.mobile || '0');
+                  update({ deliveryDetail: detail, paid: total > 0n ? total.toString() : '' });
+                }}
+              />
+              <Field
+                numeric
+                showAmountPreview
+                label="결정정본 송달료 (원)"
+                value={c.deliveryDetail?.decision ?? '5640'}
+                change={(v) => {
+                  const detail = {
+                    incurred: c.deliveryDetail?.incurred || '',
+                    decision: v,
+                    mobile: c.deliveryDetail?.mobile || '',
+                  };
+                  const total = BigInt(detail.incurred || '0') + BigInt(detail.decision || '0') + BigInt(detail.mobile || '0');
+                  update({ deliveryDetail: detail, paid: total > 0n ? total.toString() : '' });
+                }}
+              />
+              <Field
+                numeric
+                showAmountPreview
+                label="모바일단문 (원)"
+                value={c.deliveryDetail?.mobile || ''}
+                change={(v) => {
+                  const detail = {
+                    incurred: c.deliveryDetail?.incurred || '',
+                    decision: c.deliveryDetail?.decision ?? '5640',
+                    mobile: v,
+                  };
+                  const total = BigInt(detail.incurred || '0') + BigInt(detail.decision || '0') + BigInt(detail.mobile || '0');
+                  update({ deliveryDetail: detail, paid: total > 0n ? total.toString() : '' });
+                }}
+              />
+            </div>
+            <p className="text-[11px] text-slate-500">세부 금액 입력 시 아래 납부액(합계)이 자동으로 계산됩니다.</p>
           </div>
         )}
 
@@ -1592,163 +1668,54 @@ export default function PartyForm() {
               </div>
             </div>
 
-            {/* 3-3. 판결의 비용 부담 */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3.5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">판결의 비용 부담</h3>
-                <p className={small}>적용할 당사자와 분담비율을 입력하세요. 상대방이 겹치지 않는 여러 관계는 비용을 중복 입력하지 않고 함께 적용합니다.</p>
-              </div>
-              <button
-                className={button}
-                disabled={people.length < 2}
-                onClick={() =>
-                  patchStage(s.id, {
-                    rules: [
-                      ...s.rules,
-                      {
-                        id: uid(),
-                        left: people.length === 2 ? [people[0].id] : [],
-                        right: people.length === 2 ? [people[1].id] : [],
-                        mode: '',
-                        n: '',
-                        d: '',
-                        scope: sLevel + ' 비용',
-                        claim: s.counter ? '본소와 반소' : '',
-                        leftMethod: '',
-                        rightMethod: '',
-                      },
-                    ],
-                  })
-                }
-              >
-                + 부담 관계 추가
-              </button>
+            {/* 3-3. 심급 판결 주문 상태 요약 안내 */}
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 mt-2">
+              <span>
+                현재 {sLevel}에 적용 중인 판결 주문:{' '}
+                <strong className="text-slate-900 font-semibold">
+                  {s.rules[0]?.mode === '2측 전부 부담'
+                    ? '상대방 전부 부담 (100%)'
+                    : s.rules[0]?.mode === '1측 전부 부담'
+                    ? '신청인 전부 부담 (100%)'
+                    : s.rules[0]?.mode === '비율로 분담'
+                    ? `${s.rules[0]?.n}/${s.rules[0]?.d} 비율 분담`
+                    : s.rules[0]?.mode || '상대방 전부 부담 (100%)'}
+                </strong>
+              </span>
+              <span className="text-blue-600 font-medium">아래 &apos;판결의 소송비용부담 주문&apos; 섹션에서 통합 관리</span>
             </div>
-            {s.rules.length > 0 && (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {s.rules.map((r, i) => {
-                  const edit = (patch: Partial<Rule>) =>
-                    patchStage(s.id, { rules: s.rules.map((v) => (v.id === r.id ? { ...v, ...patch } : v)) });
-                  const n = natural(r.n),
-                    d = natural(r.d);
-                  const sideLabel = (ids: string[]) =>
-                    ids.map((id) => choices.find((p) => p.id === id)?.label).join(', ');
-                  return (
-                    <div key={r.id} className={partyBox}>
-                      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                        <strong className="text-sm font-bold text-slate-900">부담 관계 {i + 1}</strong>
-                        <button
-                          className={button}
-                          onClick={() => {
-                            if (s.costs.some((c) => c.ruleId === r.id || c.mainRuleId === r.id || c.counterRuleId === r.id)) {
-                              setNotice('비용에 지정된 부담 관계를 먼저 해제하세요.');
-                              return;
-                            }
-                            setNotice('');
-                            patchStage(s.id, { rules: s.rules.filter((v) => v.id !== r.id) });
-                          }}
-                        >
-                          관계 삭제
-                        </button>
-                      </div>
-                      {(['left', 'right'] as const).map((key, j) => {
-                        const other = key === 'left' ? r.right : r.left;
-                        const method = key === 'left' ? 'leftMethod' : 'rightMethod';
-                        return (
-                          <div key={key}>
-                            {people.length === 2 && r.left.length === 1 && r.right.length === 1 ? (
-                              <span className="mr-3 inline-block text-sm text-slate-600">
-                                <strong className="font-semibold text-slate-800">{j + 1}측</strong> ·{' '}
-                                {sideLabel(r[key])}
-                              </span>
-                            ) : (
-                              <Checks
-                                title={j + 1 + '측 당사자'}
-                                choices={choices.filter((c) => !other.includes(c.id))}
-                                selected={r[key]}
-                                change={(ids) => edit({ [key]: ids })}
-                              />
-                            )}
-                            {r[key].length > 1 && (
-                              <div className="mt-1.5">
-                                <Pick
-                                  label={j + 1 + '측 내부 부담 기준'}
-                                  options={splitOptions}
-                                  value={r[method] === '소가 비율' ? '안분' : r[method]}
-                                  change={(v) => edit({ [method]: v })}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                      <div className="grid gap-2.5 sm:grid-cols-2">
-                        {sLevel !== '1심' && (
-                          <Pick
-                            label="주문 적용 범위"
-                            value={r.scope}
-                            options={[sLevel + ' 비용', '소송총비용']}
-                            change={(scope) => edit({ scope })}
-                          />
-                        )}
-                        {s.counter && (
-                          <Pick
-                            label="적용 청구"
-                            value={r.claim}
-                            options={['본소와 반소', '본소', '반소']}
-                            change={(claim) => edit({ claim })}
-                          />
-                        )}
-                        <Pick
-                          label="부담 방식"
-                          names={{
-                            '1측 전부 부담': (sideLabel(r.left) || '1측') + ' 전부 부담',
-                            '2측 전부 부담': (sideLabel(r.right) || '2측') + ' 전부 부담',
-                          }}
-                          value={r.mode}
-                          options={['1측 전부 부담', '2측 전부 부담', '비율로 분담', '각자 부담']}
-                          change={(mode) => edit({ mode })}
-                        />
-                      </div>
-                      {r.mode === '비율로 분담' && (
-                        <>
-                          <div className="grid grid-cols-2 gap-2.5">
-                            <Field numeric label="1측 부담 분자" value={r.n} change={(n) => edit({ n })} />
-                            <Field numeric label="분모" value={r.d} change={(d) => edit({ d })} />
-                          </div>
-                          <p className={small}>
-                            {n !== null && d !== null && d > 0 && n <= d ? (
-                              <span>
-                                2측 부담 <strong className="font-semibold text-blue-900">{d - n}/{d}</strong>
-                              </span>
-                            ) : (
-                              '0 이상이고 분모 이하인 분자를 입력하세요. 분모는 1 이상입니다.'
-                            )}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </Section>
         );
       })}
+
+      {/* 3. 판결의 소송비용부담 주문 (별도 독립 섹션) */}
+      <BurdenOrderSection
+        stages={stages}
+        parties={parties}
+        label={label}
+        onUpdateStageRules={(stageId, rules) => patchStage(stageId, { rules })}
+        onUpdateAllStageRules={(rules) => {
+          setStages((old) => old.map((s) => ({ ...s, rules })));
+        }}
+      />
 
       {/* 4. 소송비용액확정신청 및 비용자료 제출·상계 검토 */}
       <div className="grid items-start gap-3.5 lg:grid-cols-2">
         <Section id="cost-application" title="소송비용액확정신청" open>
           <ApplicationBurdenPolicy policy={applicationPolicy} stages={stages} parties={parties} label={label} change={setApplicationPolicy} />
           <div className="flex flex-wrap gap-1.5">
-            {['인지대', '기발생 송달료', '결정정본 송달료', '서기료', '서류 발급비', '기타 비용'].map(
+            {['인지대', '송달료', '서기료', '서류 발급비', '기타 비용'].map(
               (kind) => (
                 <button
                   key={kind}
                   className={button}
-                  onClick={() =>
-                    setApplicationCosts([...applicationCosts, createApplicationCost(kind)])
-                  }
+                  onClick={() => {
+                    if (kind === '송달료') {
+                      setDeliveryModalOpen(true);
+                    } else {
+                      setApplicationCosts([...applicationCosts, createApplicationCost(kind)]);
+                    }
+                  }}
                 >
                   + {kind}
                 </button>
@@ -1766,6 +1733,96 @@ export default function PartyForm() {
             )
           )}
         </Section>
+
+        {deliveryModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+            <div className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl border border-slate-200 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <h4 className="text-base font-bold text-slate-900">확정신청 송달료 입력</h4>
+                <button
+                  type="button"
+                  onClick={() => setDeliveryModalOpen(false)}
+                  className="rounded-md p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                기발생 송달료와 모바일단문(알림문자) 등을 입력하시면 송달료 합계가 자동으로 산출되어 소송비용계산서에 반영됩니다.
+              </p>
+
+              <div className="space-y-3">
+                <Field
+                  numeric
+                  showAmountPreview
+                  label="기발생 송달료 (원)"
+                  value={deliveryInputs.incurred}
+                  change={(incurred) => setDeliveryInputs({ ...deliveryInputs, incurred: incurred || '' })}
+                />
+                <Field
+                  numeric
+                  showAmountPreview
+                  label="결정정본 송달료 (원)"
+                  value={deliveryInputs.decision}
+                  change={(decision) => setDeliveryInputs({ ...deliveryInputs, decision: decision || '' })}
+                />
+                <Field
+                  numeric
+                  showAmountPreview
+                  label="모바일단문 (원)"
+                  value={deliveryInputs.mobile}
+                  change={(mobile) => setDeliveryInputs({ ...deliveryInputs, mobile: mobile || '' })}
+                />
+              </div>
+
+              {(() => {
+                const inc = BigInt(deliveryInputs.incurred || '0');
+                const dec = BigInt(deliveryInputs.decision || '0');
+                const mob = BigInt(deliveryInputs.mobile || '0');
+                const total = inc + dec + mob;
+                return (
+                  <div className="rounded-lg bg-blue-50/80 border border-blue-200/80 p-3.5 flex justify-between items-baseline">
+                    <span className="text-xs font-semibold text-blue-900">송달료 납부 합계</span>
+                    <span className="text-lg font-bold text-blue-950 tabular-nums">
+                      {total.toLocaleString('ko-KR')}원
+                    </span>
+                  </div>
+                );
+              })()}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  className="rounded-lg border border-slate-300 px-3.5 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition"
+                  onClick={() => setDeliveryModalOpen(false)}
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow-xs hover:bg-blue-700 transition"
+                  onClick={() => {
+                    const inc = BigInt(deliveryInputs.incurred || '0');
+                    const dec = BigInt(deliveryInputs.decision || '0');
+                    const mob = BigInt(deliveryInputs.mobile || '0');
+                    const total = inc + dec + mob;
+                    const newCost = createApplicationCost(
+                      '송달료',
+                      { ...deliveryInputs },
+                      total > 0n ? total.toString() : ''
+                    );
+                    setApplicationCosts([...applicationCosts, newCost]);
+                    setDeliveryModalOpen(false);
+                    setDeliveryInputs({ incurred: '', decision: '5640', mobile: '' });
+                  }}
+                >
+                  송달료 추가
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <Section id="cost-submission" title="비용자료 제출·상계 검토" open>
           {parties

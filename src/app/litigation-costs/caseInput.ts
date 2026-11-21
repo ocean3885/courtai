@@ -15,6 +15,11 @@ export type Member = {
   counterRole: string;
   counterValue?: string;
 };
+export type DeliveryDetail = {
+  incurred?: string;
+  decision?: string;
+  mobile?: string;
+};
 export type Cost = {
   application?: {
     useCommon?: boolean;
@@ -24,6 +29,7 @@ export type Cost = {
     opponentWeights?: Record<string, string>;
     rates?: Record<string, Record<string, { n: string; d: string }>>;
   };
+  deliveryDetail?: DeliveryDetail;
   id: string;
   payer: string;
   side?: PartySide;
