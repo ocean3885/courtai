@@ -61,14 +61,16 @@ function OrderEditor({ stage, index, rule, parties, label, change }: {
           </fieldset>
         ))}
       </div>
-      <p className="text-xs text-slate-500">다른 주문에 지정된 동일한 신청인–상대방 관계는 선택할 수 없습니다. 회색으로 표시된 당사자는 반대쪽 선택을 바꾸면 다시 선택할 수 있습니다.</p>
+      {stage.rules.length > 1 && (
+        <p className="text-xs text-slate-500">같은 심급 내 다른 주문과 중복되는 당사자 관계(회색)는 자동 비활성화됩니다.</p>
+      )}
       <button type="button" disabled={fullSelectionConflicts}
         title={fullSelectionConflicts ? '전체를 선택하면 다른 주문의 적용 대상과 중복됩니다.' : undefined}
         className={`${button} disabled:cursor-not-allowed disabled:opacity-40`}
         onClick={() => { if (!fullSelectionConflicts) change({ left: suggested.left, right: suggested.right }); }}>
         해당 심급 참여자 전체 선택
       </button>
-      {unused.length > 0 && <p className="text-xs text-slate-600">이 주문에 포함되지 않은 참여자: {unused.map(label).join(', ')}. 다른 주문 또는 최종 적용 관계를 확인하세요.</p>}
+      {unused.length > 0 && <p className="text-xs text-slate-600">이 주문에 포함되지 않은 참여자: {unused.map(label).join(', ')} (별도 주문으로 구분 가능)</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1 text-xs font-semibold text-slate-700">
           <span>주문이 정한 비용 범위</span>
@@ -87,7 +89,7 @@ function OrderEditor({ stage, index, rule, parties, label, change }: {
         </label>}
       </div>
       {rule.scope === '소송총비용' && <p className="rounded bg-blue-50 p-2 text-xs text-blue-900">
-        선택한 당사자 관계에 대해서만 종전 심급 비용의 부담 주문도 변경합니다. 나머지 관계에는 종전 주문을 유지합니다.
+        선택한 당사자 관계의 종전 심급 비용까지 이 주문 비율로 덮어씁니다 (미선택 당사자는 종전 주문 유지).
       </p>}
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {modes.map(([value, title]) => <button key={value} type="button" aria-pressed={rule.mode === value}
@@ -134,12 +136,11 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
     <section id="cost-burden-orders" className="space-y-4 rounded-xl border border-slate-300 bg-white p-5 shadow-sm" aria-label="판결의 소송비용부담 주문">
       <div className="space-y-1 border-b border-slate-200 pb-3">
         <h2 className="text-lg font-bold text-slate-900">판결의 소송비용부담 주문</h2>
-        <p className="text-xs text-slate-600">각 심급 판결문에 기재된 주문의 적용 당사자와 비용 범위를 설정하세요. 심급별 참여자는 위에서 별도로 관리합니다.</p>
-        <p className="text-xs text-slate-600">상급심 소송총비용 주문이 종전 심급의 비용 전체를 정하면 종전 주문 입력을 생략할 수 있습니다. 일부 당사자에게만 적용되는 경우에는 나머지 관계에 필요한 종전 주문을 입력하세요.</p>
+        <p className="text-xs text-slate-600">판결문 주문대로 적용 대상·비용 범위·부담 비율을 설정하세요. 상급심 &apos;소송총비용&apos; 주문이 종전 심급 전체에 적용되면 종전 주문은 생략할 수 있습니다.</p>
       </div>
       {stages.length > 1 && <details className="rounded-lg border border-slate-200 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">입력한 모든 주문의 부담 방식 한 번에 변경</summary>
-        <p className="my-2 text-xs text-slate-600">입력한 주문의 적용 당사자·비용 범위·분담 비율은 유지하고 부담 방식만 변경합니다. 입력을 생략한 주문은 추가하지 않습니다.</p>
+        <p className="my-2 text-xs text-slate-600">적용 대상·비용 범위는 유지하고, 입력된 모든 주문의 부담 방식만 일괄 변경합니다.</p>
         <div className="flex flex-wrap gap-2">{modes.map(([mode, title]) => <button key={mode} type="button" className={button} onClick={() => {
           stages.filter(s => s.rules.length).forEach(s => onUpdateStageRules(s.id,
             s.rules.map(r => ({ ...r, mode }))));
@@ -166,7 +167,7 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
             {level} 주문 입력 생략 (상급심 소송총비용 주문 적용)
           </label>}
           {omitted && <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-900">
-            {level} 참여자와 지출 비용은 그대로 사용합니다. 상급심 주문의 비용 범위를 ‘소송총비용’으로 지정하고, 이 심급 비용에 필요한 당사자 관계를 모두 포함하세요. 아래 최종 적용 주문에서 확인할 수 있습니다.
+            {level} 참여자·지출 비용은 유지되며, 상급심의 &lsquo;소송총비용&rsquo; 주문 비율을 그대로 적용합니다.
           </p>}
           {!omitted && orders.map((rule, orderIndex) => <div key={rule.id} className="space-y-3 border-t border-slate-200 pt-3">
             <div className="flex items-center justify-between gap-2">
@@ -176,8 +177,20 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
             </div>
             <OrderEditor stage={stage} index={index} rule={rule} parties={parties} label={label}
               change={patch => onUpdateStageRules(stage.id, patchOrder(stage, rule, patch))} />
-            {!stage.rules.length && <button type="button" className={button}
-              onClick={() => onUpdateStageRules(stage.id, [rule])}>이 주문 확인·반영</button>}
+            {!stage.rules.length && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-blue-200 bg-blue-50/50 px-3 py-2">
+                <span className="text-xs text-slate-700">
+                  위 {level} 주문 내용을 확인한 뒤 버튼을 눌러 반영하세요.
+                </span>
+                <button
+                  type="button"
+                  className="cursor-pointer rounded-md bg-blue-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition hover:bg-blue-700"
+                  onClick={() => onUpdateStageRules(stage.id, [rule])}
+                >
+                  이 주문 확인·반영
+                </button>
+              </div>
+            )}
           </div>)}
           {stage.rules.length > 0 && <button type="button" className={button} onClick={() => {
             const next = suggestedOrder(stage, parties, index, crypto.randomUUID());
@@ -187,9 +200,9 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
       })}
       <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/30 p-4">
         <h3 className="text-sm font-bold text-slate-900">당사자 관계별 최종 적용 주문</h3>
-        <p className="text-xs text-slate-600">비용이 발생한 심급별로 적용할 주문입니다. 종전 비용의 배분 대상은 유지하고, 소송총비용 주문이 있는 관계만 상급심 주문으로 변경합니다.</p>
+        <p className="text-xs text-slate-600">각 심급 비용에 최종 적용되는 당사자별 부담 기준입니다 (&lsquo;소송총비용&rsquo; 주문이 있는 관계는 상급심 주문 자동 반영).</p>
         {summary.issues.map(issue => <p key={issue} role="alert" className="text-xs text-red-700">{issue}</p>)}
-        {summary.rows.length > 0 && <div className="overflow-x-auto"><table className="w-full text-left text-xs">
+        {summary.rows.length > 0 && <div className="overflow-x-auto"><table className="w-full min-w-[480px] text-left text-xs">
           <thead><tr className="border-b border-slate-200 text-slate-600">
             {['비용 발생 심급', '당사자 관계', '최종 적용 주문', '부담 내용'].map(title => <th key={title} className="p-2">{title}</th>)}
           </tr></thead>

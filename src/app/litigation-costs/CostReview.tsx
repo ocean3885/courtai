@@ -185,7 +185,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
           </div>
           {!!application.lines.length && (
             <div className="overflow-x-auto rounded border border-slate-200 bg-white">
-              <table className="w-full text-left text-sm">
+              <table className="w-full min-w-[520px] text-left text-sm">
                 <thead className="bg-slate-50 text-xs font-semibold text-slate-600 border-b border-slate-200">
                   <tr>
                     {['비목', '지출 당사자', '부담 당사자', '산출 근거', '부담액'].map((t) => (
@@ -257,21 +257,21 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
                     </div>
 
                     <div className="space-y-1.5 text-xs text-slate-600">
-                      <div className="flex justify-between">
+                      <div className="flex items-baseline justify-between gap-2">
                         <span>(+) 신청인 인정액 ({name(b.id)} → {name(a.id)})</span>
-                        <span className="font-medium text-slate-900 tabular-nums">{applicantEntered ? money(forward) : '비용 미입력'}</span>
+                        <span className="shrink-0 font-medium text-slate-900 tabular-nums">{applicantEntered ? money(forward) : '비용 미입력'}</span>
                       </div>
-                      <div className="flex justify-between">
+                      <div className="flex items-baseline justify-between gap-2">
                         <span>(-) 피신청인 상계액 ({name(a.id)} → {name(b.id)})</span>
-                        <span className="font-medium text-slate-900 tabular-nums">
+                        <span className="shrink-0 font-medium text-slate-900 tabular-nums">
                           {respondentEntered || respondentRecoveryExcluded ? money(reverse) : '비용 미입력'}
                           {respondentRecoveryExcluded && ' (판결 주문상 상환 없음)'}
                         </span>
                       </div>
                       {!!applicationCosts.length && (
-                        <div className="flex justify-between">
+                        <div className="flex items-baseline justify-between gap-2">
                           <span>(+) 확정신청비용 부담액</span>
-                          <span className="font-medium text-slate-900 tabular-nums">
+                          <span className="shrink-0 font-medium text-slate-900 tabular-nums">
                             {application.errors.length ? '확인 필요' : money(applicationAmount)}
                           </span>
                         </div>

@@ -123,8 +123,8 @@ export function CostStatementModal({
 
       <div className="relative w-full max-w-4xl max-h-[94vh] flex flex-col rounded-xl bg-white shadow-2xl overflow-hidden border border-slate-300">
         {/* 상단 툴바 (화면 전용) */}
-        <div className="no-print flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <div className="flex items-center gap-2">
+        <div className="no-print flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-base font-bold text-slate-800">📄 소송비용계산서 양식 미리보기</span>
             <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-800">법원 표준 서식</span>
           </div>
@@ -149,21 +149,21 @@ export function CostStatementModal({
         </div>
 
         {/* 안내 배너 (화면 전용) */}
-        <div className="no-print bg-blue-50/70 border-b border-blue-100 px-4 py-2 text-xs text-blue-900 flex items-center justify-between">
+        <div className="no-print flex flex-wrap items-center justify-between gap-1.5 border-b border-blue-100 bg-blue-50/70 px-4 py-2 text-xs text-blue-900">
           <span>인쇄 대화상자에서 대상 프린터를 <strong>&apos;PDF로 저장&apos;</strong>으로 선택하시면 실제 법원 소송비용계산서 PDF 파일로 다운로드됩니다.</span>
           <span className="text-slate-500 font-normal">A4 기준</span>
         </div>
 
         {/* 문서 본문 영역 (출력 대상) */}
-        <div className="flex-1 overflow-y-auto p-6 md:p-10 bg-slate-100/50">
+        <div className="flex-1 overflow-y-auto bg-slate-100/50 p-3 sm:p-6 md:p-10">
           <div
             id="cost-statement-printable"
-            className="mx-auto max-w-[210mm] min-h-[297mm] bg-white p-8 md:p-12 shadow-sm border border-slate-200 text-slate-900 font-serif"
+            className="mx-auto min-h-[297mm] max-w-[210mm] border border-slate-200 bg-white p-4 font-serif text-slate-900 shadow-sm sm:p-8 md:p-12"
             style={{ fontFamily: "'Batang', 'Apple SD Gothic Neo', serif" }}
           >
             {/* 1. 문서 제목 */}
-            <div className="text-center mb-8">
-              <h1 className="text-2xl font-bold tracking-[0.5em] pl-[0.5em] text-black">
+            <div className="mb-8 text-center">
+              <h1 className="pl-[0.25em] text-xl font-bold tracking-[0.25em] text-black sm:pl-[0.5em] sm:text-2xl sm:tracking-[0.5em]">
                 소 송 비 용 계 산 서
               </h1>
             </div>
@@ -254,7 +254,8 @@ export function CostStatementModal({
             <div className="mb-6">
               <h2 className="font-bold text-sm">1. 총 소송비용 (인정액 · 부담률 적용 전)</h2>
               <p className="mb-2 text-xs">단위: 원. 비용별 인정액의 합계이며, 배분·부담률·상계 적용 결과는 아래 관계별 정산액에 표시합니다.</p>
-              <table className="w-full border-collapse border border-black text-xs" aria-label="인정 비용 총액">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[480px] border-collapse border border-black text-xs" aria-label="인정 비용 총액">
                 <thead><tr className="bg-slate-50">
                   {['심급', '비목', '신청인 측', '상대방 측', '산출 근거·귀속 당사자'].map(title => <th key={title} className={cell}>{title}</th>)}
                 </tr></thead>
@@ -284,6 +285,7 @@ export function CostStatementModal({
                   {totalRow('합계', calculation.totals.applicant, calculation.totals.respondent, '본안비용 ＋ 신청비용')}
                 </tbody>
               </table>
+              </div>
             </div>
 
             <div className="border border-black p-4 mb-8 bg-slate-50/60 space-y-4">

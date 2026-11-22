@@ -83,3 +83,4 @@ CREATE INDEX IF NOT EXISTS case_documents_creditor_created_idx
 
 CREATE INDEX IF NOT EXISTS inquiries_created_idx
   ON courtai.inquiries (created_at DESC);
+

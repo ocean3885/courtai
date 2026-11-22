@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { ordinaryFeeLimit } from './ordinaryFee';
 
 import {
@@ -21,7 +21,6 @@ import {
 import { CostReview } from './CostReview';
 import { RelationValueInput } from './RelationValueInput';
 import { BurdenOrderSection } from './BurdenOrderSection';
-import { orderDescription } from './burdenOrders';
 import {
   allocationMemberValue,
   counterEffectiveValue,
@@ -85,6 +84,14 @@ const sortStagesByLevel = (list: Stage[]): Stage[] =>
 const uid = () => crypto.randomUUID();
 const button =
   'rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40';
+type SavedLitigationCase = {
+  id: number;
+  title: string;
+  court: string;
+  case_number: string;
+  application_date: string;
+  updated_at: string;
+};
 const input =
   'mt-1 block h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-3 py-2 text-base text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600';
 const stageCheckbox =
@@ -320,7 +327,126 @@ export default function PartyForm() {
   const [deliveryModalOpen, setDeliveryModalOpen] = useState(false);
   const [deliveryInputs, setDeliveryInputs] = useState({ incurred: '', decision: '5640', mobile: '' });
   const [notice, setNotice] = useState('');
-  const [fullyOpen, setFullyOpen] = useState(false);
+  const [savedCases, setSavedCases] = useState<SavedLitigationCase[]>([]);
+  const [recordId, setRecordId] = useState<number | null>(null);
+  const [savedModalOpen, setSavedModalOpen] = useState(false);
+  const [savedSearchQuery, setSavedSearchQuery] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingSaved, setIsLoadingSaved] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/litigation-costs')
+      .then(async (response) => {
+        if (response.ok && active) setSavedCases(await response.json());
+      })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, []);
+
+  async function loadSavedCase(id: string) {
+    if (!id) {
+      startNewCase();
+      return;
+    }
+    setIsLoadingSaved(true);
+    setNotice('');
+    try {
+      const response = await fetch(`/api/litigation-costs/${id}`);
+      const result = await response.json();
+      if (response.status === 401) throw new Error('로그인 후 저장 자료를 불러올 수 있습니다.');
+      if (!response.ok) throw new Error(result.error || '저장 자료를 불러오지 못했습니다.');
+      const data = result.data;
+      setCourt(data.court);
+      setCaseNumber(data.caseNumber);
+      setApplicationDate(data.applicationDate);
+      setParties(data.parties);
+      setStages(data.stages);
+      setApplicationCosts(data.applicationCosts);
+      setRecordId(result.id);
+      setConfirmDeleteId(null);
+      setSavedModalOpen(false);
+      setShowAllStages(false);
+      setActiveStageLevel(stageLevel(data.stages[0], 0));
+      setNotice('저장 자료를 불러왔습니다.');
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '저장 자료를 불러오지 못했습니다.');
+    } finally {
+      setIsLoadingSaved(false);
+    }
+  }
+
+  async function deleteSavedCase(targetId: number) {
+    setDeletingId(targetId);
+    setNotice('');
+    try {
+      const response = await fetch(`/api/litigation-costs/${targetId}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (response.status === 401) throw new Error('로그인 후 삭제할 수 있습니다.');
+      if (!response.ok) throw new Error(result.error || '삭제하지 못했습니다.');
+      setSavedCases((old) => old.filter((item) => item.id !== targetId));
+      setConfirmDeleteId(null);
+      if (recordId === targetId) {
+        setCourt('');
+        setCaseNumber('');
+        setApplicationDate('');
+        setParties(initialParties.map((party) => ({ ...party })));
+        setStages([{ ...stage('first', '1심'), members: { a: member(), b: member() } }]);
+        setActiveStageLevel('1심');
+        setShowAllStages(false);
+        setApplicationCosts([]);
+        setRecordId(null);
+        setNotice('불러온 저장 자료가 삭제되어 새 입력 화면으로 초기화되었습니다.');
+      } else {
+        setNotice(result.message || '저장 자료를 삭제했습니다.');
+      }
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '삭제 중 오류가 발생했습니다.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function saveCurrentCase() {
+    setIsSaving(true);
+    setNotice('');
+    const data = { court, caseNumber, applicationDate, parties, stages, applicationCosts };
+    try {
+      const response = await fetch(recordId ? `/api/litigation-costs/${recordId}` : '/api/litigation-costs', {
+        method: recordId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const result = await response.json();
+      if (response.status === 401) throw new Error('로그인 후 저장할 수 있습니다.');
+      if (!response.ok) throw new Error(result.error || '저장하지 못했습니다.');
+      setRecordId(result.id);
+      setConfirmDeleteId(null);
+      setNotice(result.message || '저장되었습니다.');
+      const listResponse = await fetch('/api/litigation-costs');
+      if (listResponse.ok) setSavedCases(await listResponse.json());
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : '저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function startNewCase() {
+    setCourt('');
+    setCaseNumber('');
+    setApplicationDate('');
+    setParties(initialParties.map((party) => ({ ...party })));
+    setStages([{ ...stage('first', '1심'), members: { a: member(), b: member() } }]);
+    setActiveStageLevel('1심');
+    setShowAllStages(false);
+    setApplicationCosts([]);
+    setRecordId(null);
+    setConfirmDeleteId(null);
+    setNotice('새 자료를 입력합니다.');
+  }
 
   const label = (p: Party) => {
     const bucket = parties.filter(
@@ -521,7 +647,7 @@ export default function PartyForm() {
       });
 
     return (
-      <div className="space-y-2.5">
+      <div className="min-w-0 space-y-2.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className={`text-sm font-bold ${isAppSide ? 'text-blue-950' : 'text-slate-900'}`}>
             {sideTitle} ({sidePeople.length}명)
@@ -1150,25 +1276,232 @@ export default function PartyForm() {
             </a>
           ))}
         </nav>
-        <button
-          className={button}
-          onClick={(e) => {
-            const next = !fullyOpen;
-            setShowAllStages(next);
-            requestAnimationFrame(() => {
-              e.currentTarget
-                .closest('main')
-                ?.querySelectorAll<HTMLDetailsElement>('[data-case-form] details')
-                .forEach((d) => {
-                  d.open = next;
-                });
-            });
-            setFullyOpen(next);
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className={button}
+            onClick={() => {
+              setSavedSearchQuery('');
+              setConfirmDeleteId(null);
+              setSavedModalOpen(true);
+            }}
+          >
+            저장 자료 불러오기{savedCases.length > 0 ? ` (${savedCases.length})` : ''}
+          </button>
+          <button type="button" className={button} onClick={startNewCase}>새 자료</button>
+          <button type="button" className={button} disabled={isSaving} onClick={() => void saveCurrentCase()}>
+            {isSaving ? '저장 중...' : recordId ? '수정 저장' : '저장'}
+          </button>
+          {recordId !== null && (
+            confirmDeleteId === recordId && !savedModalOpen ? (
+              <div className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2 py-1">
+                <span className="text-xs font-semibold text-red-900">삭제할까요?</span>
+                <button
+                  type="button"
+                  disabled={deletingId === recordId}
+                  onClick={() => void deleteSavedCase(recordId)}
+                  className="rounded bg-red-600 px-2 py-0.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                >
+                  {deletingId === recordId ? '삭제 중...' : '삭제 확인'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  취소
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(recordId)}
+                className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+              >
+                삭제
+              </button>
+            )
+          )}
+        </div>
+      </div>
+
+      {/* 저장 자료 불러오기 & 삭제 모달 */}
+      {savedModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              setSavedModalOpen(false);
+              setConfirmDeleteId(null);
+            }
           }}
         >
-          {fullyOpen ? '전체 접기' : '전체 펼치기'}
-        </button>
-      </div>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="저장 자료 불러오기"
+            className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">저장 자료 불러오기</h3>
+                <p className="text-xs text-slate-500">사건번호·법원명으로 검색해 불러오거나 불필요한 자료를 삭제할 수 있습니다.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="저장 자료 모달 닫기"
+                onClick={() => {
+                  setSavedModalOpen(false);
+                  setConfirmDeleteId(null);
+                }}
+                className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="border-b border-slate-100 bg-slate-50/70 px-5 py-3">
+              <input
+                type="search"
+                aria-label="저장 자료 검색"
+                placeholder="사건번호, 법원명, 제목으로 검색..."
+                value={savedSearchQuery}
+                onChange={(e) => setSavedSearchQuery(e.target.value)}
+                className="block h-10 w-full rounded-lg border border-slate-300 bg-white px-3.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-2 focus:outline-blue-600"
+              />
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {(() => {
+                const q = savedSearchQuery.trim().toLowerCase();
+                const filtered = q
+                  ? savedCases.filter((item) =>
+                      [item.title, item.case_number, item.court, item.application_date]
+                        .filter(Boolean)
+                        .some((v) => v.toLowerCase().includes(q))
+                    )
+                  : savedCases;
+
+                if (savedCases.length === 0) {
+                  return (
+                    <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600">
+                      저장된 소송비용액확정 자료가 없습니다.
+                    </p>
+                  );
+                }
+                if (filtered.length === 0) {
+                  return (
+                    <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-600">
+                      &lsquo;{savedSearchQuery}&rsquo; 검색 결과가 없습니다.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {filtered.map((item) => {
+                      const isCurrent = recordId === item.id;
+                      const isConfirming = confirmDeleteId === item.id;
+                      const updatedText = item.updated_at
+                        ? new Date(item.updated_at).toLocaleDateString('ko-KR')
+                        : '';
+                      const subInfo = [
+                        item.court,
+                        item.application_date ? `신청일 ${item.application_date}` : '',
+                        updatedText ? `수정 ${updatedText}` : '',
+                      ]
+                        .filter(Boolean)
+                        .join(' · ');
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3.5 transition-colors ${
+                            isCurrent
+                              ? 'border-blue-300 bg-blue-50/40'
+                              : 'border-slate-200 bg-white hover:bg-slate-50/80'
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <strong className="truncate text-sm font-bold text-slate-900">
+                                {item.case_number || item.title || '소송비용액확정'}
+                              </strong>
+                              {item.case_number && item.title && item.title !== item.case_number && (
+                                <span className="truncate text-xs text-slate-600">{item.title}</span>
+                              )}
+                              {isCurrent && (
+                                <span className="rounded bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-900">
+                                  현재 열림
+                                </span>
+                              )}
+                            </div>
+                            {subInfo && <p className="mt-0.5 text-xs text-slate-500">{subInfo}</p>}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isConfirming ? (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={deletingId === item.id}
+                                  onClick={() => void deleteSavedCase(item.id)}
+                                  className="rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+                                >
+                                  {deletingId === item.id ? '삭제 중...' : '삭제 확인'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(null)}
+                                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                >
+                                  취소
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  disabled={isLoadingSaved}
+                                  onClick={() => void loadSavedCase(String(item.id))}
+                                  className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-2xs hover:bg-blue-700 disabled:opacity-40"
+                                >
+                                  불러오기
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDeleteId(item.id)}
+                                  className="rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-50"
+                                >
+                                  삭제
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50 px-5 py-3 text-xs text-slate-500">
+              <span>총 {savedCases.length}건 저장됨</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSavedModalOpen(false);
+                  setConfirmDeleteId(null);
+                }}
+                className={button}
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 1. 사건·당사자 (좌측: 신청인 / 우측: 피신청인 분리) */}
       <Section id="cost-parties" title="사건·당사자" open>
@@ -1188,10 +1521,10 @@ export default function PartyForm() {
 
         <div className="grid gap-3 border-t border-slate-100 pt-3.5 md:grid-cols-2">
           {/* 좌측: 신청인 (및 신청인측 신청외) */}
-          <div className="space-y-2.5 rounded-lg border border-blue-200 bg-blue-50/30 p-3.5">
-            <div className="flex items-center justify-between">
+          <div className="min-w-0 space-y-2.5 rounded-lg border border-blue-200 bg-blue-50/30 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-bold text-blue-950">신청인 측</span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 <button className={button} onClick={() => addParty('신청인', '신청인측')}>
                   + 신청인 추가
                 </button>
@@ -1223,10 +1556,10 @@ export default function PartyForm() {
           </div>
 
           {/* 우측: 피신청인 (및 피신청인측 신청외) */}
-          <div className="space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3.5">
-            <div className="flex items-center justify-between">
+          <div className="min-w-0 space-y-2.5 rounded-lg border border-slate-200 bg-slate-50/70 p-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm font-bold text-slate-900">피신청인 측</span>
-              <div className="flex gap-1.5">
+              <div className="flex flex-wrap gap-1.5">
                 <button className={button} onClick={() => addParty('피신청인', '피신청인측')}>
                   + 피신청인 추가
                 </button>
@@ -1573,7 +1906,7 @@ export default function PartyForm() {
             {/* 3-1 & 3-2 통합: 좌측(신청인 측 당사자 + 지출비용) / 우측(피신청인 측 당사자 + 지출비용) */}
             <div className="grid items-start gap-3.5 lg:grid-cols-2">
               {/* 좌측 컬럼: 신청인 측 */}
-              <div className="space-y-3 rounded-xl border border-blue-200 bg-blue-50/20 p-3.5">
+              <div className="min-w-0 space-y-3 rounded-xl border border-blue-200 bg-blue-50/20 p-3.5">
                 {renderSidePartySection(s, sLevel, applicantPeople, true)}
 
                 <div className="space-y-2.5 border-t border-blue-200/70 pt-3">
@@ -1616,7 +1949,7 @@ export default function PartyForm() {
               </div>
 
               {/* 우측 컬럼: 피신청인 측 */}
-              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
+              <div className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-3.5">
                 {renderSidePartySection(s, sLevel, opponentPeople, false)}
 
                 <div className="space-y-2.5 border-t border-slate-200 pt-3">
@@ -1658,17 +1991,6 @@ export default function PartyForm() {
                   )}
                 </div>
               </div>
-            </div>
-
-            {/* 3-3. 심급 판결 주문 상태 요약 안내 */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 mt-2">
-              <span>
-                현재 {sLevel}에 적용 중인 판결 주문:{' '}
-                <strong className="text-slate-900 font-semibold">
-                  {s.rules.length ? s.rules.map(orderDescription).join(' / ') : stages.indexOf(s) < stages.length - 1 ? '입력 생략 · 상급심 소송총비용 주문 적용 여부 확인' : '주문 확인·반영 필요'}
-                </strong>
-              </span>
-              <span className="text-blue-600 font-medium">아래 &apos;판결의 소송비용부담 주문&apos; 섹션에서 통합 관리</span>
             </div>
           </Section>
         );
