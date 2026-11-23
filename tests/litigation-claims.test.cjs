@@ -14,7 +14,7 @@ const stage = (costs, rules) => ({
 const separateRules = () => [rule('본소', '1측 전부 부담'), rule('반소', '2측 전부 부담')];
 const lineAmount = (result, owner, claim) => money(result.lines.find(l => l.owner === owner && l.kind.includes(claim)).amount);
 
-test('양측 보수에 본소·반소 합산 또는 다액흡수를 적용하고 인지 입력액은 유지', () => {
+test('양측 보수에 본소·반소 합산 또는 흡수를 적용하고 인지 입력액은 유지', () => {
   const fees = [cost('a', '변호사보수', 20000000), cost('b', '변호사보수', 20000000)];
   const s = stage([...fees, cost('a', '인지대', 12345), cost('b', '인지대', 6789)], [rule('본소와 반소', '비율로 분담', { n: '1', d: '2' })]);
   const summed = reviewCosts([s], parties);
@@ -83,10 +83,10 @@ test('공통보수를 한 번만 인정하고 소가 비율로 나눈 후 청구
   assert.equal(lineAmount(result, 'b', '본소'), '200원');
   assert.equal(lineAmount(result, 'b', '반소'), '0원');
   s.counterFeeMode = '흡수';
-  assert.equal(lineAmount(reviewCosts([s], parties), 'a', '반소'), '100원', '보수 한도의 다액흡수는 공통비용 배분비율을 바꾸지 않는다');
+  assert.equal(lineAmount(reviewCosts([s], parties), 'a', '반소'), '100원', '보수 한도의 흡수는 공통비용 배분비율을 바꾸지 않는다');
 });
 
-test('기타 공통비용의 균분·소가 비율 배분에 10원 미만 버림 적용', () => {
+test('기타 공통비용의 균분·소가 비율 배분에 중간 절사 없이 계산', () => {
   const c = cost('a', '송달료', 500);
   const s = stage([c], separateRules());
   let result = reviewCosts([s], parties);
@@ -94,7 +94,7 @@ test('기타 공통비용의 균분·소가 비율 배분에 10원 미만 버림
   assert.equal(lineAmount(result, 'a', '반소'), '250원');
   c.claimSplit = '소가 비율';
   result = reviewCosts([s], parties);
-  assert.equal(lineAmount(result, 'a', '반소'), '160원');
+  assert.equal(lineAmount(result, 'a', '반소'), '500/3원');
   c.claim = '본소';
   assert.equal(reviewCosts([s], parties).lines.length, 1);
 });
@@ -149,12 +149,12 @@ test('신청외 당사자의 몫을 유지하면서 공통보수를 청구별·�
   assert.equal(money(result.ownerTotals.get('ax')), '30원');
 });
 
-test('공동대리 일부 당사자의 보수는 해당 청구에서 대리하는 당사자 가액을 사용', () => {
+test('일부 당사자 대리와 개별소가 누락에도 입력한 본소·반소 소가로 한도 계산', () => {
   const people = [...parties, { id: 'ax', group: '신청외', side: '신청인측' }];
   const s = stage([], []);
   s.useIndividualValues = true;
   s.members = { a: { value: '60000000' }, ax: { value: '40000000' }, b: {} };
-  assert.equal(resolveFeeBasisValue(cost('a', '변호사보수', 1000000), s, people), 110000000n);
+  assert.equal(resolveFeeBasisValue(cost('a', '변호사보수', 1000000), s, people), 150000000n);
   s.members.a.value = '';
-  assert.equal(resolveFeeBasisValue(cost('a', '변호사보수', 1000000), s, people), null, '대리 대상의 가액 누락을 다른 당사자 소가로 대체하지 않는다');
+  assert.equal(resolveFeeBasisValue(cost('a', '변호사보수', 1000000), s, people), 150000000n, '개별소가 누락은 입력한 전체 소가 기준 한도를 바꾸지 않는다');
 });

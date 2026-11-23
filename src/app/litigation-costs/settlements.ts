@@ -1,5 +1,5 @@
 import { type Party, type Stage } from './caseInput';
-import { add, burden, nothing, resolveRuleRoutes, subtract, type Amount, type reviewCosts } from './costReview';
+import { add, burden, nothing, resolveRuleRoutes, subtract, truncateWon, type Amount, type reviewCosts } from './costReview';
 import { type reviewApplicationCosts } from './applicationCosts';
 
 export function absoluteAmount(amount: Amount): Amount {
@@ -51,10 +51,12 @@ export function settleCosts(
       else if (!main.ownerTotals.has(a.id)) missing = '신청인 지출 비용을 입력하세요. 반영할 비용이 없으면 0원을 입력하세요.';
       else if (!main.ownerTotals.has(b.id) && !respondentRecoveryExcluded) missing = '피신청인 지출 비용을 입력하세요. 반영할 비용이 없으면 0원을 입력하세요.';
       const negative = combinedAmount.n < BigInt(0);
+      const exactPayable = absoluteAmount(combinedAmount);
+      const payable = truncateWon(exactPayable);
       return { a, b, forward, reverse, net, applicationAmount, combinedAmount, missing,
         applicantEntered: main.ownerTotals.has(a.id), respondentEntered: main.ownerTotals.has(b.id), respondentRecoveryExcluded,
         negative, payer: negative ? a : b, receiver: negative ? b : a,
-        payable: absoluteAmount(combinedAmount) };
+        payable, discarded: subtract(exactPayable, payable) };
     }),
   );
 }

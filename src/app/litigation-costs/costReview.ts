@@ -31,26 +31,24 @@ export const money = (a: Amount) =>
     ? a.n.toLocaleString('ko-KR') + '원'
     : a.n.toLocaleString('ko-KR') + '/' + a.d.toLocaleString('ko-KR') + '원';
 const ratio = (a: Amount) => a.n + '/' + a.d;
-export type CalculationMode = '단계별10원' | '정밀';
+// Truncate only the final settlement, after all allocations and offsets.
+export const truncateWon = (amount: Amount): Amount => fraction(amount.n / amount.d);
 export type CalculationStep = {
   label: string; input: Amount; factor: Amount; raw: Amount; amount: Amount; discarded: Amount;
 };
 
-// Identity factors do not create an allocation step: an expense of 961 won
-// stays 961 won when no division or partial burden is applied.
-export function calculateSteps(value: Amount, factors: { label: string; factor: Amount }[], mode: CalculationMode = '단계별10원') {
+// Keep rational amounts through every intermediate calculation.
+export function calculateSteps(value: Amount, factors: { label: string; factor: Amount }[]) {
   let amount = value;
   const steps: CalculationStep[] = [];
   for (const { label, factor } of factors) {
     if (factor.n === factor.d) continue;
     const raw = product(amount, factor);
-    const used = mode === '단계별10원' ? fraction(raw.n / raw.d / BigInt(10) * BigInt(10)) : raw;
-    steps.push({ label, input: amount, factor, raw, amount: used, discarded: subtract(raw, used) });
-    amount = used;
+    steps.push({ label, input: amount, factor, raw, amount: raw, discarded: nothing });
+    amount = raw;
   }
-  const exactAmount = factors.reduce((acc, step) => product(acc, step.factor), value);
-  return { amount, exactAmount, steps,
-    formula: steps.length ? steps.map(s => `${s.label}: ${money(s.input)} × ${ratio(s.factor)} = ${money(s.raw)}${mode === '단계별10원' ? ` → ${money(s.amount)} (10원 미만 버림)` : ''}`).join(' → ') : money(value),
+  return { amount, exactAmount: amount, steps,
+    formula: steps.length ? steps.map(s => `${s.label}: ${money(s.input)} × ${ratio(s.factor)} = ${money(s.raw)}`).join(' → ') : money(value),
   };
 }
 function integer(s: string | undefined, label: string) {
@@ -166,73 +164,24 @@ export function sideEffectiveValue(s: Stage, parties: Party[], isApplicantSide: 
   return combineStageMemberValues(s, sideIds, mode, counter);
 }
 
-export function stageEffectiveValue(s: Stage, parties: Party[]): bigint | null {
-  if (s.mainValueTarget) {
-    return sideEffectiveValue(s, parties, s.mainValueTarget === '신청인측') ??
-      (s.useIndividualValues === true ? null : parseNatural(s.value));
-  }
-  const appTotal = sideEffectiveValue(s, parties, true);
-  const respTotal = sideEffectiveValue(s, parties, false);
-
-  if (appTotal !== null && respTotal !== null) return appTotal >= respTotal ? appTotal : respTotal;
-  if (appTotal !== null) return appTotal;
-  if (respTotal !== null) return respTotal;
-  return s.useIndividualValues === true ? null : parseNatural(s.value);
+// The entered stage values are independent of individual values and relation labels.
+export function stageEffectiveValue(s: Stage): bigint | null {
+  return parseNatural(s.value);
 }
 
-export function counterEffectiveValue(s: Stage, parties: Party[]): bigint | null {
-  if (!s.counter) return null;
-  if (!s.useCounterIndividualValues) return parseNatural(s.counterValue);
-  return s.mainValueTarget ? sideEffectiveValue(s, parties, s.mainValueTarget === '피신청인측', true) : null;
+export function counterEffectiveValue(s: Stage): bigint | null {
+  return s.counter ? parseNatural(s.counterValue) : null;
 }
 
-export function resolveFeeBasisValue(cost: Cost, s: Stage, parties: Party[]): bigint | null {
-  if (s.counter && (s.counterFeeMode || cost.claim)) {
-    const claim = cost.claim || '공통';
-    const owners = (cost.shared ? cost.ids : [cost.payer]).filter(Boolean);
-    if (!owners.length) return null;
-    const claimValue = (counter: boolean) => {
-      const whole = counter ? counterEffectiveValue(s, parties) : stageEffectiveValue(s, parties);
-      if (!s.mainValueTarget) return whole;
-      const targetApplicantSide = counter ? s.mainValueTarget === '피신청인측' : s.mainValueTarget === '신청인측';
-      const useIndividual = counter ? s.useCounterIndividualValues : s.useIndividualValues;
-      if (useIndividual && owners.every(id => {
-        const p = parties.find(p => p.id === id);
-        return p && isApplicantSideParty(p) === targetApplicantSide;
-      })) {
-        if (owners.some(id => stageMemberValue(s, id, counter) === null)) return null;
-        return combineStageMemberValues(s, owners, sideValueMode(s, targetApplicantSide, counter), counter);
-      }
-      return whole;
-    };
-    if (claim === '본소') return claimValue(false);
-    if (claim === '반소') return claimValue(true);
-    const main = claimValue(false), counter = claimValue(true);
-    if (main === null || counter === null || !s.counterFeeMode) return null;
-    return combinePartyValues([main, counter], s.counterFeeMode);
-  }
-  if (
-    s.useIndividualValues === undefined && s.value && !s.valueMode && !s.applicantValueMode &&
-    !s.opponentValueMode && !cost.shared && parties.length === 2
-  ) {
-    const explicitStageVal = parseNatural(s.value);
-    if (explicitStageVal !== null) return explicitStageVal;
-  }
-  const owners = (cost.shared ? cost.ids : [cost.payer]).filter(Boolean);
-  if (!owners.length) return null;
-  const ownerParty = parties.find((p) => p.id === owners[0]);
-  const isApplicantSide = ownerParty ? isApplicantSideParty(ownerParty) : true;
-  const manualValue = s.useIndividualValues === true ? null : parseNatural(s.value);
-  const mode = sideValueMode(s, isApplicantSide);
-  const ownerValues = owners.map((id) => stageMemberValue(s, id));
-  if (ownerValues.every((v): v is bigint => v !== null)) {
-    return combineStageMemberValues(s, owners, mode);
-  }
-  if (s.useIndividualValues === true && (cost.shared || ownerValues.some(v => v !== null))) return null;
-  if (s.mainValueTarget && (s.mainValueTarget === '신청인측') !== isApplicantSide) {
-    return manualValue ?? stageEffectiveValue(s, parties);
-  }
-  return sideEffectiveValue(s, parties, isApplicantSide) ?? manualValue ?? stageEffectiveValue(s, parties);
+export function resolveFeeBasisValue(cost: Cost, s: Stage): bigint | null {
+  const main = stageEffectiveValue(s);
+  if (!s.counter) return main;
+  const claim = cost.claim || '공통';
+  if (claim === '본소') return main;
+  const counter = counterEffectiveValue(s);
+  if (claim === '반소') return counter;
+  if (main === null || counter === null || !s.counterFeeMode) return null;
+  return combinePartyValues([main, counter], s.counterFeeMode);
 }
 
 export function expenseNet(c: Cost) {
@@ -250,12 +199,12 @@ export type ReviewedExpense = {
   feeBasis: bigint | null;
   feeLimit: bigint | null;
 };
-function reviewExpense(cost: Cost, s: Stage, parties: Party[]): ReviewedExpense {
+function reviewExpense(cost: Cost, s: Stage): ReviewedExpense {
   const net = expenseNet(cost);
-  const feeBasis = cost.kind === '변호사보수' ? resolveFeeBasisValue(cost, s, parties) : null;
+  const feeBasis = cost.kind === '변호사보수' ? resolveFeeBasisValue(cost, s) : null;
   const feeLimit = feeBasis === null ? null : ordinaryFeeLimit(feeBasis);
   if (cost.kind === '변호사보수' && s.counter && (s.counterFeeMode || cost.claim) && feeBasis === null)
-    throw Error('보수 대리 범위에 해당하는 본소·반소 소가와 합산·다액흡수 기준을 확인하세요.');
+    throw Error('보수 대리 범위에 해당하는 본소·반소 소가와 합산·흡수 기준을 확인하세요.');
   let recognized = net;
   if (cost.recognized) {
     const reviewed = integer(cost.recognized, '검토 인정액');
@@ -264,7 +213,7 @@ function reviewExpense(cost: Cost, s: Stage, parties: Party[]): ReviewedExpense 
       throw Error('보수 인정액이 일반 본안 한도를 초과합니다.');
     recognized = reviewed;
   } else if (cost.kind === '변호사보수') {
-    if (feeLimit === null) throw Error('당사자 소가 또는 보수의 증빙 검토 인정액을 입력하세요.');
+    if (feeLimit === null) throw Error('해당 심급 소가 또는 보수의 증빙 검토 인정액을 입력하세요.');
     recognized = feeLimit < net ? feeLimit : net;
   }
   return { cost, owners: (cost.shared ? cost.ids : [cost.payer]).filter(Boolean),
@@ -342,7 +291,7 @@ function claimPortions(c: Cost, stages: Stage[], index: number, parties: Party[]
     { claim: '본소' as const, weight: fraction(one, BigInt(2)), label: '본소 · 공통비용 균분' },
     { claim: '반소' as const, weight: fraction(one, BigInt(2)), label: '반소 · 공통비용 균분' },
   ];
-  const main = stageEffectiveValue(s, parties), counter = counterEffectiveValue(s, parties);
+  const main = stageEffectiveValue(s), counter = counterEffectiveValue(s);
   if (main === null || counter === null || main + counter === zero)
     throw Error('공통비용의 본소·반소 소가 비율을 계산할 소가를 확인하세요.');
   return [
@@ -459,7 +408,7 @@ type Line = {
   exactAmount: Amount;
   steps: CalculationStep[];
 };
-export function reviewCosts(stages: Stage[], parties: Party[], mode: CalculationMode = '단계별10원') {
+export function reviewCosts(stages: Stage[], parties: Party[]) {
   const lines: Line[] = [],
     errors: string[] = [];
   const ownerTotals = new Map<string, Amount>();
@@ -476,7 +425,7 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
           }
           owners.forEach((id) => feeOwners.add(id));
         }
-        const expense = reviewExpense(c, s, parties);
+        const expense = reviewExpense(c, s);
         const value = fraction(expense.recognized);
         if (c.shared && owners.length < 2) throw Error('공동 지출의 귀속 당사자를 두 명 이상 선택하세요.');
         const shares = weights(owners, c.method, s, parties);
@@ -507,9 +456,9 @@ export function reviewCosts(stages: Stage[], parties: Party[], mode: Calculation
               const calculation = calculateSteps(value, [
                 { label: '본소·반소 배분', factor: portion.weight },
                 { label: '공동비용 귀속', factor: shares[j] },
-                { label: related ? '상대방별 배분 (관계별 소가)' : '상대방별 배분', factor: parts[k] },
                 { label: '부담률 적용', factor: rate },
-              ], mode);
+                { label: related ? '상대방별 배분 (관계별 소가)' : '상대방별 배분', factor: parts[k] },
+              ]);
               pending.push({
                 costId: c.id,
                 stageId: s.id,

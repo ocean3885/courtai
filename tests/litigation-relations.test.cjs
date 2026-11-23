@@ -93,7 +93,7 @@ test('상대방 전체의 배분 기준이 불명확하면 선택을 요구', ()
   c.opponentMethod = '균분';
   const r = reviewCosts([s], parties);
   assert.deepEqual(r.errors, []);
-  assert.deepEqual(r.lines.map(l => money(l.amount)), ['0원', '0원', '0원']);
+  assert.deepEqual(r.lines.map(l => money(l.amount)), ['1/3원', '1/3원', '1/3원']);
   assert.deepEqual(r.lines.map(l => money(l.exactAmount)), ['1/3원', '1/3원', '1/3원']);
 });
 
@@ -117,7 +117,7 @@ test('본소·반소별 주문과 상대방별 주문을 함께 적용해도 비
   ], { counter: '반소', counterValue: '50000000', counterFeeMode: '합산' });
   const r = reviewCosts([s], people);
   assert.deepEqual(r.errors, []);
-  assert.deepEqual(amounts(r), [['a', 'b', '60원'], ['a', 'c', '100원'], ['a', 'b', '20원'], ['a', 'c', '50원']]);
+  assert.deepEqual(amounts(r), [['a', 'b', '60원'], ['a', 'c', '100원'], ['a', 'b', '25원'], ['a', 'c', '50원']]);
   assert.equal(money(r.ownerTotals.get('a')), '300원');
 });
 

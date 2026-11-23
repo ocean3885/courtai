@@ -63,9 +63,9 @@ test('화면에서 항소심 주문 확인 → 총비용 선택 → 비율 변�
   nodes(appealSection(), n => n.type === 'input' && n.props.inputMode === 'numeric')[1].props.onChange({ target: { value: '5' } });
   const rows = nodes(render(), n => n.type === 'tbody')[0].props.children;
   assert.deepEqual(rows.slice(0, 3).map(text), [
-    '1심a ↔ b1심 · 1심 비용상대방 측 전부 부담',
-    '1심a ↔ c항소심 · 소송총비용신청인 측 2/5 · 상대방 측 (5−2)/5',
-    '1심a ↔ d항소심 · 소송총비용신청인 측 2/5 · 상대방 측 (5−2)/5',
+    'b신청인 측 부담0상대방 측 부담전부1심 · 1심 비용',
+    'c신청인 측 부담2/5상대방 측 부담3/5항소심 · 소송총비용',
+    'd신청인 측 부담2/5상대방 측 부담3/5항소심 · 소송총비용',
   ]);
   assert.deepEqual(Object.keys(stages[0].members), ['a', 'b', 'c', 'd']);
   assert.deepEqual(stages[0].rules[0].right, ['b', 'c', 'd']);
@@ -135,4 +135,26 @@ test('주문 추가 후 체크 순서와 관계없이 중복 관계를 비활성
   // Removing the original relationship immediately makes it available again.
   first.rules[0].right = [];
   assert.equal(check('a').props.disabled, false);
+});
+
+test('다수 당사자의 최종 주문은 심급·신청인별로 묶고 부담비율·각자 부담을 분리 표시', () => {
+  const people = ['a', 'a2', 'b', 'c', 'd'].map((id, i) => ({ id, name: id, group: i < 2 ? '신청인' : '피신청인' }));
+  const first = { id: 'first', level: '1심', members: Object.fromEntries(people.map(p => [p.id, {}])), costs: [], rules: [], counter: '' };
+  first.rules = [{ ...suggestedOrder(first, people, 0, 'r1'), mode: '비율로 분담', n: '1', d: '3' }];
+  const appeal = { ...first, id: 'appeal', level: '항소심', members: { a: {}, a2: {}, b: {} }, rules: [{ ...first.rules[0], id: 'r2', right: ['b'], scope: '소송총비용', mode: '각자 부담' }] };
+  const root = expand(BurdenOrderSection({ stages: [first, appeal], parties: people, label, onUpdateStageRules() {} }));
+  const tables = nodes(root, n => n.type === 'table');
+  assert.equal(tables.length, 4);
+  assert.deepEqual(tables.map(t => t.props['aria-label']), [
+    '1심 비용 · a 최종 적용 주문', '1심 비용 · a2 최종 적용 주문', '항소심 비용 · a 최종 적용 주문', '항소심 비용 · a2 최종 적용 주문',
+  ]);
+  for (const table of tables.slice(0, 2)) {
+    const rows = nodes(table, n => n.type === 'tbody')[0].props.children;
+    assert.equal(rows.length, 3);
+    assert.equal(text(rows[0]), 'b각자 부담항소심 · 소송총비용');
+    assert.equal(nodes(rows[0], n => n.type === 'td' && n.props.colSpan === 2).length, 1);
+    assert.equal(text(rows[1]), 'c신청인 측 부담1/3상대방 측 부담2/31심 · 1심 비용');
+    assert.equal(text(rows[2]), 'd신청인 측 부담1/3상대방 측 부담2/31심 · 1심 비용');
+  }
+  assert(!text(root).includes('변경 표시'));
 });

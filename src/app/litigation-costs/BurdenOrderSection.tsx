@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { isApplicantSideParty, type Party, type Rule, type Stage, stageLevel } from './caseInput';
+import { burden } from './costReview';
 import { canSelectOrderParty, conflictingOrderPairs, orderDescription, orderIssues, patchOrder, suggestedOrder, summarizeOrders } from './burdenOrders';
 
 type Props = {
@@ -125,6 +126,24 @@ function OrderEditor({ stage, index, rule, parties, label, change }: {
   );
 }
 
+function OrderShares({ rule, owner }: { rule: Rule; owner: string }) {
+  const cell = 'text-center md:table-cell md:px-4 md:py-3';
+  if (rule.mode === '각자 부담') return <td colSpan={2} className={cell + ' col-span-2 rounded bg-slate-50 p-2 font-semibold text-slate-600'}>각자 부담</td>;
+  const rates = (() => {
+    try {
+      const onLeft = rule.left.includes(owner);
+      return [burden(rule, !onLeft), burden(rule, onLeft)];
+    } catch {
+      return null;
+    }
+  })();
+  if (!rates) return <td colSpan={2} className={cell + ' col-span-2 text-amber-800'}>부담 비율 확인 필요</td>;
+  return <>{rates.map((rate, index) => <td key={index} className={cell}>
+    <span className="mb-1 block text-xs text-slate-500 md:hidden">{index === 0 ? '신청인 측 부담' : '상대방 측 부담'}</span>
+    <strong className={index === 0 ? 'text-base text-blue-900' : 'text-base text-slate-900'}>{rate.n === BigInt(0) ? '0' : rate.n === rate.d ? '전부' : String(rate.n) + '/' + String(rate.d)}</strong>
+  </td>)}</>;
+}
+
 export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules }: Props) {
   const omittedOrders = useRef<Record<string, Rule[]>>({});
   const summary = summarizeOrders(stages, parties);
@@ -202,17 +221,32 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
         <h3 className="text-sm font-bold text-slate-900">당사자 관계별 최종 적용 주문</h3>
         <p className="text-xs text-slate-600">각 심급 비용에 최종 적용되는 당사자별 부담 기준입니다 (&lsquo;소송총비용&rsquo; 주문이 있는 관계는 상급심 주문 자동 반영).</p>
         {summary.issues.map(issue => <p key={issue} role="alert" className="text-xs text-red-700">{issue}</p>)}
-        {summary.rows.length > 0 && <div className="overflow-x-auto"><table className="w-full min-w-[480px] text-left text-xs">
-          <thead><tr className="border-b border-slate-200 text-slate-600">
-            {['비용 발생 심급', '당사자 관계', '최종 적용 주문', '부담 내용'].map(title => <th key={title} className="p-2">{title}</th>)}
-          </tr></thead>
-          <tbody>{summary.rows.map((row, i) => <tr key={i} className="border-b border-slate-100">
-            <td className="p-2">{stageLevel(stages[row.stage], row.stage)}{row.claim && ` · ${row.claim}`}</td>
-            <td className="p-2">{partyName(row.owner)} ↔ {partyName(row.opponent)}</td>
-            <td className="p-2">{stageLevel(stages[row.source], row.source)} · {row.rule.scope}</td>
-            <td className="p-2">{orderDescription(row.rule)}</td>
-          </tr>)}</tbody>
-        </table></div>}
+        {stages.map((stage, index) => {
+          const claims = [...new Set(summary.rows.filter(row => row.stage === index).map(row => row.claim))];
+          return claims.map(claim => {
+            const rows = summary.rows.filter(row => row.stage === index && row.claim === claim);
+            return <div key={stage.id + ':' + (claim || '전체')} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+              <h4 className="border-b border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-900">{stageLevel(stage, index)} 비용{claim && ' · ' + claim}</h4>
+              {parties.filter(isApplicantSideParty).map(applicant => {
+                const relations = rows.filter(row => row.owner === applicant.id);
+                if (!relations.length) return null;
+                return <div key={applicant.id} className="border-b border-slate-200 last:border-b-0">
+                  <h5 className="bg-blue-50/60 px-4 py-2.5 text-sm font-bold text-blue-950">{partyName(applicant.id)}</h5>
+                  <table className="block w-full text-sm md:table" aria-label={stageLevel(stage, index) + ' 비용' + (claim ? ' · ' + claim : '') + ' · ' + partyName(applicant.id) + ' 최종 적용 주문'}>
+                    <thead className="hidden bg-slate-50 text-left text-xs text-slate-600 md:table-header-group"><tr>
+                      {['상대방', '신청인 측 부담', '상대방 측 부담', '적용 주문'].map(title => <th key={title} scope="col" className="px-4 py-2.5">{title}</th>)}
+                    </tr></thead>
+                    <tbody className="block divide-y divide-slate-100 md:table-row-group">{relations.map(row => <tr key={row.opponent} className="grid grid-cols-2 gap-3 p-4 md:table-row md:p-0">
+                      <th scope="row" className="col-span-2 text-left font-semibold text-slate-900 md:table-cell md:px-4 md:py-3">{partyName(row.opponent)}</th>
+                      <OrderShares rule={row.rule} owner={row.owner} />
+                      <td className="col-span-2 text-xs text-slate-600 md:table-cell md:px-4 md:py-3"><span className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{stageLevel(stages[row.source], row.source)} · {row.rule.scope}</span></td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>;
+              })}
+            </div>;
+          });
+        })}
       </div>
     </section>
   );

@@ -17,8 +17,8 @@ export function calculateLitigationCosts(parties: Party[], stages: Stage[], cost
   });
   const stageResults = stages.map((stage, index) => {
     const expenses = main.expenses.filter(e => e.stageId === stage.id);
-    const mainValue = stageEffectiveValue(stage, parties);
-    const counterValue = stage.counter ? counterEffectiveValue(stage, parties) : null;
+    const mainValue = stageEffectiveValue(stage);
+    const counterValue = stage.counter ? counterEffectiveValue(stage) : null;
     const value = stage.counter
       ? mainValue !== null && counterValue !== null && stage.counterFeeMode
         ? combinePartyValues([mainValue, counterValue], stage.counterFeeMode) : null
@@ -32,7 +32,7 @@ export function calculateLitigationCosts(parties: Party[], stages: Stage[], cost
     totals: { applicant: mainTotals.applicant + applicationTotal, respondent: mainTotals.respondent },
     errors: [...main.errors, ...application.errors],
     settlements: settleCosts(parties, main, application, stages),
-    roundingDescription: '본소·반소 배분이 필요한 경우 이를 먼저 적용한 뒤, 공동비용 귀속 → 상대방별 배분 → 부담률 적용 순서로 계산합니다. 각 배분 단계에서 10원 미만을 버리며, 비율이 1인 단계는 금액을 유지합니다.',
+    roundingDescription: '본소·반소 배분이 필요한 경우 이를 먼저 적용한 뒤, 공동비용 귀속 → 부담률 적용 → 상대방별 배분 순서로 계산합니다. 중간 절사 없이 본안비용을 합산·상계하고 확정신청비용을 더한 뒤, 당사자 관계별 최종 지급액에서만 소수점 이하(1원 미만)를 버립니다.',
   };
 }
 export type LitigationCalculation = ReturnType<typeof calculateLitigationCosts>;

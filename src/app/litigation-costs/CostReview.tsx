@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { type Cost, type Party, type Stage } from './caseInput';
 import { money, type Amount, type CalculationStep } from './costReview';
-import { calculateLitigationCosts } from './litigationCalculation';
+import { calculateLitigationCosts, type LitigationCalculation } from './litigationCalculation';
 import { CostStatementModal } from './CostStatementModal';
 
 type Props = {
@@ -16,7 +16,7 @@ type Props = {
 
 const heading = 'mb-2.5 text-sm font-bold text-slate-900';
 
-function CalculationDetails({ steps, exactAmount, amount }: { steps: CalculationStep[]; exactAmount: Amount; amount: Amount }) {
+function CalculationDetails({ steps, amount }: { steps: CalculationStep[]; amount: Amount }) {
   if (!steps.length) {
     return <span className="text-slate-600 font-sans">{money(amount)} (전액 부담)</span>;
   }
@@ -33,19 +33,32 @@ function CalculationDetails({ steps, exactAmount, amount }: { steps: Calculation
         {steps.map((step, i) => (
           <div key={i} className="leading-relaxed">
             <span className="font-medium text-slate-800">{step.label}</span>: {money(step.input)} × {step.factor.n.toString()}/{step.factor.d.toString()}
-            {' = '}{money(step.raw)} → <strong className="text-slate-900">{money(step.amount)}</strong>
-            <span className="ml-1 text-slate-400 text-[11px]">(10원 미만 버림)</span>
-            <span className="ml-1 text-slate-500">절사액 {money(step.discarded)}</span>
+            {' = '}<strong className="text-slate-900">{money(step.amount)}</strong>
           </div>
         ))}
-        {exactAmount.n * amount.d !== amount.n * exactAmount.d && (
-          <div className="border-t border-slate-200 pt-1 text-slate-500 text-[11px]">
-            절사 전 정밀값: {money(exactAmount)} (최종 합계는 단계별 절사액 반영)
-          </div>
-        )}
+        <div className="border-t border-slate-200 pt-1 text-slate-500 text-[11px]">중간 절사 없이 계산하며 최종 지급액에서만 1원 미만을 버립니다.</div>
       </div>
     </details>
   );
+}
+
+type Settlement = LitigationCalculation['settlements'][number];
+
+function SettlementDetails({ row, label }: { row: Settlement; label: (p: Party) => string }) {
+  return <details className="group text-left">
+    <summary aria-label={label(row.a) + ' · ' + label(row.b) + ' 계산 상세'} className="cursor-pointer whitespace-nowrap text-sm font-semibold text-blue-700 hover:text-blue-900">계산 상세</summary>
+    <dl className="mt-3 space-y-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+      <div><dt>A · 신청인 본안 회수액</dt><dd className="mt-1 break-all font-medium tabular-nums">{row.applicantEntered ? money(row.forward) : '비용 미입력'}</dd></div>
+      <div><dt>B · 피신청인 본안 회수액</dt><dd className="mt-1 break-all font-medium tabular-nums">{row.respondentEntered || row.respondentRecoveryExcluded ? money(row.reverse) : '비용 미입력'}{row.respondentRecoveryExcluded && ' (판결 주문상 상환 없음)'}</dd></div>
+      {!row.missing && <>
+        <div className="border-t border-slate-200 pt-2"><dt>본안 정산액 · A − B</dt><dd className="mt-1 break-all tabular-nums">{money(row.net)}</dd></div>
+        <div><dt>확정신청비용 부담액</dt><dd className="mt-1 break-all tabular-nums">{money(row.applicationAmount)}</dd></div>
+        <div><dt>본안 정산액 + 확정신청비용</dt><dd className="mt-1 break-all tabular-nums">{money(row.combinedAmount)}</dd></div>
+        <div className="border-t border-slate-200 pt-2"><dt>최종 지급액에서만 1원 미만 버림</dt><dd className="mt-1 break-all">절사액 {money(row.discarded)}</dd></div>
+      </>}
+      {row.missing && <div className="text-amber-800">{row.missing}</div>}
+    </dl>
+  </details>;
 }
 
 export function CostReview({ parties, stages, applicationCosts, applicationCaseNumber, label }: Props) {
@@ -66,7 +79,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
         <div>
           <h2 className="text-xl font-bold text-slate-900">소송비용 계산 및 상환액 산출</h2>
           <p className="mt-1 text-xs text-slate-500">
-            판결 주문의 부담 비율과 법정 한도 및 상계를 반영한 최종 정산 결과입니다. 각 배분 단계에서 10원 미만을 버리고 합산합니다.
+            판결 주문의 부담 비율과 법정 한도 및 상계를 반영한 최종 정산 결과입니다. 중간 절사 없이 계산하고 최종 지급액에서만 1원 미만을 버립니다.
           </p>
         </div>
         {(!!lines.length || !!application.lines.length) && (
@@ -79,19 +92,6 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
           </button>
         )}
       </div>
-
-      {(!!main.expenses.length || !!application.expenses.length) && (
-        <div className="space-y-2 text-sm">
-          <h3 className={heading}>인정 비용 총액 (부담률 적용 전)</h3>
-          {calculation.errors.length ? <p>인정 비용 합계 입력 확인 필요</p> : <>
-            <p>본안비용소계: 신청인 측 {calculation.mainTotals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.mainTotals.respondent.toLocaleString('ko-KR')}원</p>
-            <p>신청비용소계: {calculation.applicationTotal.toLocaleString('ko-KR')}원</p>
-            <p>합계: 신청인 측 {calculation.totals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.totals.respondent.toLocaleString('ko-KR')}원</p>
-          </>}
-          <p className="text-xs text-slate-500">아래 관계별 정산액은 인정 비용에 배분·부담비율과 상계를 적용한 금액입니다.</p>
-          <p className="text-xs text-slate-500">{calculation.roundingDescription}</p>
-        </div>
-      )}
 
       {/* 2. 오류 및 안내 메시지 */}
       {!lines.length && !errors.length && !application.lines.length && (
@@ -122,24 +122,50 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
         </div>
       )}
 
-      {settlements.map(row => (
-        <div key={row.a.id + ':' + row.b.id} className="space-y-2 rounded-xl border border-blue-200 bg-blue-50/50 p-5">
-          <h3 className="text-base font-semibold text-slate-900">{label(row.a)} ↔ {label(row.b)}</h3>
-          {row.missing ? <p className="text-sm text-amber-800">{row.missing}</p> : <>
-            <p className="text-sm text-slate-700">{label(row.payer)}이(가) {label(row.receiver)}에게 지급할 최종 금액</p>
-            <p className="text-3xl font-extrabold text-blue-950 tabular-nums">{money(row.payable)}</p>
-            <p className="text-xs text-slate-600">본안 정산액 {money(row.net)} + 확정신청비용 {money(row.applicationAmount)} · 단계별 절사 반영</p>
+      {!!settlements.length && <div className="space-y-4" aria-label="관계별 최종 정산액">
+        <h3 className={heading}>관계별 최종 정산액</h3>
+        {parties.filter(p => p.group === '신청인').map(applicant => {
+          const rows = settlements.filter(row => row.a.id === applicant.id);
+          if (!rows.length) return null;
+          return <div key={applicant.id} className="overflow-hidden rounded-xl border border-slate-200">
+            <h4 className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-950">{label(applicant)}</h4>
+            <table className="block w-full text-sm md:table" aria-label={label(applicant) + ' 관계별 최종 정산액'}>
+              <thead className="hidden bg-slate-50 text-left text-xs text-slate-600 md:table-header-group"><tr>
+                {['피신청인', '지급 방향', '최종 지급액', '상세'].map(title => <th key={title} scope="col" className="px-4 py-3">{title}</th>)}
+              </tr></thead>
+              <tbody className="block divide-y divide-slate-200 md:table-row-group">{rows.map(row => <tr key={row.b.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-white p-4 md:table-row md:p-0">
+                <th scope="row" className="col-span-2 text-left font-semibold text-slate-900 md:table-cell md:px-4 md:py-4">{label(row.b)}</th>
+                <td className="col-span-2 text-slate-600 md:table-cell md:px-4 md:py-4">
+                  {row.missing ? <span className="text-amber-800">입력 확인 필요</span> : row.payable.n === BigInt(0) ? '지급 없음' : <span className="inline-flex flex-wrap items-center gap-x-1.5"><span>{label(row.payer)}</span><span aria-label="지급">→</span><span>{label(row.receiver)}</span></span>}
+                </td>
+                <td className="font-bold tabular-nums md:table-cell md:px-4 md:py-4 md:text-right">
+                  <span className="mr-2 text-xs font-normal text-slate-500 md:hidden">최종 지급액</span>
+                  {row.missing ? <span className="text-sm font-medium text-amber-800">확인 필요</span> : <span className="whitespace-nowrap text-lg text-blue-950">{money(row.payable)}</span>}
+                </td>
+                <td className="col-span-2 min-w-0 text-right align-top md:table-cell md:px-4 md:py-4"><SettlementDetails row={row} label={label} /></td>
+              </tr>)}</tbody>
+            </table>
+          </div>;
+        })}
+      </div>}
+
+      {(!!main.expenses.length || !!application.expenses.length) && (
+        <div className="space-y-2 text-sm">
+          <h3 className={heading}>인정 비용 총액 (부담률 적용 전)</h3>
+          {calculation.errors.length ? <p>인정 비용 합계 입력 확인 필요</p> : <>
+            <p>본안비용소계: 신청인 측 {calculation.mainTotals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.mainTotals.respondent.toLocaleString('ko-KR')}원</p>
+            <p>신청비용소계: {calculation.applicationTotal.toLocaleString('ko-KR')}원</p>
+            <p>합계: 신청인 측 {calculation.totals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.totals.respondent.toLocaleString('ko-KR')}원</p>
           </>}
+          <p className="text-xs text-slate-500">관계별 정산액은 인정 비용에 배분·부담비율과 상계를 적용한 금액입니다.</p>
+          <details className="text-xs text-slate-500"><summary className="cursor-pointer font-semibold">계산 기준</summary><p className="mt-2 leading-relaxed">{calculation.roundingDescription}</p></details>
         </div>
-      ))}
+      )}
 
       {/* 4. 본안 소송비용 심급별 부담 내역 테이블 */}
       {!!lines.length && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className={heading}>본안 소송비용 심급별 부담 내역</h3>
-            <span className="text-xs text-slate-500">총 {lines.length}개 항목</span>
-          </div>
+        <details className="space-y-3 rounded-lg border border-slate-200 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-slate-900">본안 비용 계산 상세 <span className="ml-2 font-normal text-slate-500">{lines.length}개 항목</span></summary>
           <div className="overflow-x-auto rounded-lg border border-slate-200">
             <table className="w-full min-w-[540px] text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold text-slate-600">
@@ -163,7 +189,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
                     <td className="p-3 text-slate-700">{name(l.owner)}</td>
                     <td className="p-3 text-slate-700">{name(l.debtor)}</td>
                     <td className="p-3">
-                      <CalculationDetails steps={l.steps} exactAmount={l.exactAmount} amount={l.amount} />
+                      <CalculationDetails steps={l.steps} amount={l.amount} />
                     </td>
                     <td className="p-3 font-semibold tabular-nums text-slate-900 text-right">
                       {money(l.amount)}
@@ -173,16 +199,13 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
               </tbody>
             </table>
           </div>
-        </div>
+        </details>
       )}
 
       {/* 5. 확정신청비용 부담 내역 테이블 */}
       {!!applicationCosts.length && (
-        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900">확정신청비용 부담 내역</h3>
-            <span className="text-xs text-slate-500">인지대·송달료·발급비</span>
-          </div>
+        <details className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+          <summary className="cursor-pointer text-sm font-bold text-slate-900">확정신청비용 계산 상세</summary>
           {!!application.lines.length && (
             <div className="overflow-x-auto rounded border border-slate-200 bg-white">
               <table className="w-full min-w-[520px] text-left text-sm">
@@ -205,7 +228,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
                       <td className="p-2.5 text-slate-700">{name(l.owner)}</td>
                       <td className="p-2.5 text-slate-700">{name(l.debtor)}</td>
                       <td className="p-2.5">
-                        <CalculationDetails steps={l.steps} exactAmount={l.exactAmount} amount={l.amount} />
+                        <CalculationDetails steps={l.steps} amount={l.amount} />
                       </td>
                       <td className="p-2.5 font-semibold tabular-nums text-slate-900 text-right">
                         {money(l.amount)}
@@ -217,85 +240,9 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
             </div>
           )}
           <p className="text-xs text-slate-500">
-            신청비용도 각 배분 및 부담률 적용 단계에서 10원 미만을 버린 뒤 합산합니다.
+            신청비용도 중간 절사 없이 계산하여 본안 정산액에 더하고, 최종 지급액에서만 1원 미만을 버립니다.
           </p>
-        </div>
-      )}
-
-      {/* 6. 당사자별 상환 및 상계 정산 상세 카드 */}
-      {(!!lines.length || !!application.lines.length) && (
-        <div className="space-y-3">
-          <h3 className={heading}>당사자별 상환 및 상계 정산 내역</h3>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {settlements.map(
-              ({
-                a,
-                b,
-                forward,
-                reverse,
-                missing,
-                applicationAmount,
-                respondentEntered,
-                respondentRecoveryExcluded,
-                applicantEntered,
-                payer,
-                receiver,
-                payable,
-              }) => {
-                return (
-                  <div
-                    key={a.id + b.id}
-                    className="space-y-3 rounded-lg border border-slate-200 bg-white p-4 text-sm shadow-2xs"
-                  >
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                      <strong className="text-slate-900 font-bold">
-                        {name(a.id)} ↔ {name(b.id)}
-                      </strong>
-                      <span className="text-xs text-slate-500">
-                        {missing ? '입력 확인 필요' : '입력 비용 자동 상계'}
-                      </span>
-                    </div>
-
-                    <div className="space-y-1.5 text-xs text-slate-600">
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span>(+) 신청인 인정액 ({name(b.id)} → {name(a.id)})</span>
-                        <span className="shrink-0 font-medium text-slate-900 tabular-nums">{applicantEntered ? money(forward) : '비용 미입력'}</span>
-                      </div>
-                      <div className="flex items-baseline justify-between gap-2">
-                        <span>(-) 피신청인 상계액 ({name(a.id)} → {name(b.id)})</span>
-                        <span className="shrink-0 font-medium text-slate-900 tabular-nums">
-                          {respondentEntered || respondentRecoveryExcluded ? money(reverse) : '비용 미입력'}
-                          {respondentRecoveryExcluded && ' (판결 주문상 상환 없음)'}
-                        </span>
-                      </div>
-                      {!!applicationCosts.length && (
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span>(+) 확정신청비용 부담액</span>
-                          <span className="shrink-0 font-medium text-slate-900 tabular-nums">
-                            {application.errors.length ? '확인 필요' : money(applicationAmount)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="border-t border-slate-100 pt-2">
-                      {missing ? (
-                        <p className="font-medium text-amber-800 text-xs">{missing}</p>
-                      ) : (
-                        <div className="flex justify-between items-baseline">
-                          <span className="font-semibold text-slate-900 text-xs">{label(payer)} → {label(receiver)}</span>
-                          <span className="text-base font-bold text-blue-900 tabular-nums">
-                            {money(payable)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-            )}
-          </div>
-        </div>
+        </details>
       )}
 
       {/* 7. 소송비용계산서 모달 */}

@@ -28,7 +28,6 @@ import {
   needsClaimAllocation,
   opponentAllocationGroups,
   resolveFeeBasisValue,
-  sideValueMode,
   stageEffectiveValue,
   stageMemberValue,
 } from './costReview';
@@ -612,7 +611,8 @@ export default function PartyForm() {
     const hasCounterValue = Boolean(s.counter && s.mainValueTarget && !hasMainValue);
     const hasClaimValue = hasMainValue || hasCounterValue;
     const claimName = hasCounterValue ? '반소 소가' : '소가';
-    const currentMode = sideValueMode(s, isAppSide, hasCounterValue);
+    const relationKey = hasCounterValue ? 'counterValueRelation' : isAppSide ? 'applicantValueRelation' : 'opponentValueRelation';
+    const currentRelation = s[relationKey] ?? (hasCounterValue ? s.counterValueMode : isAppSide ? s.applicantValueMode : s.opponentValueMode) ?? s.valueMode ?? '합산';
     const bundleKey = hasCounterValue ? 'counterValues' : 'mainValues';
     const allBundles = s[bundleKey] || [];
     const sideBundles = hasClaimValue ? allBundles.filter((row) => isApplicantBundle(row) === isAppSide) : [];
@@ -655,25 +655,21 @@ export default function PartyForm() {
           {individualValuesEnabled && sidePeople.length > 1 && (
             <div className="flex flex-wrap items-center gap-1.5">
               <div className="flex items-center gap-1">
-                {(['합산', '흡수'] as const).map((m) => (
+                {(['합산', '흡수', '기타'] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
-                    onClick={() =>
-                      patchStage(
-                        s.id,
-                        hasCounterValue ? { counterValueMode: m } : isAppSide ? { applicantValueMode: m } : { opponentValueMode: m }
-                      )
-                    }
+                    aria-pressed={currentRelation === m}
+                    onClick={() => patchStage(s.id, { [relationKey]: m })}
                     className={`rounded border px-2 py-0.5 text-xs font-medium ${
-                      currentMode === m
+                      currentRelation === m
                         ? isAppSide
                           ? 'border-blue-600 bg-blue-700 text-white'
                           : 'border-slate-800 bg-slate-900 text-white'
                         : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'
                     }`}
                   >
-                    {m === '합산' ? '합산' : '다액흡수'}
+                    {m}
                   </button>
                 ))}
               </div>
@@ -688,6 +684,9 @@ export default function PartyForm() {
           )}
         </div>
 
+        {individualValuesEnabled && sidePeople.length > 1 && <p className="text-xs text-slate-500">
+          합산·흡수·기타는 개별·관계별 소가와 전체 소가의 관계를 기록합니다.
+        </p>}
         {sidePeople.length === 0 ? (
           <p className={small}>참여 중인 {isAppSide ? '신청인' : '피신청인'}이 없습니다.</p>
         ) : (
@@ -888,7 +887,7 @@ export default function PartyForm() {
       return s && party ? allocationMemberValue(s, party) : null;
     });
     const sum = weights.reduce<bigint>((total, w) => total + (w ?? BigInt(0)), BigInt(0));
-    const feeBasis = s && c.kind === '변호사보수' ? resolveFeeBasisValue(c, s, parties) : null;
+    const feeBasis = s && c.kind === '변호사보수' ? resolveFeeBasisValue(c, s) : null;
     const feeLimit = feeBasis !== null ? ordinaryFeeLimit(feeBasis) : null;
     const separateClaims = Boolean(s?.counter && needsClaimAllocation(stages, stages.findIndex(v => v.id === s.id), owners));
     const costClaim = s ? inferredCostClaim(c, s, parties) : undefined;
@@ -1215,7 +1214,7 @@ export default function PartyForm() {
                 {g.ids.map(id => label(parties.find(p => p.id === id)!)).join(', ')} · 전체 {g.ids.length}명
               </p>
             ))}
-            <p className="text-xs text-slate-600">전체 상대방에게 비용을 먼저 배분한 뒤 각자의 부담비율을 적용합니다. 상소에 참여하지 않은 상대방의 몫도 원래 심급의 분모에 유지합니다.</p>
+            <p className="text-xs text-slate-600">자기 측 비용 귀속 후 상대방 부담비율을 적용하고, 선택한 기준으로 전체 상대방에게 배분합니다. 중간 절사 없이 계산하며 최종 지급액에서만 1원 미만을 버립니다. 상소에 참여하지 않은 상대방의 몫도 원래 심급의 분모에 유지합니다.</p>
           </div>
         )}
       </div>
@@ -1708,12 +1707,9 @@ export default function PartyForm() {
         const isVisible = showAllStages || stages.length === 1 || currentActiveLevel === sLevel;
         if (!isVisible) return null;
 
-        const useCalculatedValue = s.useIndividualValues === true;
-        const displayedValue = useCalculatedValue ? stageEffectiveValue(s, parties)?.toLocaleString('ko-KR') ?? '' : s.value;
+        const displayedValue = s.value;
         const useCalculatedCounterValue = s.useCounterIndividualValues === true;
-        const displayedCounterValue = useCalculatedCounterValue
-          ? counterEffectiveValue(s, parties)?.toLocaleString('ko-KR') ?? ''
-          : s.counterValue;
+        const displayedCounterValue = s.counterValue;
         const canEditMainIndividualValues = sLevel !== '1심' || Boolean(s.mainValueTarget);
         const counterTarget = s.mainValueTarget === '신청인측' ? '피신청인측' : '신청인측';
         const people = parties.filter((p) => s.members[p.id]);
@@ -1767,7 +1763,7 @@ export default function PartyForm() {
                   claimValue
                   label={sLevel + ' 소가 (원)'}
                   value={displayedValue}
-                  change={useCalculatedValue ? undefined : (value) => patchStage(s.id, { value })}
+                  change={(value) => patchStage(s.id, { value })}
                 />
               </div>
               <label className={`${stageCheckbox} border-slate-300 bg-white text-slate-700 has-disabled:cursor-not-allowed has-disabled:text-slate-500`}>
@@ -1813,7 +1809,7 @@ export default function PartyForm() {
               </label>
             </div>
             {!s.counter && s.mainValueTarget && (
-              <p className="text-xs text-slate-600">개별소가를 선택하면 양측 당사자별 가액을 입력할 수 있습니다. 각 보수는 해당 보수에 선택한 당사자의 가액을 합산·흡수해 한도를 계산하고, 비용 안분에는 각자의 가액을 사용합니다. 위 소가는 선택한 소가 대상 측을 기준으로 표시합니다.</p>
+              <p className="text-xs text-slate-600">전체 소가는 직접 입력하며 개별소가와 별도로 유지합니다. 양측 변호사보수 한도는 위 심급 소가로 계산합니다. 개별소가는 비용 안분에 사용하고, 합산·흡수·기타는 전체 소가와의 관계만 기록합니다.</p>
             )}
             {s.counter && (
               <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
@@ -1834,7 +1830,7 @@ export default function PartyForm() {
                       claimValue
                       label="반소 전체 소가 (원)"
                       value={displayedCounterValue}
-                      change={useCalculatedCounterValue ? undefined : (counterValue) => patchStage(s.id, { counterValue })}
+                      change={(counterValue) => patchStage(s.id, { counterValue })}
                     />
                   </div>
                   <label className={`${stageCheckbox} border-slate-300 bg-white text-slate-700 has-disabled:cursor-not-allowed has-disabled:text-slate-500`}>
@@ -1853,21 +1849,21 @@ export default function PartyForm() {
                     label="보수 산정 시 본소·반소 소가 적용"
                     value={s.counterFeeMode || ''}
                     options={['합산', '흡수']}
-                    names={{ 합산: '합산 — 본소 + 반소', 흡수: '다액흡수 — 둘 중 큰 소가' }}
+                    names={{ 합산: '합산 — 본소 + 반소', 흡수: '흡수 — 둘 중 큰 소가' }}
                     change={(value) => {
                       if (value === '합산' || value === '흡수') patchStage(s.id, { counterFeeMode: value });
                     }}
                   />
                   <div className="self-end rounded-md border border-blue-200 bg-white p-3 text-sm text-blue-950" aria-live="polite">
                     {(() => {
-                      const main = stageEffectiveValue(s, parties), counter = counterEffectiveValue(s, parties);
+                      const main = stageEffectiveValue(s), counter = counterEffectiveValue(s);
                       if (main === null || counter === null || !s.counterFeeMode) return '본소·반소 소가와 보수 산정 기준을 선택하세요.';
                       const basis = s.counterFeeMode === '합산' ? main + counter : main > counter ? main : counter;
                       return <>양 청구 전체 기준 소가 <strong>{won(basis)}</strong><br />일반 본안 보수 한도 <strong>{won(ordinaryFeeLimit(basis))}</strong></>;
                     })()}
                   </div>
                 </div>
-                <p className="text-xs text-slate-600">본소·반소를 함께 대리한 양측 보수에 적용합니다. 대리 범위가 다르면 각 보수에서 지정하세요. 인지대 입력액과 당사자별 소가 합산·흡수 설정은 바뀌지 않습니다.</p>
+                <p className="text-xs text-slate-600">본소·반소를 함께 대리한 양측 보수에 적용합니다. 대리 범위가 다르면 각 보수에서 지정하세요. 인지대 입력액과 개별소가·전체 소가와의 관계 표시는 바뀌지 않습니다.</p>
               </div>
             )}
             {showParticipantChecks && (

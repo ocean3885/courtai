@@ -1,5 +1,5 @@
 import { stageLevel, type ApplicationPolicy, type Cost, type Party, type Stage } from './caseInput';
-import { add, burden, calculateSteps, expenseNet, fraction, nothing, product, resolveRuleRoutes, type Amount, type CalculationMode, type CalculationStep, type ReviewedExpense } from './costReview';
+import { add, burden, calculateSteps, expenseNet, fraction, nothing, product, resolveRuleRoutes, type Amount, type CalculationStep, type ReviewedExpense } from './costReview';
 import { orderIssues } from './burdenOrders';
 
 const natural = (value: string | undefined, label: string) => {
@@ -79,7 +79,7 @@ export function reviewAutomaticApplicationCosts(costs: Cost[], parties: Party[],
   return { ...result, lines: result.lines.map(line => ({ ...line, basis: bases.get(line.owner + ':' + line.debtor)! })) };
 }
 
-export function reviewApplicationCosts(costs: Cost[], parties: Party[], stages: Stage[] = [], policy?: ApplicationPolicy, mode: CalculationMode = '단계별10원') {
+export function reviewApplicationCosts(costs: Cost[], parties: Party[], stages: Stage[] = [], policy?: ApplicationPolicy) {
   const lines: ApplicationLine[] = [], errors: string[] = [];
   const ownerTotals = new Map<string, Amount>();
   const expenses: ReviewedExpense[] = [];
@@ -119,9 +119,9 @@ export function reviewApplicationCosts(costs: Cost[], parties: Party[], stages: 
           if (!d || n > d) throw Error('신청비용 부담률은 0 이상 1 이하로 입력하세요.');
           const calculation = calculateSteps(fraction(recognized), [
             { label: '공동비용 귀속', factor: ownerShares[i] },
-            { label: '상대방별 배분', factor: opponentShares[j] },
             { label: '부담률 적용', factor: fraction(n, d) },
-          ], mode);
+            { label: '상대방별 배분', factor: opponentShares[j] },
+          ]);
           const basis = route ? stageLevel(stages[route.source], route.source) + ' · ' + route.rule.scope : common ? '신청비용 공통 · 별도 기준' : '이 비용 개별 기준';
           pending.push({ costId: c.id, kind: c.title || c.kind, owner, debtor, basis,
             ...calculation,

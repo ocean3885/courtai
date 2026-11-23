@@ -42,7 +42,12 @@ export function orderDescription(rule: Rule): string {
   switch (rule.mode) {
     case '1측 전부 부담': return '신청인 측 전부 부담';
     case '2측 전부 부담': return '상대방 측 전부 부담';
-    case '비율로 분담': return `신청인 측 ${rule.n}/${rule.d} · 상대방 측 (${rule.d}−${rule.n})/${rule.d}`;
+    case '비율로 분담': {
+      if (!/^\d+$/.test(rule.n) || !/^\d+$/.test(rule.d)) return '부담 비율 입력 확인 필요';
+      const n = BigInt(rule.n), d = BigInt(rule.d);
+      if (d === BigInt(0) || n > d) return '부담 비율 입력 확인 필요';
+      return `신청인 측 ${n}/${d} · 상대방 측 ${d - n}/${d}`;
+    }
     default: return rule.mode;
   }
 }

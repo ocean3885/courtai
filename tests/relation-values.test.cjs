@@ -7,7 +7,7 @@ const { reviewAutomaticApplicationCosts } = load('src/app/litigation-costs/appli
 const parties = ['a', 'a2', 'b', 'c'].map((id, i) => ({ id, name: id, group: i < 2 ? '신청인' : '피신청인' }));
 const expense = (payer, paid) => ({ id: payer, payer, ids: [payer], kind: '송달료', paid: String(paid), refund: '0', shared: false, opponentMethod: '안분' });
 function fixture() {
-  return { id: 'first', level: '1심', value: '', mainValueTarget: '신청인측', useIndividualValues: true,
+  return { id: 'first', level: '1심', value: '6000', mainValueTarget: '신청인측', useIndividualValues: true,
     members: {
       a: { value: '4000', relationValues: { b: '3000', c: '1000' } },
       a2: { value: '2000', relationValues: { b: '500', c: '1500' } },
@@ -46,14 +46,14 @@ test('일부 상소에서도 1심 관계별 소가의 분모를 유지하고 해
   assert.deepEqual(amounts(r), [['a', 'b', '75,000원'], ['a', 'c', '12,500원']]);
 });
 
-test('본소·반소 관계별 금액을 별도로 사용하고 개별소가 한도와 신청비용 균분은 유지', () => {
+test('본소·반소 관계별 금액을 별도로 사용하고 입력한 심급 소가 기준 한도와 신청비용 균분은 유지', () => {
   const s = fixture(); s.counter = '1'; s.useCounterIndividualValues = true;
   s.members.a.counterValue = '4000'; s.members.a.counterRelationValues = { b: '1000', c: '3000' };
   s.rules[0].claim = '본소와 반소';
   s.costs = [{ ...expense('a', 100000), claim: '반소' }];
   assert.deepEqual(amounts(reviewCosts([s], parties)), [['a', 'b', '25,000원'], ['a', 'c', '75,000원']]);
   s.counter = '';
-  assert.equal(resolveFeeBasisValue({ ...expense('a', 0), kind: '변호사보수' }, s, parties), 4000n);
+  assert.equal(resolveFeeBasisValue({ ...expense('a', 0), kind: '변호사보수' }, s, parties), 6000n);
   const app = reviewAutomaticApplicationCosts([{ ...expense('a', 1200), kind: '인지대' }], parties, [s]);
   assert.deepEqual(app.errors, []);
   assert(app.lines.every(l => money(l.amount) === '300원'));

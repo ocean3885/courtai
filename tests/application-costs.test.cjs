@@ -16,20 +16,20 @@ test('단독 신청비용 전액 및 환급액·인정액 반영', () => {
   c.recognized = ''; c.refund = '1001'; assert.match(run(c).errors[0], /환급액/);
 });
 
-test('신청인 2명의 공동비용 균분은 단계별 절사하며 정밀값 보존', () => {
+test('신청인 2명의 공동비용 균분은 중간 절사 없이 정밀값 보존', () => {
   const c = cost('12129'); c.shared = true; c.ids = ['a', 'a2'];
   c.application.rates.a2 = { b: { n: '1', d: '1' } };
   const r = run(c); assert.deepEqual(r.errors, []);
-  assert.deepEqual(r.lines.map(l => money(l.amount)), ['6,060원', '6,060원']);
+  assert.deepEqual(r.lines.map(l => money(l.amount)), ['12,129/2원', '12,129/2원']);
   assert.deepEqual(r.lines.map(l => money(l.exactAmount)), ['12,129/2원', '12,129/2원']);
   assert.equal(money(r.ownerTotals.get('a')), '12,129/2원');
 });
 
-test('상대방 전체 균분 후 B·C 60%, D 100%의 부담률 적용', () => {
+test('B·C 60%, D 100%의 부담률 적용 후 상대방 전체 균분', () => {
   const c = cost('17642'); c.application.opponentIds = ['b', 'c', 'd'];
   c.application.rates.a = { b: { n: '3', d: '5' }, c: { n: '3', d: '5' }, d: { n: '1', d: '1' } };
   const r = run(c); assert.deepEqual(r.errors, []);
-  assert.deepEqual(r.lines.map(l => money(l.amount)), ['3,520원', '3,520원', '5,880원']);
+  assert.deepEqual(r.lines.map(l => money(l.amount)), ['17,642/5원', '17,642/5원', '17,642/3원']);
 });
 
 test('신청인 귀속 비율과 상대방 배분 비율·부담률을 독립 적용', () => {
@@ -85,9 +85,9 @@ test('신청비용 공통 별도 기준과 비용별 예외가 서로 독립적�
   const policy = { mode: '별도 기준', allocation: { opponentIds: ['b'], rates: { a: { b: { n: '1', d: '2' } } } } };
   assert.deepEqual(reviewApplicationCosts([common, custom], parties, [], policy).lines.map(l => money(l.amount)), ['50원', '100원']);
   policy.allocation.rates.a.b = { n: '1', d: '4' };
-  assert.deepEqual(reviewApplicationCosts([common, custom], parties, [], policy).lines.map(l => money(l.amount)), ['20원', '100원']);
+  assert.deepEqual(reviewApplicationCosts([common, custom], parties, [], policy).lines.map(l => money(l.amount)), ['25원', '100원']);
   custom.application.useCommon = true;
-  assert.deepEqual(reviewApplicationCosts([common, custom], parties, [], policy).lines.map(l => money(l.amount)), ['20원', '20원']);
+  assert.deepEqual(reviewApplicationCosts([common, custom], parties, [], policy).lines.map(l => money(l.amount)), ['25원', '25원']);
 });
 
 test('부분 상소의 총비용 주문은 해당 상대방만 변경하고 다른 당사자는 종전 주문 유지', () => {
@@ -147,22 +147,22 @@ test('화면은 입력한 판결 주문을 자동 사용하고 주문이 사라�
   assert(renderReview({ costs: [c], policy }).includes('1,000원'));
   const html = renderReview({ costs: [c], policy, mainRules: false });
   assert(html.includes('신청비용 입력 확인'));
-  assert(!html.includes('에게 지급할 최종 금액'));
+  assert(!html.includes('aria-label="지급"'));
 });
 
-test('화면은 단계별 절사액을 합산하고 미확인 상태에는 합계 차단', () => {
+test('화면은 최종 지급액에서만 절사하고 미확인 상태에는 합계 차단', () => {
   const c = cost('1'); c.application.rates.a.b = { n: '1', d: '2' };
   const markup = renderReview({ costs: [c], mainPaid: '105' });
-  assert(markup.includes('에게 지급할 최종 금액'));
+  assert(markup.includes('aria-label="지급"'));
   assert(markup.includes('106원')); // 본안105원 + 판결 주문상 전액 부담인 신청비용1원
-  assert(markup.includes('단계별 절사 반영'));
+  assert(markup.includes('최종 지급액에서만 1원 미만 버림'));
   assert(!markup.includes('전액 산입 가정'));
-  assert(renderReview({ respondentPaid: null }).includes('에게 지급할 최종 금액'));
+  assert(renderReview({ respondentPaid: null }).includes('aria-label="지급"'));
   assert(renderReview({ respondentPaid: null }).includes('판결 주문상 상환 없음'));
   c.paid = '';
   for (const props of [{ costs: [c] }, { mainRules: false }, { mainPaid: null }]) {
     const html = renderReview(props);
     assert(!html.includes('본안 차액 + 신청비용 부담액 합계'));
-    assert(!html.includes('에게 지급할 최종 금액'));
+    assert(!html.includes('aria-label="지급"'));
   }
 });

@@ -220,7 +220,7 @@ export function CostStatementModal({
                       {s.counter && (
                         <span className="text-xs text-slate-600">
                           {' '}(본소 {soga === null ? '미입력' : formatWon(soga)} / 반소 {counterSoga === null ? '미입력' : formatWon(counterSoga)}
-                          {s.counterFeeMode && ` · ${s.counterFeeMode === '흡수' ? '다액흡수' : '합산'}`})
+                          {s.counterFeeMode && ` · ${s.counterFeeMode === '흡수' ? '흡수' : '합산'}`})
                         </span>
                       )}
                       {idx < stages.length - 1 && ', '}
@@ -298,6 +298,7 @@ export function CostStatementModal({
                   <p className="text-lg font-bold">금 {money(row.payable)}</p>
                   <p className="text-xs">신청인 본안 회수액 {money(row.forward)} − 피신청인 본안 회수액 {money(row.reverse)} = 본안 정산액 {money(row.net)}</p>
                   <p className="text-xs">본안 정산액 {money(row.net)} + 확정신청비용 {money(row.applicationAmount)} = {money(row.combinedAmount)}</p>
+                  <p className="text-xs">최종 지급액에서만 1원 미만 버림 · 절사액 {money(row.discarded)}</p>
                 </>}
               </div>)}
             </div>
@@ -310,9 +311,9 @@ export function CostStatementModal({
                   <strong>{line.kind} · {line.basis} · {name(line.owner)} → {name(line.debtor)}: {money(line.amount)}</strong>
                   {!line.steps.length && <p>배분 및 부담률 1 · {money(line.amount)}</p>}
                   {line.steps.map((step, i) => <p key={i}>
-                    {step.label}: {money(step.input)} × {String(step.factor.n)}/{String(step.factor.d)} = {money(step.raw)} → {money(step.amount)} (절사액 {money(step.discarded)})
+                    {step.label}: {money(step.input)} × {String(step.factor.n)}/{String(step.factor.d)} = {money(step.amount)}
                   </p>)}
-                  <p>절사 전 정밀값 {money(line.exactAmount)}</p>
+                  <p>중간 절사 없는 정밀값 {money(line.exactAmount)}</p>
                 </div>
               ))}
             </details>

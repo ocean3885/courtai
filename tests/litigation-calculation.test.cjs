@@ -34,7 +34,7 @@ function sample35081() {
   const shared = { shared: true, ids: ['a', 'a2'], method: '균분' };
   return {
     applicationCaseNumber: '2026카확35081', parties: people(),
-    stages: [{ id: 'first', level: '1심', number: '2024가단5215484', value: '', useIndividualValues: true, mainValueTarget: '신청인측',
+    stages: [{ id: 'first', level: '1심', number: '2024가단5215484', value: '105361798', useIndividualValues: true, mainValueTarget: '신청인측',
       members: { a: { value: '52680899' }, a2: { value: '52680899' }, b: { value: '105361798' }, c: { value: '57144171' } },
       rules: [rule()], costs: [
         expense('fee-a', 'a', '변호사보수', '6600000', shared),
@@ -56,19 +56,19 @@ test('35081: 인정액 합계와 관계별 상계액을 구분하고 독립 검�
   assert.deepEqual(r.totals, { applicant: 9385460n, respondent: 7600000n });
   assert.equal(r.stageResults[0].value, 105361798n);
   assert.deepEqual(r.main.expenses.filter(e => e.feeBasis !== null).map(e => [e.feeBasis, e.feeLimit, e.recognized]), [
-    [105361798n, 7614471n, 6600000n], [162505969n, 9650119n, 7600000n],
+    [105361798n, 7614471n, 6600000n], [105361798n, 7614471n, 7600000n],
   ]);
-  // Independently checked in audit: each applicant recovers 1,525,360;
-  // reverse recoveries are 821,250 / 445,410; application recovery is 38,850.
+  // No intermediate truncation: A = 9,152,233 / 6, application = 233,227 / 6.
+  // B = 7,600,000 * respondent's value / 162,505,969 / 2 / 3.
   assert.deepEqual(r.settlements.map(row => [row.a.id, row.b.id, money(row.forward), money(row.reverse), money(row.applicationAmount), money(row.payable)]), [
-    ['a', 'b', '1,525,360원', '821,250원', '38,850원', '742,960원'],
-    ['a', 'c', '1,525,360원', '445,410원', '38,850원', '1,118,800원'],
-    ['a2', 'b', '1,525,360원', '821,250원', '38,850원', '742,960원'],
-    ['a2', 'c', '1,525,360원', '445,410원', '38,850원', '1,118,800원'],
+    ['a', 'b', '9,152,233/6원', '400,374,832,400,000/487,517,907원', '233,227/6원', '742,991원'],
+    ['a', 'c', '9,152,233/6원', '72,382,616,600,000/162,505,969원', '233,227/6원', '1,118,828원'],
+    ['a2', 'b', '9,152,233/6원', '400,374,832,400,000/487,517,907원', '233,227/6원', '742,991원'],
+    ['a2', 'c', '9,152,233/6원', '72,382,616,600,000/162,505,969원', '233,227/6원', '1,118,828원'],
   ]);
   for (const type of [View, Statement]) {
     const content = text(html(type, f, { calculation: r }));
-    for (const amount of ['9,152,233', '233,227', '9,385,460', '742,960원', '1,118,800원']) assert(content.includes(amount));
+    for (const amount of ['9,152,233', '233,227', '9,385,460', '742,991원', '1,118,828원']) assert(content.includes(amount));
   }
   const markup = html(Statement, f, { calculation: r });
   const rows = tableRows(markup);
@@ -100,13 +100,13 @@ test('환급·검토 인정액과 첫 번째가 아닌 신청인 비용도 정�
   f.stages[0].costs = [expense('second-fee', 'a2', '변호사보수', '9000000')];
   f.applicationCosts = [expense('app', 'a', '인지대', '1000', { refund: '100', recognized: '800' })];
   const r = calculate(f);
-  // Second applicant's individual claim value gives the fee cap, not the stage total.
-  assert.equal(r.main.expenses[0].feeBasis, 52680899n);
-  assert.equal(r.mainTotals.applicant, 4560853n);
+  // Both sides and every applicant use the entered stage value for the fee cap.
+  assert.equal(r.main.expenses[0].feeBasis, 105361798n);
+  assert.equal(r.mainTotals.applicant, 7614471n);
   assert.equal(r.mainTotals.respondent, 0n);
   assert.equal(r.applicationTotal, 800n);
   const rows = tableRows(html(Statement, f, { calculation: r }));
-  assert(rows.some(row => row.startsWith('1심변호사보수') && row.includes('4,560,853')));
+  assert(rows.some(row => row.startsWith('1심변호사보수') && row.includes('7,614,471')));
   assert(rows.includes('신청비용소계8000'));
 });
 

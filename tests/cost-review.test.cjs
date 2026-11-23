@@ -21,7 +21,7 @@ const stage = (people, costs, rules) => ({
   costs,
   rules,
 });
-test('개별 소가를 끄면 사건 소가를 사용하고 다시 켜면 개별 값을 반영', () => {
+test('개별소가 사용 여부와 무관하게 입력한 심급 소가로 보수 한도 계산', () => {
   const fee = { ...cost('a', '10000000'), kind: '변호사보수' };
   const first = { ...stage(parties, [fee], [rule(['b'], '2측 전부 부담')]), useIndividualValues: false };
   first.members.a.value = '20000000';
@@ -31,28 +31,28 @@ test('개별 소가를 끄면 사건 소가를 사용하고 다시 켜면 개별
   assert.equal(money(reviewCosts([first], parties).ownerTotals.get('a')), '4,400,000원');
 
   first.useIndividualValues = true;
-  assert.equal(resolveFeeBasisValue(fee, first, parties), 20000000n);
+  assert.equal(resolveFeeBasisValue(fee, first, parties), 50000000n);
   assert.equal(first.members.a.value, '20000000');
 });
 
-test('개별 소가 사용 시 사건 소가는 지정된 측의 합산·다액흡수 결과를 사용', () => {
+test('개별소가·합산·흡수·소가 대상 변경과 무관하게 입력한 심급 소가 유지', () => {
   const people = [...parties, party('c', '신청인')];
   const first = { ...stage(people, [], []), useIndividualValues: true, mainValueTarget: '신청인측' };
   first.members.a.value = '20000000';
   first.members.b.value = '80000000';
   first.members.c.value = '10000000';
-  assert.equal(stageEffectiveValue(first, people), 30000000n);
+  assert.equal(stageEffectiveValue(first, people), 50000000n);
 
   first.applicantValueMode = '흡수';
-  assert.equal(stageEffectiveValue(first, people), 20000000n);
+  assert.equal(stageEffectiveValue(first, people), 50000000n);
 
   first.mainValueTarget = '피신청인측';
-  assert.equal(stageEffectiveValue(first, people), 80000000n);
+  assert.equal(stageEffectiveValue(first, people), 50000000n);
 
   const fee = { ...cost('b', '10000000'), kind: '변호사보수' };
   first.members.b.value = '';
-  assert.equal(stageEffectiveValue(first, people), null);
-  assert.equal(resolveFeeBasisValue(fee, first, people), null);
+  assert.equal(stageEffectiveValue(first, people), 50000000n);
+  assert.equal(resolveFeeBasisValue(fee, first, people), 50000000n);
   first.useIndividualValues = false;
   assert.equal(resolveFeeBasisValue(fee, first, people), 50000000n);
 });
@@ -100,16 +100,16 @@ test('지정한 측의 본소와 상대 측의 반소 소가를 각각 집계하
   first.members.a3 = { value: '9999', counterValue: '2000' };
   first.members.b = { value: '1000', counterValue: '8888' };
 
-  assert.equal(stageEffectiveValue(first, people), 1000n);
-  assert.equal(counterEffectiveValue(first, people), 5000n);
+  assert.equal(stageEffectiveValue(first, people), 50000000n);
+  assert.equal(counterEffectiveValue(first, people), 9000n);
   const result = reviewCosts([first], people);
   assert.deepEqual(result.errors, []);
   assert.deepEqual(result.lines.map((line) => money(line.amount)), ['300원', '300원', '200원']);
 
   first.counterValueMode = '흡수';
-  assert.equal(counterEffectiveValue(first, people), 3000n);
+  assert.equal(counterEffectiveValue(first, people), 9000n);
   first.mainValueTarget = '신청인측';
-  assert.equal(counterEffectiveValue(first, people), 8888n);
+  assert.equal(counterEffectiveValue(first, people), 9000n);
   first.useCounterIndividualValues = false;
   assert.equal(counterEffectiveValue(first, people), 9000n);
 });
@@ -155,7 +155,7 @@ test('원고 1 피고 4 중 신청외 몫 보존, 한 명의 항소비용만 별
     ['b', 30000n], ['c', 18000n], ['d', 30000n], ['e', 30000n], ['c', 12000n],
   ]);
 });
-test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 단계별 절사', () => {
+test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 중간 정밀값 유지', () => {
   const r = reviewCosts(
     [
       stage(parties, [cost('a', '110000')], [rule(['b'], '2측 전부 부담')]),
@@ -165,7 +165,7 @@ test('동일 당사자 소송총비용 주문은 종전 주문을 대체하고 �
   );
   assert.deepEqual(
     r.lines.map((l) => money(l.amount)),
-    ['73,330원', '13,330원']
+    ['220,000/3원', '40,000/3원']
   );
   assert.deepEqual(r.lines.map(l => money(l.exactAmount)), ['220,000/3원', '40,000/3원']);
 });
@@ -218,7 +218,7 @@ test('1심 없이 항소심만 입력한 경우에도 심급·주문 표시와 �
   assert.equal(money(r.lines[0].amount), '150,000원');
 });
 
-test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 기준) 보수 한도 산정', () => {
+test('입력한 심급 소가로 공통 보수 한도를 계산하고 개별·공통 소가로 귀속 안분', () => {
   const coParties = [party('a1', '신청인'), party('a2', '신청인'), party('b', '피신청인')];
   const sharedFee = {
     payer: 'a1',
@@ -233,7 +233,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
 
   // 1) 합산: 30,000,000 + 20,000,000 = 50,000,000원 -> 한도 4,400,000원 -> 3:2 안분 (2,640,000원 / 1,760,000원)
   const sumStage = {
-    value: '',
+    value: '50000000',
     valueMode: '합산',
     members: { a1: { value: '30000000' }, a2: { value: '20000000' }, b: { value: '50000000' } },
     costs: [sharedFee],
@@ -251,7 +251,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
 
   // 2) 흡수: 50,000,000원에 30,000,000원 흡수 -> 기준 소가 50,000,000원(한도 4,400,000원) -> 5:3 안분 (2,750,000원 / 1,650,000원)
   const absorbStage = {
-    value: '',
+    value: '50000000',
     valueMode: '흡수',
     members: { a1: { value: '50000000' }, a2: { value: '30000000' }, b: { value: '50000000' } },
     costs: [sharedFee],
@@ -275,7 +275,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
     party('b2', '피신청인'),
   ];
   const mixedStage = {
-    value: '',
+    value: '50000000',
     applicantValueMode: '합산',
     opponentValueMode: '흡수',
     members: {
@@ -317,7 +317,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
     party('b', '피신청인'),
   ];
   const hybridStage = {
-    value: '',
+    value: '50000000',
     members: {
       a1: { value: '30000000', valueType: '공통' },
       a2: { value: '30000000', valueType: '공통' },
@@ -339,7 +339,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
   };
   const hybridResult = reviewCosts([hybridStage], hybridParties);
   assert.deepEqual(hybridResult.errors, []);
-  // 기준 소가 = 공통(3,000만 1회) + 개별(2,000만) = 5,000만원 -> 보수 한도 4,400,000원
+  // 입력한 심급 소가 5,000만원 -> 보수 한도 4,400,000원
   // 당사자별 안분 비율 = 3000만 : 3000만 : 2000만 (3 : 3 : 2) -> 1,650,000원 / 1,650,000원 / 1,100,000원
   assert.deepEqual(
     hybridResult.lines.map((l) => [l.owner, money(l.amount)]),
@@ -358,7 +358,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
     { id: 'bx', name: 'bx', group: '신청외', side: '피신청인측' },
   ];
   const nonAppStage = {
-    value: '',
+    value: '50000000',
     members: {
       a1: { value: '30000000', valueType: '개별' },
       ax: { value: '20000000', valueType: '개별' },
@@ -409,7 +409,7 @@ test('당사자별 소가 합산 및 큰 소가에 작은 소가 흡수(다액 �
     party('b', '피신청인'),
   ];
   const multiBundleStage = {
-    value: '',
+    value: '50000000',
     mainValues: [
       { id: 'g1', side: '신청인측', ids: ['a1', 'a2'], amount: '10000000' },
       { id: 'g2', side: '신청인측', ids: ['a3', 'a4'], amount: '15000000' },

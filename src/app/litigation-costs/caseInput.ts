@@ -1,6 +1,7 @@
 export const levels = ['1심', '항소심', '상고심'] as const;
 export type Level = (typeof levels)[number];
 export type ValueMode = '합산' | '흡수';
+export type ValueRelation = ValueMode | '기타';
 export type CostClaim = '본소' | '반소' | '공통';
 export type ClaimSplit = '소가 비율' | '균분';
 export type MemberValueType = '개별' | '공통' | '공통2' | '흡수';
@@ -78,6 +79,9 @@ export type Stage = {
   valueMode?: ValueMode;
   applicantValueMode?: ValueMode;
   opponentValueMode?: ValueMode;
+  applicantValueRelation?: ValueRelation;
+  opponentValueRelation?: ValueRelation;
+  counterValueRelation?: ValueRelation;
   number: string;
   value: string;
   mainValueTarget?: PartySide;
