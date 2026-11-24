@@ -28,6 +28,7 @@ function text(root) {
   if (Array.isArray(root)) return root.map(text).join('');
   return typeof root === 'object' ? text(root.props.children) : String(root);
 }
+const amountEvent = value => ({ currentTarget: { value, selectionStart: value.length, setSelectionRange() {} } });
 function setup(owner = 'a', counter = false) {
   states = []; cursor = 0;
   const parties = ['a', 'a2', 'b', 'c'].map((id, i) => ({ id, group: i < 2 ? '신청인' : '피신청인' }));
@@ -54,10 +55,13 @@ test('개별소가 미입력·개별소가 해제·상대방 한 명일 때 버�
 test('양방향 및 반소에서도 상대방별 입력·합계 검증·반영·해제 가능', () => {
   for (const [owner, counter, opponents] of [['a', false, ['b', 'c']], ['b', false, ['a', 'a2']], ['b', true, ['a', 'a2']]]) {
     const f = setup(owner, counter); f.open();
-    const fill = (index, value) => nodes(f.render(), n => n.type === 'input')[index].props.onChange({ target: { value } });
+    const fill = (index, value) => nodes(f.render(), n => n.type === 'input')[index].props.onChange(amountEvent(value));
     const labels = nodes(f.render(), n => n.type === 'label').map(text);
     assert(labels[0].includes(opponents[0])); assert(labels[1].includes(opponents[1]));
-    fill(0, '3000'); fill(1, '2000');
+    fill(0, '3,000'); fill(1, '2,000');
+    const inputs = nodes(f.render(), n => n.type === 'input');
+    assert.deepEqual(inputs.map(n => n.props.value), ['3,000', '2,000']);
+    assert(inputs.every(n => n.props.className.includes('text-right')));
     assert.equal(f.button('관계별 소가 반영').props.disabled, true);
     fill(1, '1000');
     assert.equal(f.button('관계별 소가 반영').props.disabled, false);
@@ -73,9 +77,9 @@ test('양방향 및 반소에서도 상대방별 입력·합계 검증·반영·
 
 test('취소 시 입력은 저장되지 않으며 0원과 빈 값은 구분', () => {
   const f = setup(); f.open();
-  nodes(f.render(), n => n.type === 'input')[0].props.onChange({ target: { value: '4000' } });
+  nodes(f.render(), n => n.type === 'input')[0].props.onChange(amountEvent('4,000'));
   assert.equal(f.button('관계별 소가 반영').props.disabled, true);
-  nodes(f.render(), n => n.type === 'input')[1].props.onChange({ target: { value: '0' } });
+  nodes(f.render(), n => n.type === 'input')[1].props.onChange(amountEvent('0'));
   assert.equal(f.button('관계별 소가 반영').props.disabled, false);
   f.button('취소').props.onClick();
   assert.equal(f.stage.members.a.relationValues, undefined);

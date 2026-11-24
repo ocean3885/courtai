@@ -93,3 +93,30 @@ test('반소 측 관계 표시도 입력한 본소·반소 전체 소가와 독�
   assert.equal(f.current().value, '50000000');
   assert.deepEqual(calculateLitigationCosts(f.parties, [f.current()], []).main, before.main);
 });
+
+test('본안·신청비용·송달료 창의 금액은 오른쪽 정렬·콤마 표시하고 저장값은 숫자만 유지', () => {
+  const f = setup(true);
+  f.current().mainValues = [{ id: 'shared', side: '신청인측', ids: ['a', 'a2'], amount: '2000000' }];
+  f.current().costs.push({ id: 'stamp', payer: 'a', kind: '인지대', paid: '1234567', refund: '12345', ids: ['a'], shared: false, method: '' });
+  states[7] = [{ id: 'delivery', kind: '송달료', paid: '17642', refund: '1000', payer: 'a', ids: ['a'], shared: false, method: '', deliveryDetail: { incurred: '12000', decision: '5640', mobile: '2' } }];
+  states[8] = true;
+  states[9] = { incurred: '12000', decision: '5640', mobile: '2' };
+  const root = f.render();
+  const amounts = nodes(root, n => n.type === 'input' && n.props['aria-label']?.endsWith('(원)'));
+  assert(amounts.length >= 15, '소가·보수·납부액·환급액·송달료 창까지 검사');
+  for (const input of amounts) {
+    assert(input.props.className.includes('text-right'), input.props['aria-label']);
+    const digits = input.props.value.replaceAll(',', '');
+    assert.equal(input.props.value, /^\d+$/.test(digits) ? BigInt(digits).toLocaleString('ko-KR') : digits, input.props['aria-label']);
+  }
+  const fields = nodes(root, n => n.type === 'label' && n.props.className === 'block text-sm font-medium text-slate-800');
+  for (const field of fields) {
+    const input = nodes(field, n => n.type === 'input')[0];
+    if (input?.props['aria-label']?.endsWith('(원)')) assert.equal(text(field), input.props['aria-label'], '입력칸 위 중복 금액 없음');
+  }
+  const feeInput = amounts.find(n => n.props['aria-label'] === '변호사보수액 (원)');
+  const element = { value: '1,234,567', selectionStart: 9, setSelectionRange() {} };
+  feeInput.props.onChange({ currentTarget: element });
+  assert.equal(f.current().costs[0].paid, '1234567');
+  assert.equal(nodes(f.render(), n => n.type === 'input' && n.props['aria-label'] === '변호사보수액 (원)')[0].props.value, '1,234,567');
+});

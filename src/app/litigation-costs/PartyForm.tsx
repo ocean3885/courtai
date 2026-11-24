@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { ordinaryFeeLimit } from './ordinaryFee';
+import { formatAmountInput, changeAmountInput } from './amountInput';
 
 import {
   levels,
@@ -101,26 +102,6 @@ const small = 'text-sm text-slate-600';
 
 const natural = (v: string) => (/^\d{1,16}$/.test(v) ? BigInt(v) : null);
 const won = (v: bigint) => v.toLocaleString('ko-KR') + '원';
-const normalizeNumericInput = (value: string) => (/^[\d,\s]+$/.test(value) ? value.replace(/[,\s]/g, '') : value);
-const formatClaimValue = (value: string) =>
-  /^\d{1,16}$/.test(value) ? value.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : value;
-
-function changeClaimValue(element: HTMLInputElement, change: (value: string) => void) {
-  const raw = element.value;
-  const value = normalizeNumericInput(raw);
-  const formatted = formatClaimValue(value);
-  if (formatted !== raw) {
-    let digitsBeforeCursor = raw.slice(0, element.selectionStart ?? raw.length).replace(/\D/g, '').length;
-    let cursor = 0;
-    while (digitsBeforeCursor > 0 && cursor < formatted.length) {
-      if (formatted[cursor] !== ',') digitsBeforeCursor--;
-      cursor++;
-    }
-    element.value = formatted;
-    element.setSelectionRange(cursor, cursor);
-  }
-  change(value);
-}
 
 function Field({
   label,
@@ -128,39 +109,32 @@ function Field({
   change,
   numeric = false,
   claimValue = false,
-  showAmountPreview = false,
 }: {
   label: string;
   value: string;
   change?: (v: string) => void;
   numeric?: boolean;
   claimValue?: boolean;
-  showAmountPreview?: boolean;
 }) {
   const isNumeric = numeric || claimValue;
   const parsed = isNumeric && value !== '' ? natural(value) : null;
   const invalid = !!change && isNumeric && value !== '' && parsed === null;
   return (
     <label className="block text-sm font-medium text-slate-800">
-      <span className="flex items-baseline justify-between gap-1">
-        <span>{label}</span>
-        {showAmountPreview && parsed !== null && parsed > BigInt(0) && (
-          <span className="text-xs font-semibold tabular-nums text-blue-700">{won(parsed)}</span>
-        )}
-      </span>
+      <span>{label}</span>
       <input
-        className={claimValue ? `${input} text-right tabular-nums read-only:bg-slate-50` : input}
-        value={claimValue ? formatClaimValue(value) : value}
+        className={isNumeric ? `${input} text-right tabular-nums read-only:bg-slate-50` : input}
+        value={isNumeric ? formatAmountInput(value) : value}
         aria-label={label}
         inputMode={isNumeric ? 'numeric' : 'text'}
         aria-invalid={invalid}
         readOnly={!change}
         onChange={change && ((e) => {
-          if (claimValue) {
-            changeClaimValue(e.currentTarget, change);
+          if (isNumeric) {
+            changeAmountInput(e.currentTarget, change);
           } else {
             const raw = e.currentTarget.value;
-            change(numeric ? normalizeNumericInput(raw) : raw);
+            change(raw);
           }
         })}
       />
@@ -782,8 +756,8 @@ export default function PartyForm() {
                           disabled={!individualValuesEnabled}
                           aria-invalid={individualValuesEnabled && value !== '' && natural(value) === null}
                           className={`${compactControl} text-right tabular-nums disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
-                          value={formatClaimValue(value)}
-                          onChange={(e) => changeClaimValue(e.currentTarget, (amount) =>
+                          value={formatAmountInput(value)}
+                          onChange={(e) => changeAmountInput(e.currentTarget, (amount) =>
                             changeMember(p.id, hasCounterValue ? { counterValue: amount } : { value: amount })
                           )}
                         />
@@ -1054,7 +1028,6 @@ export default function PartyForm() {
             <div className="grid gap-2 sm:grid-cols-3">
               <Field
                 numeric
-                showAmountPreview
                 label="기발생 송달료 (원)"
                 value={c.deliveryDetail?.incurred || ''}
                 change={(v) => {
@@ -1069,7 +1042,6 @@ export default function PartyForm() {
               />
               <Field
                 numeric
-                showAmountPreview
                 label="결정정본 송달료 (원)"
                 value={c.deliveryDetail?.decision ?? '5640'}
                 change={(v) => {
@@ -1084,7 +1056,6 @@ export default function PartyForm() {
               />
               <Field
                 numeric
-                showAmountPreview
                 label="모바일단문 (원)"
                 value={c.deliveryDetail?.mobile || ''}
                 change={(v) => {
@@ -1116,7 +1087,6 @@ export default function PartyForm() {
           )}
           <Field
             numeric
-            showAmountPreview
             label={c.kind === '변호사보수' ? '변호사보수액 (원)' : '납부액 (원)'}
             value={c.paid}
             change={(paid) => update({ paid })}
@@ -1124,7 +1094,6 @@ export default function PartyForm() {
           {allowsRefund && (
             <Field
               numeric
-              showAmountPreview
               label="환급액 (원)"
               value={c.refund}
               change={(refund) => update({ refund })}
@@ -2056,21 +2025,18 @@ export default function PartyForm() {
               <div className="space-y-3">
                 <Field
                   numeric
-                  showAmountPreview
                   label="기발생 송달료 (원)"
                   value={deliveryInputs.incurred}
                   change={(incurred) => setDeliveryInputs({ ...deliveryInputs, incurred: incurred || '' })}
                 />
                 <Field
                   numeric
-                  showAmountPreview
                   label="결정정본 송달료 (원)"
                   value={deliveryInputs.decision}
                   change={(decision) => setDeliveryInputs({ ...deliveryInputs, decision: decision || '' })}
                 />
                 <Field
                   numeric
-                  showAmountPreview
                   label="모바일단문 (원)"
                   value={deliveryInputs.mobile}
                   change={(mobile) => setDeliveryInputs({ ...deliveryInputs, mobile: mobile || '' })}

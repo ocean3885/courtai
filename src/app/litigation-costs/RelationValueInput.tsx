@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { type Member, type Party, type Stage } from './caseInput';
 import { relationOpponents, relationValueIssue } from './relationValues';
+import { formatAmountInput, changeAmountInput } from './amountInput';
 
 type Props = {
   stage: Stage; party: Party; parties: Party[]; counter: boolean; enabled: boolean;
@@ -34,9 +35,9 @@ export function RelationValueInput({ stage, party, parties, counter, enabled, la
         <p className="text-sm text-slate-700">개별소가: {/^\d{1,16}$/.test(total) ? BigInt(total).toLocaleString('ko-KR') : '미입력'}원</p>
         {opponents.map((opponent, index) => <label key={opponent.id} className="block space-y-1 text-sm text-slate-700">
           <span>{label(opponent)}에 대한 소가 (원)</span>
-          <input type="text" inputMode="numeric" autoFocus={index === 0} value={draft[opponent.id] ?? ''} placeholder="해당 금액이 없으면 0"
+          <input type="text" inputMode="numeric" autoFocus={index === 0} value={formatAmountInput(draft[opponent.id] ?? '')} placeholder="해당 금액이 없으면 0"
             className="h-10 w-full rounded border border-slate-300 px-3 text-right tabular-nums"
-            onChange={e => setDraft({ ...draft, [opponent.id]: e.target.value.replace(/\D/g, '') })} />
+            onChange={e => changeAmountInput(e.currentTarget, value => setDraft({ ...draft, [opponent.id]: value }))} />
         </label>)}
         <p className="text-sm font-semibold text-blue-900">관계별 합계: {sum.toLocaleString('ko-KR')}원</p>
         {issue && <p role="status" className="text-xs text-amber-800">{issue}</p>}

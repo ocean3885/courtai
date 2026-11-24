@@ -1,5 +1,6 @@
 import { type Cost, type Party } from './caseInput';
 import { applicationOwners } from './applicationCosts';
+import { formatAmountInput, changeAmountInput } from './amountInput';
 
 const control = 'mt-1 w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm';
 type Props = { cost: Cost; parties: Party[]; label: (p: Party) => string; update: (patch: Partial<Cost>) => void; policyEditor?: boolean; showRates?: boolean };
@@ -17,7 +18,7 @@ export function ApplicationCostAllocation({ cost: c, parties, label, update, pol
     </label>
     {!individual && <p className="text-xs text-slate-600">위 공통 기준을 따릅니다. 부담비율 변경은 연결된 모든 비용에 바로 반영됩니다.</p>}
     <label className="block text-sm">검토 인정액 (원) · 미입력 시 납부액 − 환급액
-      <input className={control} inputMode="numeric" value={c.recognized || ''} onChange={e => update({ recognized: e.target.value.replace(/[^0-9]/g, '') })} />
+      <input className={control + ' text-right tabular-nums'} inputMode="numeric" value={formatAmountInput(c.recognized || '')} onChange={e => changeAmountInput(e.currentTarget, recognized => update({ recognized }))} />
     </label></>}
     {!policyEditor && owners.length > 1 && <>
       <label className="block text-sm">신청인 사이 귀속 기준
