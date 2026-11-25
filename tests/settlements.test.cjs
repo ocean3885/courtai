@@ -210,7 +210,7 @@ test('2026카확1724 항소심 본소·반소 흡수 계산서의 소가·사건
   assert.doesNotMatch(mainOnly, /2025나203224/);
 });
 
-test('신청인 2명·피신청인 3명의 정산은 관계별 한 행으로 표시하고 역방향·0원·미입력 구분', () => {
+test('신청인 2명·피신청인 3명의 상환액 보고서는 역방향·0원·미입력을 구분', () => {
   const f = fixture();
   f.parties = ['a', 'a2', 'b', 'c', 'd'].map((id, index) => ({ id, name: id, group: index < 2 ? '신청인' : '피신청인' }));
   const s = f.stages[0];
@@ -219,17 +219,15 @@ test('신청인 2명·피신청인 3명의 정산은 관계별 한 행으로 표
   s.costs = [expense('a', '1200'), expense('a2', '0'), expense('b', '0'), expense('c', '600')];
   f.applicationCosts = [];
   const markup = renderToStaticMarkup(React.createElement(View, f));
-  const tables = [...markup.matchAll(/<table[^>]*aria-label="[^"]+ 관계별 최종 정산액"[^>]*>(.*?)<\/table>/gs)];
-  assert.equal(tables.length, 2);
-  const summary = tables.map(t => [...t[1].matchAll(/<tbody[^>]*>(.*?)<\/tbody>/gs)][0][1]);
-  const cells = summary.flatMap(body => [...body.matchAll(/<tr[^>]*>(.*?)<\/tr>/gs)].map(row =>
-    [...row[1].matchAll(/<(?:th|td)[^>]*>(.*?)<\/(?:th|td)>/gs)].slice(0, 3).map(cell => cell[1].replace(/<[^>]*>/g, ''))));
-  assert.deepEqual(cells, [
-    ['b', 'b→a', '최종 지급액200원'], ['c', 'c→a', '최종 지급액50원'], ['d', '입력 확인 필요', '최종 지급액확인 필요'],
-    ['b', '지급 없음', '최종 지급액0원'], ['c', 'a2→c', '최종 지급액150원'], ['d', '입력 확인 필요', '최종 지급액확인 필요'],
+  const report = markup.match(/<ol[^>]*>(.*?)<\/ol>/s)[1];
+  const headings = [...report.matchAll(/<h4[^>]*>(.*?)<\/h4>/gs)]
+    .map(match => match[1].replace(/<[^>]*>/g, '').replace(/^.\. /, ''));
+  assert.deepEqual(headings, [
+    'b → a에게 200원', 'c → a에게 50원', 'd · a 계산 미완료',
+    'b · a2 지급할 금액 없음', 'a2 → c에게 150원', 'd · a2 계산 미완료',
   ]);
   assert.equal((markup.match(/>계산 상세<\/summary>/g) || []).length, 6);
   assert(!markup.includes('당사자별 상환 및 상계 정산 내역'));
-  assert(markup.indexOf('관계별 최종 정산액') < markup.indexOf('인정 비용 총액'));
+  assert(markup.indexOf('최종 상환액 및 계산 내역') < markup.indexOf('인정 비용 총액'));
   assert(!/<details[^>]*\bopen\b/.test(markup), '계산 상세는 기본 접힘');
 });

@@ -8,6 +8,7 @@ const { renderToStaticMarkup } = require('react-dom/server');
 const load = require('./load-ts.cjs')();
 const { calculateLitigationCosts, describeOrder } = load('src/app/litigation-costs/litigationCalculation.ts');
 const { money } = load('src/app/litigation-costs/costReview.ts');
+const { buildSettlementReport } = load('src/app/litigation-costs/settlementReport.ts');
 
 function component(file) {
   const source = ts.transpileModule(fs.readFileSync(`src/app/litigation-costs/${file}.tsx`, 'utf8'), {
@@ -47,6 +48,48 @@ function sample35081() {
   };
 }
 const calculate = f => calculateLitigationCosts(f.parties, f.stages, f.applicationCosts);
+
+test('상환액 보고서는 동일한 신청인별 금액·산식만 묶고 실제 배분 계수로 산식을 표시', () => {
+  const f = sample35081(), result = calculate(f);
+  const report = buildSettlementReport(result);
+  assert.equal(report.length, 2);
+  assert.deepEqual(report.map(group => group.rows.map(row => [row.payer.id, row.receiver.id])),
+    [[['b', 'a'], ['b', 'a2']], [['c', 'a'], ['c', 'a2']]]);
+  assert.equal(report[0].formula,
+    '9,152,233 × 1/2 × 2/3 × 1/2 − 7,600,000 × 105,361,798/162,505,969 × 1/3 × 1/2 + 233,227 × 1/2 × 2/3 × 1/2');
+  assert(report[1].formula.includes('57,144,171/162,505,969'));
+  const content = text(html(View, f));
+  assert(content.includes('박관수 → 박경임, 박경순에게 각 742,991원'));
+  assert(content.includes('이보순 → 박경임, 박경순에게 각 1,118,828원'));
+  assert(content.includes('= ' + report[0].formula));
+
+  // The same final amount alone cannot establish the same calculation basis.
+  const changed = { ...result, settlements: result.settlements.map(row => row.a.id === 'a2'
+    ? { ...row, forward: { n: row.forward.n + BigInt(1), d: row.forward.d } } : row) };
+  assert.equal(buildSettlementReport(changed).length, 4);
+});
+
+test('상환액 보고서는 반대 지급 방향·0원·미완료 상태를 구별', () => {
+  const f = sample35081();
+  f.stages[0].costs = [expense('a', 'a', '기타 비용', '0'), expense('b', 'b', '기타 비용', '900')];
+  f.stages[0].rules = [rule({ left: ['a'], right: ['b'] })];
+  f.stages[0].members = { a: {}, b: {} };
+  f.applicationCosts = [];
+  let result = calculate(f);
+  const reverse = buildSettlementReport(result)[0];
+  assert.equal(reverse.rows[0].payer.id, 'a');
+  assert.equal(reverse.rows[0].receiver.id, 'b');
+  assert(reverse.formula.startsWith('−(0 − '));
+  assert(text(html(View, f)).includes('박경임 → 박관수에게 300원'));
+
+  f.stages[0].costs[1].paid = '0';
+  assert(text(html(View, f)).includes('지급할 금액 없음'));
+  f.stages[0].costs.pop();
+  result = calculate(f);
+  assert(buildSettlementReport(result)[0].rows[0].missing);
+  assert.equal(buildSettlementReport(result)[0].formula, '');
+  assert(text(html(View, f)).includes('계산 미완료'));
+});
 
 test('35081: 인정액 합계와 관계별 상계액을 구분하고 독립 검산값을 화면·인쇄에 동일 반영', () => {
   const f = sample35081(), r = calculate(f);

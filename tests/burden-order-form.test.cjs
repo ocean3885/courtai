@@ -62,11 +62,10 @@ test('화면에서 항소심 주문 확인 → 총비용 선택 → 비율 변�
   // Re-render between controlled input changes, just as React does.
   nodes(appealSection(), n => n.type === 'input' && n.props.inputMode === 'numeric')[1].props.onChange({ target: { value: '5' } });
   const rows = nodes(render(), n => n.type === 'tbody')[0].props.children;
-  assert.deepEqual(rows.slice(0, 3).map(text), [
-    'b신청인 측 부담0상대방 측 부담전부1심 · 1심 비용',
-    'c신청인 측 부담2/5상대방 측 부담3/5항소심 · 소송총비용',
-    'd신청인 측 부담2/5상대방 측 부담3/5항소심 · 소송총비용',
-  ]);
+  assert.deepEqual(rows.slice(0, 3).map(row => nodes(row, n => n.type === 'strong').map(text)),
+    [['0', '전부'], ['2/5', '3/5'], ['2/5', '3/5']]);
+  assert.deepEqual(rows.slice(0, 3).map(row => text(nodes(row, n => n.type === 'td').at(-1))),
+    ['적용 주문1심 · 1심 비용', '적용 주문항소심 · 소송총비용', '적용 주문항소심 · 소송총비용']);
   assert.deepEqual(Object.keys(stages[0].members), ['a', 'b', 'c', 'd']);
   assert.deepEqual(stages[0].rules[0].right, ['b', 'c', 'd']);
 });
@@ -76,7 +75,8 @@ test('주문 대상 체크박스는 참여자 목록과 독립적이며 부담 �
   nodes(appealSection(), n => n.type === 'button' && text(n) === '이 주문 확인·반영')[0].props.onClick();
   const labels = nodes(appealSection(), n => n.type === 'label' && text(n) === 'd');
   nodes(labels[0], n => n.type === 'input')[0].props.onChange({ target: { checked: false } });
-  nodes(appealSection(), n => n.type === 'button' && text(n) === '신청인 전부 부담 (100%)')[0].props.onClick();
+  assert.equal(nodes(appealSection(), n => n.type === 'button' && text(n) === '신청인 전부 부담 (100%)').length, 0);
+  nodes(appealSection(), n => n.type === 'button' && text(n) === '각자 부담')[0].props.onClick();
   assert.deepEqual(stages[1].rules[0].right, ['c']);
   assert.deepEqual(Object.keys(stages[1].members), ['a', 'c', 'd']);
   assert.match(text(appealSection()), /이 주문에 포함되지 않은 참여자: d/);
@@ -144,17 +144,31 @@ test('다수 당사자의 최종 주문은 심급·신청인별로 묶고 부담
   const appeal = { ...first, id: 'appeal', level: '항소심', members: { a: {}, a2: {}, b: {} }, rules: [{ ...first.rules[0], id: 'r2', right: ['b'], scope: '소송총비용', mode: '각자 부담' }] };
   const root = expand(BurdenOrderSection({ stages: [first, appeal], parties: people, label, onUpdateStageRules() {} }));
   const tables = nodes(root, n => n.type === 'table');
-  assert.equal(tables.length, 4);
+  assert.equal(tables.length, 2);
   assert.deepEqual(tables.map(t => t.props['aria-label']), [
-    '1심 비용 · a 최종 적용 주문', '1심 비용 · a2 최종 적용 주문', '항소심 비용 · a 최종 적용 주문', '항소심 비용 · a2 최종 적용 주문',
+    '1심 비용 최종 적용 주문', '항소심 비용 최종 적용 주문',
   ]);
-  for (const table of tables.slice(0, 2)) {
-    const rows = nodes(table, n => n.type === 'tbody')[0].props.children;
+  assert.deepEqual(nodes(tables[0], n => n.type === 'th' && n.props.scope === 'col').map(text),
+    ['신청인 측', '부담 비율', '피신청인 측', '부담 비율', '적용 주문']);
+  const groups = nodes(tables[0], n => n.type === 'tbody');
+  assert.equal(groups.length, 2);
+  for (const [index, group] of groups.entries()) {
+    const rows = group.props.children;
     assert.equal(rows.length, 3);
-    assert.equal(text(rows[0]), 'b각자 부담항소심 · 소송총비용');
-    assert.equal(nodes(rows[0], n => n.type === 'td' && n.props.colSpan === 2).length, 1);
-    assert.equal(text(rows[1]), 'c신청인 측 부담1/3상대방 측 부담2/31심 · 1심 비용');
-    assert.equal(text(rows[2]), 'd신청인 측 부담1/3상대방 측 부담2/31심 · 1심 비용');
+    for (const [relation, row] of rows.entries()) {
+      const cells = nodes(row, n => n.type === 'td' || n.type === 'th');
+      assert.equal(cells.length, 5);
+      assert.equal(nodes(cells[0], n => n.props.title !== undefined).map(text).join(''), index === 0 ? 'a' : 'a2');
+      assert.equal(nodes(cells[2], n => n.props.title !== undefined).map(text).join(''), ['b', 'c', 'd'][relation]);
+      if (relation === 0) {
+        assert(text(cells[1]).endsWith('각자 부담'));
+        assert(text(cells[3]).endsWith('각자 부담'));
+        assert(text(cells[4]).endsWith('항소심 · 소송총비용'));
+      } else {
+        assert.deepEqual(nodes(row, n => n.type === 'strong').map(text), ['1/3', '2/3']);
+        assert(text(cells[4]).endsWith('1심 · 1심 비용'));
+      }
+    }
   }
   assert(!text(root).includes('변경 표시'));
 });

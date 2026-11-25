@@ -14,7 +14,6 @@ type Props = {
 
 const modes = [
   ['2측 전부 부담', '상대방 전부 부담 (100%)'],
-  ['1측 전부 부담', '신청인 전부 부담 (100%)'],
   ['비율로 분담', '비율로 분담'],
   ['각자 부담', '각자 부담'],
 ] as const;
@@ -92,7 +91,7 @@ function OrderEditor({ stage, index, rule, parties, label, change }: {
       {rule.scope === '소송총비용' && <p className="rounded bg-blue-50 p-2 text-xs text-blue-900">
         선택한 당사자 관계의 종전 심급 비용까지 이 주문 비율로 덮어씁니다 (미선택 당사자는 종전 주문 유지).
       </p>}
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-2 sm:grid-cols-3">
         {modes.map(([value, title]) => <button key={value} type="button" aria-pressed={rule.mode === value}
           onClick={() => change({ mode: value })}
           className={`rounded-lg border p-3 text-left text-sm ${rule.mode === value ? 'border-blue-600 bg-blue-50 font-bold text-blue-950 ring-1 ring-blue-600' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}>
@@ -126,22 +125,18 @@ function OrderEditor({ stage, index, rule, parties, label, change }: {
   );
 }
 
-function OrderShares({ rule, owner }: { rule: Rule; owner: string }) {
-  const cell = 'text-center md:table-cell md:px-4 md:py-3';
-  if (rule.mode === '각자 부담') return <td colSpan={2} className={cell + ' col-span-2 rounded bg-slate-50 p-2 font-semibold text-slate-600'}>각자 부담</td>;
-  const rates = (() => {
+function OrderShare({ rule, owner, applicant }: { rule: Rule; owner: string; applicant: boolean }) {
+  if (rule.mode === '각자 부담') return <span className="font-semibold text-slate-600">각자 부담</span>;
+  const rate = (() => {
     try {
       const onLeft = rule.left.includes(owner);
-      return [burden(rule, !onLeft), burden(rule, onLeft)];
+      return burden(rule, applicant ? !onLeft : onLeft);
     } catch {
       return null;
     }
   })();
-  if (!rates) return <td colSpan={2} className={cell + ' col-span-2 text-amber-800'}>부담 비율 확인 필요</td>;
-  return <>{rates.map((rate, index) => <td key={index} className={cell}>
-    <span className="mb-1 block text-xs text-slate-500 md:hidden">{index === 0 ? '신청인 측 부담' : '상대방 측 부담'}</span>
-    <strong className={index === 0 ? 'text-base text-blue-900' : 'text-base text-slate-900'}>{rate.n === BigInt(0) ? '0' : rate.n === rate.d ? '전부' : String(rate.n) + '/' + String(rate.d)}</strong>
-  </td>)}</>;
+  if (!rate) return <span className="text-amber-800">부담 비율 확인 필요</span>;
+  return <strong className={applicant ? 'text-base text-blue-900' : 'text-base text-slate-900'}>{rate.n === BigInt(0) ? '0' : rate.n === rate.d ? '전부' : String(rate.n) + '/' + String(rate.d)}</strong>;
 }
 
 export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules }: Props) {
@@ -227,23 +222,43 @@ export function BurdenOrderSection({ stages, parties, label, onUpdateStageRules 
             const rows = summary.rows.filter(row => row.stage === index && row.claim === claim);
             return <div key={stage.id + ':' + (claim || '전체')} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
               <h4 className="border-b border-slate-200 bg-slate-100 px-4 py-3 text-sm font-bold text-slate-900">{stageLevel(stage, index)} 비용{claim && ' · ' + claim}</h4>
+              <table className="block w-full text-sm md:table md:table-fixed" aria-label={stageLevel(stage, index) + ' 비용' + (claim ? ' · ' + claim : '') + ' 최종 적용 주문'}>
+                <thead className="hidden bg-slate-50 text-left text-xs text-slate-600 md:table-header-group"><tr>
+                  <th scope="col" className="bg-blue-50/60 px-3 py-2.5 md:w-[22%]">신청인 측</th>
+                  <th scope="col" className="bg-blue-50/60 px-3 py-2.5 md:w-[12%]">부담 비율</th>
+                  <th scope="col" className="px-3 py-2.5 md:w-[22%]">피신청인 측</th>
+                  <th scope="col" className="px-3 py-2.5 md:w-[12%]">부담 비율</th>
+                  <th scope="col" className="px-3 py-2.5 md:w-[32%]">적용 주문</th>
+                </tr></thead>
               {parties.filter(isApplicantSideParty).map(applicant => {
                 const relations = rows.filter(row => row.owner === applicant.id);
                 if (!relations.length) return null;
-                return <div key={applicant.id} className="border-b border-slate-200 last:border-b-0">
-                  <h5 className="bg-blue-50/60 px-4 py-2.5 text-sm font-bold text-blue-950">{partyName(applicant.id)}</h5>
-                  <table className="block w-full text-sm md:table" aria-label={stageLevel(stage, index) + ' 비용' + (claim ? ' · ' + claim : '') + ' · ' + partyName(applicant.id) + ' 최종 적용 주문'}>
-                    <thead className="hidden bg-slate-50 text-left text-xs text-slate-600 md:table-header-group"><tr>
-                      {['상대방', '신청인 측 부담', '상대방 측 부담', '적용 주문'].map(title => <th key={title} scope="col" className="px-4 py-2.5">{title}</th>)}
-                    </tr></thead>
-                    <tbody className="block divide-y divide-slate-100 md:table-row-group">{relations.map(row => <tr key={row.opponent} className="grid grid-cols-2 gap-3 p-4 md:table-row md:p-0">
-                      <th scope="row" className="col-span-2 text-left font-semibold text-slate-900 md:table-cell md:px-4 md:py-3">{partyName(row.opponent)}</th>
-                      <OrderShares rule={row.rule} owner={row.owner} />
-                      <td className="col-span-2 text-xs text-slate-600 md:table-cell md:px-4 md:py-3"><span className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{stageLevel(stages[row.source], row.source)} · {row.rule.scope}</span></td>
-                    </tr>)}</tbody>
-                  </table>
-                </div>;
+                return <tbody key={applicant.id} className="block divide-y divide-slate-100 border-t-2 border-slate-200 first-of-type:border-t-0 md:table-row-group">
+                  {relations.map(row => <tr key={row.opponent} className="grid grid-cols-2 gap-x-3 gap-y-2 p-3 md:table-row md:p-0">
+                    <th scope="row" className="order-1 min-w-0 text-left align-top font-semibold text-blue-950 md:table-cell md:bg-blue-50/40 md:px-3 md:py-3">
+                      <span className="mb-1 block text-xs font-normal text-slate-500 md:hidden">신청인 측</span>
+                      <span className="line-clamp-2 break-all" title={partyName(row.owner)}>{partyName(row.owner)}</span>
+                    </th>
+                    <td className="order-3 min-w-0 align-top md:table-cell md:bg-blue-50/40 md:px-3 md:py-3">
+                      <span className="mb-1 block text-xs text-slate-500 md:hidden">신청인 측 부담</span>
+                      <OrderShare rule={row.rule} owner={row.owner} applicant />
+                    </td>
+                    <td className="order-2 min-w-0 align-top font-semibold text-slate-900 md:table-cell md:px-3 md:py-3">
+                      <span className="mb-1 block text-xs font-normal text-slate-500 md:hidden">피신청인 측</span>
+                      <span className="line-clamp-2 break-all" title={partyName(row.opponent)}>{partyName(row.opponent)}</span>
+                    </td>
+                    <td className="order-4 min-w-0 align-top md:table-cell md:px-3 md:py-3">
+                      <span className="mb-1 block text-xs text-slate-500 md:hidden">피신청인 측 부담</span>
+                      <OrderShare rule={row.rule} owner={row.owner} applicant={false} />
+                    </td>
+                    <td className="order-5 col-span-2 min-w-0 align-top text-xs text-slate-600 md:table-cell md:px-3 md:py-3">
+                      <span className="mb-1 block text-xs text-slate-500 md:hidden">적용 주문</span>
+                      <span className="inline-block rounded-md border border-slate-200 bg-slate-50 px-2 py-1">{stageLevel(stages[row.source], row.source)} · {row.rule.scope}</span>
+                    </td>
+                  </tr>)}
+                </tbody>;
               })}
+              </table>
             </div>;
           });
         })}

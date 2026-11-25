@@ -5,6 +5,7 @@ import { type Cost, type Party, type Stage } from './caseInput';
 import { money, type Amount, type CalculationStep } from './costReview';
 import { calculateLitigationCosts, type LitigationCalculation } from './litigationCalculation';
 import { CostStatementModal } from './CostStatementModal';
+import { buildSettlementReport } from './settlementReport';
 
 type Props = {
   parties: Party[];
@@ -66,6 +67,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
   const calculation = calculateLitigationCosts(parties, stages, applicationCosts);
   const { main, application, settlements } = calculation;
   const { lines, errors } = main;
+  const report = buildSettlementReport(calculation);
   const name = (id: string) => label(parties.find(p => p.id === id)!);
 
   return (
@@ -122,36 +124,34 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
         </div>
       )}
 
-      {!!settlements.length && <div className="space-y-4" aria-label="관계별 최종 정산액">
-        <h3 className={heading}>관계별 최종 정산액</h3>
-        {parties.filter(p => p.group === '신청인').map(applicant => {
-          const rows = settlements.filter(row => row.a.id === applicant.id);
-          if (!rows.length) return null;
-          return <div key={applicant.id} className="overflow-hidden rounded-xl border border-slate-200">
-            <h4 className="border-b border-blue-100 bg-blue-50 px-4 py-3 text-sm font-bold text-blue-950">{label(applicant)}</h4>
-            <table className="block w-full text-sm md:table" aria-label={label(applicant) + ' 관계별 최종 정산액'}>
-              <thead className="hidden bg-slate-50 text-left text-xs text-slate-600 md:table-header-group"><tr>
-                {['피신청인', '지급 방향', '최종 지급액', '상세'].map(title => <th key={title} scope="col" className="px-4 py-3">{title}</th>)}
-              </tr></thead>
-              <tbody className="block divide-y divide-slate-200 md:table-row-group">{rows.map(row => <tr key={row.b.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-white p-4 md:table-row md:p-0">
-                <th scope="row" className="col-span-2 text-left font-semibold text-slate-900 md:table-cell md:px-4 md:py-4">{label(row.b)}</th>
-                <td className="col-span-2 text-slate-600 md:table-cell md:px-4 md:py-4">
-                  {row.missing ? <span className="text-amber-800">입력 확인 필요</span> : row.payable.n === BigInt(0) ? '지급 없음' : <span className="inline-flex flex-wrap items-center gap-x-1.5"><span>{label(row.payer)}</span><span aria-label="지급">→</span><span>{label(row.receiver)}</span></span>}
-                </td>
-                <td className="font-bold tabular-nums md:table-cell md:px-4 md:py-4 md:text-right">
-                  <span className="mr-2 text-xs font-normal text-slate-500 md:hidden">최종 지급액</span>
-                  {row.missing ? <span className="text-sm font-medium text-amber-800">확인 필요</span> : <span className="whitespace-nowrap text-lg text-blue-950">{money(row.payable)}</span>}
-                </td>
-                <td className="col-span-2 min-w-0 text-right align-top md:table-cell md:px-4 md:py-4"><SettlementDetails row={row} label={label} /></td>
-              </tr>)}</tbody>
-            </table>
-          </div>;
-        })}
+      {!!settlements.length && <div className="space-y-2" aria-label="최종 상환액 및 계산 내역">
+        <h3 className={heading}>최종 상환액 및 계산 내역</h3>
+        <ol className="divide-y divide-slate-200 rounded-lg border border-slate-200">
+          {report.map(({ rows, formula }, index) => {
+            const row = rows[0];
+            const marker = index < 14 ? '가나다라마바사아자차카타파하'[index] : String(index + 1);
+            const recipients = rows.map(item => label(item.receiver)).join(', ');
+            return <li key={row.a.id + ':' + row.b.id} className="min-w-0 space-y-2 p-3 sm:px-4">
+              <h4 className="break-words text-sm font-semibold leading-relaxed text-slate-900">
+                {marker}. {row.missing
+                  ? <>{label(row.b)} · {label(row.a)} <span className="text-amber-800">계산 미완료</span></>
+                  : row.payable.n === BigInt(0)
+                    ? <>{label(row.b)} · {label(row.a)} <span className="text-slate-600">지급할 금액 없음</span></>
+                    : <>{label(row.payer)} → {recipients}에게 {rows.length > 1 ? '각 ' : ''}<strong className="tabular-nums text-blue-950">{money(row.payable)}</strong></>}
+              </h4>
+              {row.missing
+                ? <p className="text-xs text-amber-800">{row.missing}</p>
+                : <p className="break-words text-xs leading-relaxed tabular-nums text-slate-700" aria-label="상환액 산식">= {formula}</p>}
+              <SettlementDetails row={row} label={label} />
+            </li>;
+          })}
+        </ol>
+        <p className="text-xs text-slate-500">산식은 원 단위이며, 최종 지급액에서만 1원 미만을 버립니다.</p>
       </div>}
 
       {(!!main.expenses.length || !!application.expenses.length) && (
-        <div className="space-y-2 text-sm">
-          <h3 className={heading}>인정 비용 총액 (부담률 적용 전)</h3>
+        <details className="space-y-2 rounded-lg border border-slate-200 p-3 text-sm">
+          <summary className="cursor-pointer text-sm font-bold text-slate-900">인정 비용 총액 (부담률 적용 전)</summary>
           {calculation.errors.length ? <p>인정 비용 합계 입력 확인 필요</p> : <>
             <p>본안비용소계: 신청인 측 {calculation.mainTotals.applicant.toLocaleString('ko-KR')}원 · 상대방 측 {calculation.mainTotals.respondent.toLocaleString('ko-KR')}원</p>
             <p>신청비용소계: {calculation.applicationTotal.toLocaleString('ko-KR')}원</p>
@@ -159,7 +159,7 @@ export function CostReview({ parties, stages, applicationCosts, applicationCaseN
           </>}
           <p className="text-xs text-slate-500">관계별 정산액은 인정 비용에 배분·부담비율과 상계를 적용한 금액입니다.</p>
           <details className="text-xs text-slate-500"><summary className="cursor-pointer font-semibold">계산 기준</summary><p className="mt-2 leading-relaxed">{calculation.roundingDescription}</p></details>
-        </div>
+        </details>
       )}
 
       {/* 4. 본안 소송비용 심급별 부담 내역 테이블 */}
