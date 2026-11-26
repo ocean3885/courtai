@@ -275,7 +275,7 @@ function Checks({
 }
 
 function memberHasEntries(m: Member) {
-  return Boolean(m.role || m.number || m.value || m.counterRole || m.counterValue || m.relationValues || m.counterRelationValues);
+  return Boolean(m.role || m.number || m.value || m.counterValue || m.relationValues || m.counterRelationValues);
 }
 
 function hasStageData(s: Stage): boolean {
@@ -501,6 +501,7 @@ export default function PartyForm() {
       [...(s.mainValues || []), ...(s.counterValues || [])].some(row => row.ids.includes(id)) ||
       s.costs.some((c) => c.payer === id || c.ids.includes(id)) ||
       s.rules.some((r) => [...r.left, ...r.right].includes(id)) ||
+      Boolean(s.partialCounter?.counterPlaintiffIds.includes(id) || s.partialCounter?.counterDefendantIds.includes(id)) ||
       Object.values(s.members).some(m => Object.hasOwn(m.relationValues || {}, id) || Object.hasOwn(m.counterRelationValues || {}, id))
     );
   }
@@ -599,7 +600,7 @@ export default function PartyForm() {
   function renderSidePartySection(s: Stage, sLevel: Level, sidePeople: Party[], isAppSide: boolean) {
     const sideTitle = isAppSide ? '신청인 측 당사자' : '피신청인 측 당사자';
     const hasMainValue = !s.counter
-      ? Boolean(s.mainValueTarget) || sLevel !== '1심'
+      ? sLevel !== '1심' || s.useIndividualValues !== false
       : s.mainValueTarget
         ? (s.mainValueTarget === '신청인측') === isAppSide
         : sLevel !== '1심';
@@ -612,11 +613,7 @@ export default function PartyForm() {
     const allBundles = s[bundleKey] || [];
     const sideBundles = hasClaimValue ? allBundles.filter((row) => isApplicantBundle(row) === isAppSide) : [];
     const individualValuesEnabled = hasClaimValue && (hasCounterValue ? s.useCounterIndividualValues === true : s.useIndividualValues !== false);
-    const columnLayout = s.counter
-      ? hasClaimValue
-        ? 'min-w-[470px] grid-cols-[minmax(80px,1fr)_86px_50px_84px_minmax(120px,1.3fr)]'
-        : 'min-w-[350px] grid-cols-[minmax(80px,1fr)_86px_50px_84px]'
-      : hasClaimValue
+    const columnLayout = hasClaimValue
         ? 'min-w-[400px] grid-cols-[minmax(88px,1.1fr)_94px_56px_minmax(130px,1.5fr)]'
         : 'grid-cols-[minmax(88px,1fr)_94px_56px]';
     const compactControl =
@@ -693,7 +690,6 @@ export default function PartyForm() {
               <span>당사자</span>
               <span>지위</span>
               <span>번호</span>
-              {s.counter && <span>반소 지위</span>}
               {hasClaimValue && <span>{claimName} (원)</span>}
             </div>
 
@@ -739,21 +735,6 @@ export default function PartyForm() {
                         });
                       }}
                     />
-                    {s.counter && (
-                      <select
-                        aria-label={label(p) + ' 반소 지위'}
-                        className={compactControl}
-                        value={m.counterRole}
-                        onChange={(e) => changeMember(p.id, { counterRole: e.target.value })}
-                      >
-                        <option value="">선택</option>
-                        {['반소원고', '반소피고'].map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    )}
                     {bundle ? (
                       <div
                         title={`${bundleShort} 공통 소가로 묶여 있습니다.`}
@@ -1662,10 +1643,15 @@ export default function PartyForm() {
                       <th className="p-2 font-medium text-slate-900">{label(p)}</th>
                       {stages.map((s) => {
                         const m = s.members[p.id];
+                        const counterParty = !s.partialCounter ||
+                          s.partialCounter.counterPlaintiffIds.includes(p.id) || s.partialCounter.counterDefendantIds.includes(p.id);
+                        const derivedCounterRole = s.counter && counterParty && s.mainValueTarget
+                          ? ((s.mainValueTarget === '신청인측') === isApplicantSideParty(p) ? '반소피고' : '반소원고')
+                          : s.counter && !s.partialCounter ? m?.counterRole : '';
                         return (
                           <td key={s.id} className="p-2 text-slate-700">
                             {m
-                              ? [m.role || '지위 미입력', m.number, m.counterRole].filter(Boolean).join(' ')
+                              ? [m.role || '지위 미입력', m.number, derivedCounterRole].filter(Boolean).join(' ')
                               : '참여 미선택'}
                           </td>
                         );
@@ -1759,11 +1745,15 @@ export default function PartyForm() {
         const displayedValue = s.value;
         const useCalculatedCounterValue = s.useCounterIndividualValues === true;
         const displayedCounterValue = s.counterValue;
-        const canEditMainIndividualValues = sLevel !== '1심' || Boolean(s.mainValueTarget);
+        const canEditMainIndividualValues = !s.counter || sLevel !== '1심' || Boolean(s.mainValueTarget);
         const counterTarget = s.mainValueTarget === '신청인측' ? '피신청인측' : '신청인측';
         const people = parties.filter((p) => s.members[p.id]);
         const applicantPeople = people.filter((p) => isApplicantSideParty(p));
         const opponentPeople = people.filter((p) => !isApplicantSideParty(p));
+        const counterPlaintiffCandidates = s.mainValueTarget
+          ? people.filter(p => isApplicantSideParty(p) !== (s.mainValueTarget === '신청인측')) : [];
+        const counterDefendantCandidates = s.mainValueTarget
+          ? people.filter(p => isApplicantSideParty(p) === (s.mainValueTarget === '신청인측')) : [];
         const applicantCosts = s.costs.filter((c) => isApplicantCost(c));
         const opponentCosts = s.costs.filter((c) => !isApplicantCost(c));
         const showParticipantChecks = sLevel !== '1심' || stages.length > 1 || parties.length > 2;
@@ -1790,18 +1780,23 @@ export default function PartyForm() {
                   change={(number) => patchStage(s.id, { number })}
                 />
               </div>
-              {(sLevel === '1심' || s.counter || s.mainValueTarget) && (
+              {s.counter && (
                 <div className="min-w-[180px] flex-1 sm:max-w-xs">
                   <Pick
-                    label={sLevel + ' 소가 대상'}
+                    label="본소 원고 측"
                     value={s.mainValueTarget || ''}
                     options={['신청인측', '피신청인측']}
                     names={valueTargetLabels}
                     change={(target) => {
                       if (target === '신청인측' || target === '피신청인측') {
-                        patchStage(s.id, { mainValueTarget: target });
+                        patchStage(s.id, { mainValueTarget: target,
+                          members: Object.fromEntries(Object.entries(s.members).map(([id, value]) => [id, { ...value, counterRole: '' }])),
+                          partialCounter: s.partialCounter && s.mainValueTarget !== target
+                            ? { counterPlaintiffIds: [], counterDefendantIds: [] } : s.partialCounter });
                       } else {
-                        patchStage(s.id, { mainValueTarget: undefined, useIndividualValues: false, useCounterIndividualValues: false });
+                        patchStage(s.id, { mainValueTarget: undefined, useIndividualValues: false, useCounterIndividualValues: false,
+                          members: Object.fromEntries(Object.entries(s.members).map(([id, value]) => [id, { ...value, counterRole: '' }])),
+                          partialCounter: s.partialCounter ? { counterPlaintiffIds: [], counterDefendantIds: [] } : undefined });
                       }
                     }}
                   />
@@ -1810,7 +1805,7 @@ export default function PartyForm() {
               <div className="min-w-[220px] flex-1 sm:max-w-xs">
                 <Field
                   claimValue
-                  label={sLevel + ' 소가 (원)'}
+                  label={s.counter ? '본소 전체 소가 (원)' : sLevel + ' 소가 (원)'}
                   value={displayedValue}
                   change={(value) => patchStage(s.id, { value })}
                 />
@@ -1841,30 +1836,36 @@ export default function PartyForm() {
                     if (
                       !checked &&
                       (s.rules.some((r) => r.claim) ||
+                        s.partialCounter ||
                         s.counterValue ||
                         s.counterValues?.length ||
                         s.counterNumber ||
-                        people.some((p) => s.members[p.id].counterRole || s.members[p.id].counterValue) ||
+                        people.some((p) => s.members[p.id].counterValue) ||
                         s.costs.some(c => c.claim || c.claimSplit || c.mainRuleId || c.counterRuleId))
                     ) {
-                      setNotice('반소 사건번호·소가·반소 지위·부담 관계·비용 구분 입력을 먼저 비운 뒤 반소 선택을 해제하세요.');
+                      setNotice('일부반소 선택·반소 사건번호·소가·부담 관계·비용 구분 입력을 먼저 비운 뒤 반소 선택을 해제하세요.');
                       return;
                     }
                     setNotice('');
-                    patchStage(s.id, checked ? { counter: '반소', counterFeeMode: '합산' } : { counter: '', useCounterIndividualValues: false, counterFeeMode: undefined });
+                    patchStage(s.id, checked
+                      ? { counter: '반소', counterFeeMode: '합산', mainValueTarget: undefined, useCounterIndividualValues: false }
+                      : {
+                          counter: '', partialCounter: undefined, useCounterIndividualValues: false, counterFeeMode: undefined,
+                          members: Object.fromEntries(Object.entries(s.members).map(([id, value]) => [id, { ...value, counterRole: '' }])),
+                        });
                   }}
                 />
                 반소
               </label>
             </div>
-            {!s.counter && s.mainValueTarget && (
+            {!s.counter && (
               <p className="text-xs text-slate-600">전체 소가는 직접 입력하며 개별소가와 별도로 유지합니다. 양측 변호사보수 한도는 위 심급 소가로 계산합니다. 개별소가는 비용 안분에 사용하고, 합산·흡수·기타는 전체 소가와의 관계만 기록합니다.</p>
             )}
             {s.counter && (
               <div className="space-y-3 rounded-lg border border-blue-200 bg-blue-50/40 p-3">
                 <p className="text-sm text-slate-800" aria-live="polite">
-                  <span className="font-semibold">반소 대상</span>{' '}
-                  {s.mainValueTarget ? valueTargetLabels[counterTarget] : `${sLevel} 소가 대상을 선택하세요.`}
+                  <span className="font-semibold">반소 원고 측</span>{' '}
+                  {s.mainValueTarget ? valueTargetLabels[counterTarget] : '본소 원고 측을 선택하세요.'}
                 </p>
                 <div className="flex flex-wrap items-end gap-3">
                   <div className="min-w-[200px] flex-1 sm:max-w-xs">
@@ -1892,7 +1893,34 @@ export default function PartyForm() {
                     />
                     반소 개별소가
                   </label>
+                  {(people.length > 2 || s.partialCounter) && (
+                    <label className={`${stageCheckbox} border-slate-300 bg-white text-slate-700`}>
+                      <input type="checkbox" className="h-4 w-4 accent-blue-700" checked={Boolean(s.partialCounter)}
+                        onChange={(e) => patchStage(s.id, { partialCounter: e.currentTarget.checked
+                          ? { counterPlaintiffIds: [], counterDefendantIds: [] } : undefined })} />
+                      일부반소
+                    </label>
+                  )}
                 </div>
+                {s.partialCounter && <div className="space-y-3 rounded-lg border border-blue-200 bg-white p-3">
+                  {s.mainValueTarget ? <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <Checks title="반소원고(본소 피고 중 선택)"
+                        choices={counterPlaintiffCandidates.map(p => ({ id: p.id, label: label(p) }))}
+                        selected={s.partialCounter.counterPlaintiffIds}
+                        change={(counterPlaintiffIds) => patchStage(s.id, { partialCounter: { ...s.partialCounter!, counterPlaintiffIds } })} />
+                      <Checks title="반소피고(본소 원고 중 선택)"
+                        choices={counterDefendantCandidates.map(p => ({ id: p.id, label: label(p) }))}
+                        selected={s.partialCounter.counterDefendantIds}
+                        change={(counterDefendantIds) => patchStage(s.id, { partialCounter: { ...s.partialCounter!, counterDefendantIds } })} />
+                    </div>
+                    {(!s.partialCounter.counterPlaintiffIds.length || !s.partialCounter.counterDefendantIds.length) &&
+                      <p className="text-xs text-amber-800">반소원고와 반소피고를 각각 한 명 이상 선택하세요.</p>}
+                    {s.partialCounter.counterPlaintiffIds.length + s.partialCounter.counterDefendantIds.length === people.length &&
+                      <p className="text-xs text-amber-800">모든 당사자가 반소에 참여한다면 일부반소 체크를 해제하세요.</p>}
+                  </> : <p className="text-xs text-amber-800">먼저 본소 원고 측을 선택하세요.</p>}
+                  <p className="text-xs text-slate-600">당사자 선택은 저장됩니다. 일부반소 상환액 계산과 PDF 인쇄는 계산 로직 연결 후 사용할 수 있습니다.</p>
+                </div>}
                 <fieldset className="min-w-0 space-y-3 rounded-lg border border-blue-200 bg-white p-3.5">
                   <legend className="px-1 text-sm font-semibold text-slate-900">보수 산정 시 본소·반소 소가 적용</legend>
                   <p className="text-xs text-slate-600">본소·반소를 함께 대리한 양측 보수에 적용합니다. 대리 범위가 다르면 각 보수 항목에서 지정하세요.</p>
@@ -1976,10 +2004,11 @@ export default function PartyForm() {
                       ...(s.counterValues || []).flatMap((row,i) => row.ids.includes(id) ? [`반소 소가 내역 ${i+1}`] : []),
                       ...s.costs.flatMap((c,i) => c.payer === id || c.ids.includes(id) ? [`비용 ${i+1} (${c.title || c.kind})`] : []),
                       ...s.rules.flatMap((r,i) => [...r.left,...r.right].includes(id) ? [`부담 관계 ${i+1}`] : []),
+                      ...(s.partialCounter?.counterPlaintiffIds.includes(id) || s.partialCounter?.counterDefendantIds.includes(id) ? ['일부반소 대상'] : []),
                       ...Object.entries(s.members).flatMap(([owner, m]) => Object.hasOwn(m.relationValues || {}, id) || Object.hasOwn(m.counterRelationValues || {}, id) ? [`관계별 소가 (${label(parties.find(p => p.id === owner)!)})`] : []),
                     ];
                     if (links.length || memberHasEntries(s.members[id])) {
-                      setNotice(links.length ? `${label(removed)}: ${links.join(', ')}의 연결을 먼저 정리하세요.` : `${label(removed)}의 지위·번호·소가·반소 지위 입력을 먼저 정리하세요.`);
+                      setNotice(links.length ? `${label(removed)}: ${links.join(', ')}의 연결을 먼저 정리하세요.` : `${label(removed)}의 지위·번호·소가 입력을 먼저 정리하세요.`);
                       return;
                     }
                   }
@@ -2120,12 +2149,17 @@ export default function PartyForm() {
       </div>
 
       {/* 4. 판결의 소송비용부담 주문 */}
-      <BurdenOrderSection
-        stages={stages}
-        parties={parties}
-        label={label}
-        onUpdateStageRules={(stageId, rules) => patchStage(stageId, { rules })}
-      />
+      {stages.some(s => s.counter && s.partialCounter)
+        ? <section id="cost-burden-orders" className="rounded-xl border border-amber-300 bg-amber-50 p-5 text-sm text-amber-950">
+            <h2 className="font-bold">판결의 소송비용부담 주문</h2>
+            <p className="mt-2">일부반소의 당사자별 주문 연결은 아직 지원하지 않습니다. 선택한 반소 당사자는 저장할 수 있습니다.</p>
+          </section>
+        : <BurdenOrderSection
+            stages={stages}
+            parties={parties}
+            label={label}
+            onUpdateStageRules={(stageId, rules) => patchStage(stageId, { rules })}
+          />}
 
       <CostReview
         parties={parties}

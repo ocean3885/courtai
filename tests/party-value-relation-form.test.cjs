@@ -62,6 +62,83 @@ function setup(counter = false) {
   return { parties, render, click, current: () => states[4][0] };
 }
 
+test('반소 없는 1심은 소가 대상 선택 없이 개별소가를 입력하고 반소 때만 대상을 선택', () => {
+  const f = setup();
+  delete f.current().mainValueTarget;
+  f.current().useIndividualValues = false;
+  let root = f.render();
+  assert(!text(root).includes('본소 원고 측'));
+  assert.equal(nodes(root, n => n.type === 'input' && n.props.placeholder === '개별 소가 입력').length, 0);
+
+  const individualLabel = nodes(root, n => n.type === 'label' && text(n) === '개별소가')[0];
+  const checkbox = nodes(individualLabel, n => n.type === 'input')[0];
+  assert.equal(checkbox.props.disabled, false);
+  checkbox.props.onChange({ currentTarget: { checked: true } });
+  root = f.render();
+  assert.equal(nodes(root, n => n.type === 'input' && n.props.placeholder === '개별 소가 입력').length, 4);
+  assert(!text(root).includes('본소 원고 측'));
+
+  f.current().counter = '반소';
+  const counterView = text(f.render());
+  assert(counterView.includes('본소 원고 측'));
+  assert(counterView.includes('본소 전체 소가 (원)'));
+});
+
+test('반소 지위는 1대1·공동소송 모두 별도 입력하지 않음', () => {
+  const f = setup(true);
+  delete f.current().members.a2;
+  delete f.current().members.b2;
+  let root = f.render();
+  assert.equal(nodes(root, n => n.type === 'select' && n.props['aria-label']?.endsWith('반소 지위')).length, 0);
+
+  f.current().members.a2 = { role: '원고', number: '', value: '20000000', counterValue: '15000000', counterRole: '' };
+  root = f.render();
+  assert.equal(nodes(root, n => n.type === 'select' && n.props['aria-label']?.endsWith('반소 지위')).length, 0);
+});
+
+test('1대1 사건의 숨겨진 옛 반소 지위는 반소 해제를 막지 않음', () => {
+  const f = setup(true);
+  delete f.current().members.a2;
+  delete f.current().members.b2;
+  f.current().members.a.counterRole = '반소피고';
+  f.current().members.b.counterRole = '반소원고';
+  f.current().members.a.counterValue = '';
+  f.current().members.b.counterValue = '';
+  f.current().counterValue = '';
+  f.current().rules[0].claim = '';
+  const counterLabel = nodes(f.render(), n => n.type === 'label' && text(n) === '반소')[0];
+  nodes(counterLabel, n => n.type === 'input')[0].props.onChange({ target: { checked: false } });
+  assert.equal(f.current().counter, '');
+  assert.equal(f.current().members.a.counterRole, '');
+  assert.equal(f.current().members.b.counterRole, '');
+});
+
+test('일부반소를 켰을 때만 반소원고·반소피고 대상을 선택하고 저장', () => {
+  const f = setup(true);
+  let root = f.render();
+  const partialLabel = nodes(root, n => n.type === 'label' && text(n) === '일부반소')[0];
+  assert(partialLabel);
+  const counterControls = nodes(root, n => n.type === 'div' && n.props.className === 'flex flex-wrap items-end gap-3'
+    && text(n).includes('반소 개별소가') && text(n).includes('일부반소'))[0];
+  assert(counterControls);
+  assert(text(counterControls).indexOf('반소 개별소가') < text(counterControls).indexOf('일부반소'));
+  assert(!text(root).includes('반소원고(본소 피고 중 선택)'));
+  nodes(partialLabel, n => n.type === 'input')[0].props.onChange({ currentTarget: { checked: true } });
+  assert.deepEqual(f.current().partialCounter, { counterPlaintiffIds: [], counterDefendantIds: [] });
+
+  root = f.render();
+  assert(text(root).includes('반소원고(본소 피고 중 선택)'));
+  assert(text(root).includes('반소피고(본소 원고 중 선택)'));
+  assert(text(root).includes('상환액 계산과 PDF 인쇄는 계산 로직 연결 후 사용할 수 있습니다'));
+  assert.equal(nodes(root, n => n.type === 'select' && n.props['aria-label']?.endsWith('반소 지위')).length, 0);
+  const counterPlaintiffs = nodes(root, n => n.type === 'fieldset' && text(n).startsWith('반소원고(본소 피고 중 선택)'))[0];
+  nodes(counterPlaintiffs, n => n.type === 'input' && n.props.type === 'checkbox')[0].props.onChange({ target: { checked: true } });
+  root = f.render();
+  const counterDefendants = nodes(root, n => n.type === 'fieldset' && text(n).startsWith('반소피고(본소 원고 중 선택)'))[0];
+  nodes(counterDefendants, n => n.type === 'input' && n.props.type === 'checkbox')[0].props.onChange({ target: { checked: true } });
+  assert.deepEqual(f.current().partialCounter, { counterPlaintiffIds: ['b'], counterDefendantIds: ['a'] });
+});
+
 test('양측 관계 버튼은 설명만 저장하며 1심 소가·양측 보수 한도 유지, 기타도 저장 복원', () => {
   const f = setup();
   const before = calculateLitigationCosts(f.parties, [f.current()], []);

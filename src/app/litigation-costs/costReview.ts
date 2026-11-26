@@ -269,11 +269,11 @@ export function inferredCostClaim(c: Cost, s: Stage, parties: Party[]): CostClai
   const owners = (c.shared ? c.ids : [c.payer]).filter(Boolean);
   const claims = owners.map(id => {
     const m = s.members[id];
-    if (m?.counterRole === '반소원고') return '반소';
-    if (m?.role === '원고') return '본소';
     const p = parties.find(p => p.id === id);
     if (s.mainValueTarget && p)
       return (s.mainValueTarget === '신청인측') === isApplicantSideParty(p) ? '본소' : '반소';
+    if (m?.counterRole === '반소원고') return '반소';
+    if (m?.role === '원고') return '본소';
     return undefined;
   });
   return claims.length && claims[0] && claims.every(c => c === claims[0]) ? claims[0] : undefined;

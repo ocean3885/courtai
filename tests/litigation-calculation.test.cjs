@@ -61,7 +61,14 @@ test('상환액 보고서는 동일한 신청인별 금액·산식만 묶고 실
   const content = text(html(View, f));
   assert(content.includes('박관수 → 박경임, 박경순에게 각 742,991원'));
   assert(content.includes('이보순 → 박경임, 박경순에게 각 1,118,828원'));
+  assert(content.includes('아래 금액은 각 당사자 관계별 금액입니다.'));
+  assert(content.includes('박관수 → 박경임, 박경순 각 742,991원'));
   assert(content.includes('= ' + report[0].formula));
+  for (const amount of ['약 1,525,372원', '약 821,251원', '약 704,120원', '약 38,871원', '약 742,991원', '절사액 1원 미만']) {
+    assert(content.includes(amount), amount);
+  }
+  assert(!content.includes('400,374,832,400,000/487,517,907원'));
+  assert(!/약 [\d,]+\.\d+원/.test(content));
 
   // The same final amount alone cannot establish the same calculation basis.
   const changed = { ...result, settlements: result.settlements.map(row => row.a.id === 'a2'

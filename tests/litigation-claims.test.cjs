@@ -62,6 +62,17 @@ test('본소·반소 인지대를 각 제기자의 지출로 유지하고 서로
   assert.equal(lineAmount(result, 'b', '반소'), '0원');
 });
 
+test('숨긴 옛 반소 지위보다 선택한 본소 원고 측으로 인지대 청구를 결정', () => {
+  const s = stage([cost('b', '인지대', 50)], separateRules());
+  s.members.b.counterRole = '반소피고';
+  assert.equal(inferredCostClaim(s.costs[0], s, parties), '반소');
+  s.members.a2 = { role: '원고', counterRole: '반소원고' };
+  s.members.b2 = { role: '피고', counterRole: '반소피고' };
+  const multiParties = [...parties, { id: 'a2', group: '신청인' }, { id: 'b2', group: '피신청인' }];
+  assert.equal(inferredCostClaim(cost('a2', '인지대', 50), s, multiParties), '본소');
+  assert.equal(inferredCostClaim(cost('b2', '인지대', 50), s, multiParties), '반소');
+});
+
 test('인지대의 청구가 불명확하면 담당자 지정이 필요하고 명시한 지정이 자동 연결보다 우선', () => {
   const s = stage([cost('a', '인지대', 100)], separateRules());
   s.mainValueTarget = undefined; s.members.a = {};

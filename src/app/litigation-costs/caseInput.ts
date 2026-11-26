@@ -71,6 +71,7 @@ export type Rule = {
   rightMethod: string;
 };
 export type RecordedValue = { id: string; side?: PartySide; ids: string[]; amount: string };
+export type PartialCounterParties = { counterPlaintiffIds: string[]; counterDefendantIds: string[] };
 export type Stage = {
   mainValues?: RecordedValue[];
   counterValues?: RecordedValue[];
@@ -88,6 +89,7 @@ export type Stage = {
   useIndividualValues?: boolean;
   members: Record<string, Member>;
   counter: string;
+  partialCounter?: PartialCounterParties;
   counterValue: string;
   useCounterIndividualValues?: boolean;
   counterValueMode?: ValueMode;

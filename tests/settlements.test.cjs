@@ -54,6 +54,7 @@ test('화면과 인쇄 모두 상계·신청비용 가산 후에만 1원 미만 
       assert(content.includes('최종 지급액에서만 1원 미만 버림'));
       assert(!content.includes('10원 미만'));
       assert(!content.includes('단계별 절사'));
+      if (type === View) assert(content.includes('상환액 산식 ='));
     }
   }
 });
@@ -86,6 +87,7 @@ test('명시적 0원은 정산 완료, 비용 미입력 및 빈 금액은 화면
       assert.doesNotMatch(render(type, f), /에게 지급할/);
       assert.match(render(type, f), /입력/);
     }
+    assert.doesNotMatch(renderToStaticMarkup(React.createElement(View, f)), />계산 상세<\/summary>/);
   }
 });
 
@@ -100,9 +102,22 @@ test('음수 최종액은 신청인이 지급하는 양수 금액으로 표시�
     assert.match(text, type === View ? /신청인\s*→\s*상대방/ : /신청인이\(가\) 상대방에게 지급할/);
     assert.match(text, /350원/);
   }
+  const detail = render(View, f);
+  assert.match(detail, /정산 차액 · A − B \+ C \(신청인 기준\)-350원 \(신청인 지급 방향\)/);
+  assert.match(detail, /신청인 → 상대방 350원 · 절사액 0원/);
   const offset = settle(fixture('200', '1000', '1000'))[0];
   assert.equal(offset.payer.id, 'b');
   assert.equal(money(offset.payable), '100원');
+});
+
+test('계산 상세의 중간 금액은 원 단위까지만 표시하고 최종액은 정밀값으로 절사', () => {
+  const f = fixture('1', '11', '1');
+  f.stages[0].rules[0].d = '3';
+  const content = render(View, f);
+  assert.match(content, /정산 차액 · A − B \+ C \(신청인 기준\)약 -2원/);
+  assert.match(content, /신청인 → 상대방 2원 · 절사액 1원 미만/);
+  assert.doesNotMatch(content, /-7\/3원|1\/3원/);
+  assert.doesNotMatch(content, /\d+\.\d+원/);
 });
 
 test('신청비용 오류가 있으면 본안 계산이 되어도 최종 금액을 확정하지 않음', () => {
@@ -226,8 +241,59 @@ test('신청인 2명·피신청인 3명의 상환액 보고서는 역방향·0�
     'b → a에게 200원', 'c → a에게 50원', 'd · a 계산 미완료',
     'b · a2 지급할 금액 없음', 'a2 → c에게 150원', 'd · a2 계산 미완료',
   ]);
-  assert.equal((markup.match(/>계산 상세<\/summary>/g) || []).length, 6);
+  assert.equal((markup.match(/>계산 상세<\/summary>/g) || []).length, 4);
+  assert([...report.matchAll(/<li[^>]*>(.*?)<\/li>/gs)]
+    .filter(match => match[1].includes('계산 미완료'))
+    .every(match => !match[1].includes('계산 상세')), '미완료 관계에 부분 계산값을 표시하지 않아야 함');
   assert(!markup.includes('당사자별 상환 및 상계 정산 내역'));
   assert(markup.indexOf('최종 상환액 및 계산 내역') < markup.indexOf('인정 비용 총액'));
   assert(!/<details[^>]*\bopen\b/.test(markup), '계산 상세는 기본 접힘');
+});
+
+test('신청인 2명·피신청인 2명의 관계별 상환액이 모두 다르면 네 금액을 따로 표시', () => {
+  const f = fixture();
+  f.parties = ['a', 'a2', 'b', 'c'].map((id, index) => ({ id, name: id, group: index < 2 ? '신청인' : '피신청인' }));
+  f.stages[0].members = { a: {}, a2: {}, b: { value: '1' }, c: { value: '3' } };
+  f.stages[0].rules[0] = { ...f.stages[0].rules[0], left: ['a', 'a2'], right: ['b', 'c'], mode: '2측 전부 부담', rightMethod: '안분' };
+  f.stages[0].costs = [expense('a', '1000'), expense('a2', '2000'), expense('b', '0'), expense('c', '0')];
+  f.applicationCosts = [];
+
+  assert.deepEqual(settle(f).map(row => [row.a.id, row.b.id, money(row.payable)]), [
+    ['a', 'b', '250원'], ['a', 'c', '750원'], ['a2', 'b', '500원'], ['a2', 'c', '1,500원'],
+  ]);
+  const markup = renderToStaticMarkup(React.createElement(View, f));
+  const report = markup.match(/<ol[^>]*>(.*?)<\/ol>/s)[1];
+  const headings = [...report.matchAll(/<h4[^>]*>(.*?)<\/h4>/gs)]
+    .map(match => match[1].replace(/<[^>]*>/g, '').replace(/^.\. /, ''));
+  assert.deepEqual(headings, [
+    'b → a에게 250원', 'c → a에게 750원', 'b → a2에게 500원', 'c → a2에게 1,500원',
+  ]);
+});
+
+test('결과 화면은 최종 상환액을 먼저 보여주고 인정 비용은 배분 전 금액으로 구분', () => {
+  const f = fixture('1000', '200', '100');
+  f.stages[0].costs[0].evidence = '영수증 확인';
+  const markup = renderToStaticMarkup(React.createElement(View, f));
+  const table = markup.match(/<table[^>]*aria-label="심급·비목별 인정 비용"[^>]*>(.*?)<\/table>/s)?.[1];
+  assert(table, '인정 비용 표가 표시되어야 함');
+  assert(markup.indexOf('최종 상환액 및 계산 내역') < markup.indexOf('인정 비용 내역'));
+  assert.match(table, /1,000원/);
+  assert.match(table, /200원/);
+  assert.match(table, /100원/);
+  assert.match(table, /1,100원/);
+  assert.match(table, /산출 근거/);
+  assert.match(table, /영수증 확인/);
+  assert.doesNotMatch(table, /<details/, '비용별 근거는 펼침 없이 표에 표시해야 함');
+  assert.doesNotMatch(table, /450원/, '최종 지급액을 인정 비용 합계로 표시하지 않아야 함');
+  assert(!markup.includes('본안 비용 계산 상세'));
+  assert(!markup.includes('확정신청비용 계산 상세'));
+});
+
+test('일부반소 대상만 입력한 사건은 미지원 계산 결과와 PDF 인쇄를 표시하지 않음', () => {
+  const f = fixture('1000', '200', '100');
+  f.stages[0].counter = '반소';
+  f.stages[0].partialCounter = { counterPlaintiffIds: ['b'], counterDefendantIds: ['a'] };
+  const markup = renderToStaticMarkup(React.createElement(View, f));
+  assert.match(markup, /일부반소 당사자 선택은 저장됩니다/);
+  assert.doesNotMatch(markup, /최종 상환액 및 계산 내역|<button|aria-label="상환액 산식"/);
 });
